@@ -1,0 +1,32 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ project.name }} · Attack Surface{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p3.index') }}">&larr; Attack Surface</a></p>
+<h1>{{ project.name }}</h1>
+<p>Capability list snapshot: {% if project.capability_snapshot %}<strong>v{{ project.capability_snapshot.version }}</strong> · {{ project.capability_snapshot.items|length }} items{% else %}<em>not linked</em>{% endif %}</p>
+<p>Technique set (bundled MITRE ATT&amp;CK Enterprise slice): <strong>{{ technique_count }}</strong></p>
+
+<section class="shield-lane shield-lane--human">
+  <h3>Analyze coverage</h3>
+  <form method="POST" action="{{ url_for('p3.analyze', project_id=project.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="usa-button">Run ATT&amp;CK coverage analysis</button>
+  </form>
+</section>
+
+<section class="shield-lane shield-lane--ai">
+  <h3>Coverage runs</h3>
+  {% if runs %}
+    <ul>
+      {% for r in runs %}
+        <li>
+          <a href="{{ url_for('p3.run_detail', project_id=project.id, run_id=r.id) }}">Run at {{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</a>
+          — {{ r.summary.get('headline', '') }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No coverage runs yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

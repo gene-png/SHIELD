@@ -1,0 +1,8 @@
+[
+  {"name": "Splunk Enterprise",              "vendor": "Splunk/Cisco", "category": "SIEM",          "function": "log aggregation + correlation", "annual_cost_usd": 480000, "license_count": null, "notes": ""},
+  {"name": "Microsoft Sentinel",             "vendor": "Microsoft",    "category": "SIEM",          "function": "cloud-native SIEM/SOAR",        "annual_cost_usd": 320000, "license_count": null, "notes": "Overlap with Splunk"},
+  {"name": "CrowdStrike Falcon",             "vendor": "CrowdStrike",  "category": "EDR",           "function": "endpoint detection",            "annual_cost_usd": 220000, "license_count": 1500, "notes": ""},
+  {"name": "Microsoft Defender for Endpoint","vendor": "Microsoft",    "category": "EDR",           "function": "endpoint detection (M365 E5)",  "annual_cost_usd": 0,      "license_count": 1500, "notes": "Bundled; overlaps CrowdStrike"},
+  {"name": "Slack Enterprise Grid",          "vendor": "Salesforce",   "category": "Productivity",  "function": "chat",                          "annual_cost_usd": 145000, "license_count": 1500, "notes": ""},
+  {"name": "Microsoft Teams",                "vendor": "Microsoft",    "category": "Productivity",  "function": "chat + meetings (M365)",        "annual_cost_usd": 0,      "license_count": 1500, "notes": "Bundled; overlaps Slack"}
+]

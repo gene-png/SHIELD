@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}SHIELD{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='uswds/css/uswds.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='shield/shield.css') }}">
+  <script defer src="{{ url_for('static', filename='htmx/htmx.min.js') }}"></script>
+  <link rel="icon" href="{{ url_for('static', filename='shield/favicon.svg') }}" type="image/svg+xml">
+</head>
+<body class="shield-body">
+  <header class="usa-header usa-header--basic shield-header" role="banner">
+    <div class="usa-nav-container">
+      <div class="usa-navbar">
+        <div class="usa-logo">
+          <em class="usa-logo__text">
+            <a href="{{ url_for('home') }}" title="SHIELD">SHIELD</a>
+          </em>
+        </div>
+      </div>
+      <nav aria-label="Primary navigation" class="usa-nav">
+        <ul class="usa-nav__primary usa-accordion">
+          <li class="usa-nav__primary-item">
+            <a href="{{ url_for('clients.index') }}" class="usa-nav__link"><span>Clients</span></a>
+          </li>
+          <li class="usa-nav__primary-item">
+            <a href="{{ url_for('p1.index') }}" class="usa-nav__link"><span>Tech Debt</span></a>
+          </li>
+          <li class="usa-nav__primary-item">
+            <a href="{{ url_for('p2.index') }}" class="usa-nav__link"><span>Zero Trust</span></a>
+          </li>
+          <li class="usa-nav__primary-item">
+            <a href="{{ url_for('p3.index') }}" class="usa-nav__link"><span>Attack Surface</span></a>
+          </li>
+          <li class="usa-nav__primary-item">
+            <a href="{{ url_for('repository.browse') }}" class="usa-nav__link"><span>Repository</span></a>
+          </li>
+        </ul>
+        <div class="usa-nav__secondary">
+          {% if current_user.is_authenticated %}
+            <span class="shield-user-chip" title="{{ current_user.role.value }}">{{ current_user.email }} · {{ current_user.role.value }}</span>
+            <a class="usa-button usa-button--outline usa-button--small" href="{{ url_for('identity.logout') }}">Log out</a>
+          {% else %}
+            <a class="usa-button usa-button--small" href="{{ url_for('identity.login') }}">Log in</a>
+          {% endif %}
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content" role="main" class="usa-section">
+    <div class="grid-container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="usa-alert usa-alert--{{ 'error' if category == 'error' else 'info' }} usa-alert--slim" role="status">
+              <div class="usa-alert__body"><p class="usa-alert__text">{{ message }}</p></div>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="usa-footer usa-footer--slim" role="contentinfo">
+    <div class="grid-container">
+      <small>SHIELD · Unified Portal · MIT License</small>
+    </div>
+  </footer>
+</body>
+</html>

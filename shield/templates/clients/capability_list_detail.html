@@ -1,0 +1,22 @@
+{% extends "_layout/base.html" %}
+{% block title %}Capability list v{{ cl.version }} · SHIELD{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('clients.detail', client_id=cl.client_id) }}">&larr; back to client</a></p>
+<h1>Capability list v{{ cl.version }} — {{ cl.label }}</h1>
+<p>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %} · {{ cl.created_at.strftime('%Y-%m-%d') }} · {{ cl.items | length }} items</p>
+
+<table class="usa-table usa-table--striped">
+  <thead><tr><th>Category</th><th>Name</th><th>Vendor</th><th>Function</th><th>Cost/yr</th></tr></thead>
+  <tbody>
+    {% for it in cl.items %}
+      <tr>
+        <td>{{ it.category }}</td>
+        <td><strong>{{ it.name }}</strong></td>
+        <td>{{ it.vendor or '—' }}</td>
+        <td>{{ it.function or '—' }}</td>
+        <td>{% if it.annual_cost_usd %}${{ '{:,}'.format(it.annual_cost_usd) }}{% else %}—{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

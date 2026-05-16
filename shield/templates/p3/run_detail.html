@@ -1,0 +1,45 @@
+{% extends "_layout/base.html" %}
+{% block title %}Coverage run · {{ project.name }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p3.workspace', project_id=project.id) }}">&larr; workspace</a></p>
+<h1>Attack-surface coverage</h1>
+<p>{{ run.summary.get('headline','') }}</p>
+
+<section class="grid-row grid-gap">
+  <div class="tablet:grid-col-4"><div class="usa-card"><h2>{{ run.summary.get('covered',0) }}</h2><p>covered</p></div></div>
+  <div class="tablet:grid-col-4"><div class="usa-card"><h2>{{ run.summary.get('partial',0) }}</h2><p>partial</p></div></div>
+  <div class="tablet:grid-col-4"><div class="usa-card" style="border-left:6px solid #b50909"><h2>{{ run.summary.get('uncovered',0) }}</h2><p>uncovered</p></div></div>
+</section>
+
+<h2>Top three blind spots</h2>
+<ul>
+  {% for tid in run.summary.get('top_three_blind_spots', []) %}
+    {% set t = techniques_by_id.get(tid) %}
+    <li><code>{{ tid }}</code> — {{ t.name if t else 'unknown' }} ({{ t.tactic if t else '' }})</li>
+  {% endfor %}
+</ul>
+
+<details>
+  <summary><h2 style="display:inline">Technical matrix</h2> — drill-down (substrate, not surface)</summary>
+  <table class="usa-table usa-table--striped">
+    <thead><tr><th>Technique</th><th>Tactic</th><th>Coverage</th><th>Detection</th><th>Prevention</th><th>Response</th></tr></thead>
+    <tbody>
+      {% for f in findings %}
+        {% set t = techniques_by_id.get(f.technique_id) %}
+        <tr>
+          <td><code>{{ f.technique_id }}</code> {{ t.name if t else '' }}</td>
+          <td>{{ t.tactic if t else '' }}</td>
+          <td>
+            {% if f.coverage == 'covered' %}<span class="shield-badge shield-badge--human_input">covered</span>{% endif %}
+            {% if f.coverage == 'partial'  %}<span class="shield-badge shield-badge--human_ai_informed">partial</span>{% endif %}
+            {% if f.coverage == 'uncovered' %}<span class="shield-badge shield-badge--ai_generated">uncovered</span>{% endif %}
+          </td>
+          <td>{{ f.detection_tools | join(', ') }}</td>
+          <td>{{ f.prevention_tools | join(', ') }}</td>
+          <td>{{ f.response_tools | join(', ') }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endblock %}

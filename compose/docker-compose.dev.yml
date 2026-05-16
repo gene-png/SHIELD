@@ -1,0 +1,11 @@
+# Dev overlay: hot reload for app, bind-mount the source tree.
+name: shield
+
+services:
+  app:
+    command: ["flask", "--app", "wsgi:app", "run", "--host=0.0.0.0", "--port=8000", "--debug"]
+    environment:
+      FLASK_DEBUG: "1"
+    volumes:
+      - ..:/app:rw
+      - artifacts:/app/artifacts

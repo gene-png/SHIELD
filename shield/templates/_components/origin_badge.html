@@ -1,0 +1,22 @@
+{# Origin badge component.
+
+   Usage:   {% include "_components/origin_badge.html" %}
+   With:    {% set origin = artifact.origin.value %}{% set reuse = artifact.reuse_status.value %}
+
+   This is the visible surface of the entire integrity model (spec §7.3).
+#}
+{%- set origin = origin | default(artifact.origin.value if artifact is defined else 'human_input') -%}
+{%- set reuse  = reuse  | default(artifact.reuse_status.value if artifact is defined else 'draft') -%}
+{%- set label  = {
+      'human_input':      'Human source',
+      'ai_generated':     'AI-generated',
+      'human_ai_informed':'Human, AI-informed',
+   }.get(origin, origin) -%}
+<span class="shield-badge shield-badge--{{ origin }}"
+      aria-label="Origin: {{ label }}{% if origin == 'ai_generated' and reuse == 'approved' %}, promoted{% endif %}">
+  <span class="shield-badge__dot" aria-hidden="true"></span>
+  <span class="shield-badge__text">{{ label }}</span>
+  {% if origin == 'ai_generated' and reuse == 'approved' %}
+    <span class="shield-badge__pill" title="Promoted: AI-origin, human-approved for reuse">promoted</span>
+  {% endif %}
+</span>

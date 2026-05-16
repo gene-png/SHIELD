@@ -1,0 +1,29 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ client.name }} · SHIELD{% endblock %}
+{% block content %}
+<h1>{{ client.name }}</h1>
+<p>{{ client.industry or '' }}</p>
+
+<h2>Capability lists</h2>
+<table class="usa-table usa-table--striped">
+  <thead><tr><th>Version</th><th>Label</th><th>Origin</th><th>Items</th><th>Created</th></tr></thead>
+  <tbody>
+    {% for cl in capability_lists %}
+      <tr>
+        <td><a href="{{ url_for('clients.capability_list_detail', client_id=client.id, list_id=cl.id) }}">v{{ cl.version }}</a></td>
+        <td>{{ cl.label }}</td>
+        <td>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %}</td>
+        <td>{{ cl.items | length }}</td>
+        <td>{{ cl.created_at.strftime('%Y-%m-%d') }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Projects</h2>
+<ul>
+  {% for p in client.projects %}
+    <li>{{ p.platform.value }} — {{ p.name }} — stage: {{ p.stage }}</li>
+  {% endfor %}
+</ul>
+{% endblock %}

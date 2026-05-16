@@ -1,0 +1,48 @@
+/* SHIELD-specific styles. Layered on top of USWDS. Self-hosted only. */
+
+.shield-body { background: #f0f0f0; color: #1b1b1b; }
+.shield-header { border-bottom: 4px solid #005ea2; background: #fff; }
+.shield-user-chip { font-size: 0.85rem; color: #565c65; margin-right: 0.75rem; }
+
+.shield-cards { margin-top: 1.5rem; }
+.shield-card { display: block; padding: 1rem; background: #fff; border: 1px solid #c9c9c9; border-radius: 4px; text-decoration: none; color: inherit; }
+.shield-card:hover { border-color: #005ea2; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+.shield-card h2 { margin-top: 0; color: #005ea2; }
+
+/* ============ origin badges ============ */
+.shield-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; line-height: 1.4; vertical-align: middle; border: 1px solid transparent; }
+.shield-badge__dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; }
+.shield-badge--human_input        { background: #ecf3ec; color: #154c21; border-color: #4d8055; }
+.shield-badge--human_input        .shield-badge__dot { background: #1a7733; }
+.shield-badge--ai_generated       { background: #fff5c2; color: #6a4b00; border-color: #936f00; }
+.shield-badge--ai_generated       .shield-badge__dot { background: #b50909; }
+.shield-badge--human_ai_informed  { background: #e1f3f8; color: #0b4778; border-color: #009ec1; }
+.shield-badge--human_ai_informed  .shield-badge__dot { background: #0076d6; }
+.shield-badge__pill { background: #1a7733; color: #fff; padding: 0 0.4rem; border-radius: 999px; font-size: 0.7rem; margin-left: 0.25rem; }
+
+/* ============ picker ============ */
+.shield-picker__list { list-style: none; padding: 0; margin: 0; }
+.shield-picker__item { border: 1px solid #c9c9c9; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; border-radius: 4px; background: #fff; }
+.shield-picker__item--ai_generated { border-left: 6px solid #b50909; background: #fffaf0; }
+.shield-picker__title { font-weight: 600; }
+.shield-picker__meta  { color: #565c65; font-size: 0.85rem; margin-left: 0.5rem; }
+.shield-picker__ack   { margin: 1rem 0; padding: 0.75rem; background: #fff5c2; border-left: 4px solid #b50909; }
+.shield-picker__ack-note { color: #565c65; font-size: 0.8rem; }
+
+/* ============ attach ============ */
+.shield-attach { padding: 1rem; background: #fff; border: 1px dashed #71767a; border-radius: 4px; }
+.shield-attach__inheritance { font-size: 0.9rem; color: #1b1b1b; margin-top: 0; padding: 0.5rem; background: #e7f6f8; border-left: 4px solid #0076d6; }
+.shield-attach__drop { margin: 0.5rem 0; }
+
+/* ============ filters ============ */
+.shield-filters { margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* ============ misc ============ */
+.shield-body-text { white-space: pre-wrap; background: #f0f0f0; padding: 1rem; border-radius: 4px; max-height: 30rem; overflow: auto; }
+
+/* Lane separation in workspace pages */
+.shield-lane { border: 1px solid #c9c9c9; padding: 1rem; margin-bottom: 1rem; background: #fff; border-radius: 4px; }
+.shield-lane--human    { border-left: 6px solid #1a7733; }
+.shield-lane--ai       { border-left: 6px solid #b50909; }
+.shield-lane--promoted { border-left: 6px solid #0076d6; }
+.shield-lane h3 { margin-top: 0; }

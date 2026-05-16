@@ -1,0 +1,28 @@
+{% extends "_layout/base.html" %}
+{% block title %}Repository · SHIELD{% endblock %}
+{% block content %}
+<h1>Repository</h1>
+<p>Read-only browser across every project and platform you are authorized to see.</p>
+
+<nav class="shield-filters" aria-label="Origin filter">
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'all' else 'outline' }}" href="?origin=all">All</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_input' else 'outline' }}" href="?origin=human_input">Human source</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'ai_generated' else 'outline' }}" href="?origin=ai_generated">AI-generated</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_ai_informed' else 'outline' }}" href="?origin=human_ai_informed">Human, AI-informed</a>
+</nav>
+
+<table class="usa-table usa-table--striped">
+  <thead><tr><th>Title</th><th>Origin</th><th>Stage</th><th>Project</th><th>Created</th></tr></thead>
+  <tbody>
+    {% for a in artifacts %}
+      <tr>
+        <td><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></td>
+        <td>{% set origin = a.origin.value %}{% set reuse = a.reuse_status.value %}{% include "_components/origin_badge.html" %}</td>
+        <td>{{ a.stage }}</td>
+        <td>{{ a.project_id[:8] }}</td>
+        <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

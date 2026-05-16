@@ -1,0 +1,21 @@
+{% extends "_layout/base.html" %}
+{% block title %}Artifact · SHIELD{% endblock %}
+{% block content %}
+<h1>{{ art.title }}</h1>
+<p>
+  {% set origin = art.origin.value %}{% set reuse = art.reuse_status.value %}{% include "_components/origin_badge.html" %}
+  · stage <strong>{{ art.stage }}</strong>
+  · created {{ art.created_at.strftime('%Y-%m-%d %H:%M') }}
+</p>
+{% if art.body_text %}
+<h2>Body</h2>
+<pre class="shield-body-text">{{ art.body_text }}</pre>
+{% endif %}
+<h2>Lineage</h2>
+<pre>{{ art.lineage | tojson(indent=2) }}</pre>
+{% if art.origin.value == 'ai_generated' and art.reuse_status.value != 'approved' and current_user.role.value in ('admin','reviewer') %}
+  <h2>Promote</h2>
+  <p>Promoting elevates reuse status to <em>approved</em>. Origin remains <em>AI-generated</em>.</p>
+  <!-- promotion form would go here in next iteration -->
+{% endif %}
+{% endblock %}

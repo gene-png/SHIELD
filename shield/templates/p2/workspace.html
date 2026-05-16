@@ -1,0 +1,64 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ project.name }} · Zero Trust{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p2.index') }}">&larr; Zero Trust</a></p>
+<h1>{{ project.name }}</h1>
+<p>Framework: <strong>{{ framework.name if framework else project.framework or '—' }}</strong> · Stage: <strong>{{ project.stage }}</strong></p>
+
+<section class="shield-lane shield-lane--human">
+  <h3>Questionnaire</h3>
+  {% if framework %}
+    <table class="usa-table">
+      <thead><tr><th>Control</th><th>Pillar</th><th>Title</th><th>Your answer</th><th>Trust tier</th></tr></thead>
+      <tbody>
+        {% for c in framework.controls %}
+          {% set r = answered.get(c.id) %}
+          <tr id="c-{{ c.id }}">
+            <td><code>{{ c.id }}</code></td>
+            <td>{{ c.pillar }}</td>
+            <td>{{ c.title }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('p2.answer', project_id=project.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="control_id" value="{{ c.id }}">
+                <select class="usa-select" name="answer">
+                  <option value="">—</option>
+                  {% for opt in ['implemented','partial','not_implemented','na'] %}
+                    <option value="{{ opt }}" {% if r and r.answer == opt %}selected{% endif %}>{{ opt }}</option>
+                  {% endfor %}
+                </select>
+                <input class="usa-input" type="text" name="rationale" placeholder="rationale (optional)" value="{{ r.rationale if r else '' }}">
+                <button class="usa-button usa-button--small">Save</button>
+              </form>
+            </td>
+            <td>{{ r.trust_tier.value if r else '—' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('p2.analyze', project_id=project.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="usa-button">Run AI posture analysis</button>
+  </form>
+</section>
+
+<section class="shield-lane shield-lane--ai">
+  <h3>AI artifacts</h3>
+  {% if artifacts %}
+    <ul>
+    {% for a in artifacts %}
+      <li>
+        <strong>{{ a.title }}</strong>
+        {% set origin = a.origin.value %}{% set reuse = a.reuse_status.value %}
+        {% include "_components/origin_badge.html" %}
+        <details><summary>Inspect</summary><pre class="shield-body-text">{{ a.body_text[:4000] }}</pre></details>
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p>Run posture analysis to produce the current-state assessment artifact.</p>
+  {% endif %}
+</section>
+{% endblock %}

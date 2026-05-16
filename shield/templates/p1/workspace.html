@@ -1,0 +1,87 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ project.name }} · Tech Debt{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p1.index') }}">&larr; Tech Debt</a></p>
+<h1>{{ project.name }}</h1>
+<p>Client: <a href="{{ url_for('clients.detail', client_id=project.client_id) }}">{{ project.client.name }}</a> · Stage: <strong>{{ project.stage }}</strong></p>
+
+<div class="grid-row grid-gap">
+  {# ============ Human lane ============ #}
+  <div class="tablet:grid-col-4">
+    <section class="shield-lane shield-lane--human">
+      <h3>Human source</h3>
+      {% include "_components/attach.html" with context %}
+      {% if human %}
+        <ul>
+        {% for a in human %}
+          <li>
+            <strong>{{ a.title }}</strong>
+            <form method="POST" action="{{ url_for('p1.extract', project_id=project.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="artifact_id" value="{{ a.id }}">
+              <button class="usa-button usa-button--small">→ AI extract</button>
+            </form>
+          </li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p>No human source artifacts yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ============ AI lane ============ #}
+  <div class="tablet:grid-col-4">
+    <section class="shield-lane shield-lane--ai">
+      <h3>AI-generated</h3>
+      {% if ai %}
+        <ul>
+        {% for a in ai %}
+          <li id="a-{{ a.id }}">
+            <strong>{{ a.title }}</strong>
+            <span class="shield-picker__meta">
+              {% set origin = 'ai_generated' %}{% set reuse = a.reuse_status.value %}
+              {% include "_components/origin_badge.html" %}
+            </span>
+            <details>
+              <summary>Inspect output</summary>
+              <pre class="shield-body-text">{{ a.body_text[:4000] }}</pre>
+            </details>
+            {% if a.stage == 'ai_extraction' %}
+              <a class="usa-button usa-button--small" href="{{ url_for('p1.review_extraction', project_id=project.id, ai_artifact_id=a.id) }}">Review &amp; confirm</a>
+            {% endif %}
+          </li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p>No AI artifacts yet. Upload a source file, then click "AI extract".</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ============ Human-authored-AI-informed lane ============ #}
+  <div class="tablet:grid-col-4">
+    <section class="shield-lane shield-lane--promoted">
+      <h3>Human, AI-informed</h3>
+      {% if informed %}
+        <ul>
+        {% for a in informed %}
+          <li>
+            <strong>{{ a.title }}</strong>
+            <form method="POST" action="{{ url_for('p1.overlap', project_id=project.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="artifact_id" value="{{ a.id }}">
+              <button class="usa-button usa-button--small">→ Run overlap analysis</button>
+            </form>
+          </li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p>The admin-confirmed extraction lands here after review.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% set upload_url = url_for('p1.upload', project_id=project.id) %}
+{% set project_name = project.name %}
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "_layout/base.html" %}
+{% block title %}SHIELD · Home{% endblock %}
+{% block content %}
+<section class="usa-prose">
+  <h1>SHIELD</h1>
+  <p class="usa-intro">
+    Three independent assessment platforms over one shared spine.
+    Pick a platform to start, or browse your clients.
+  </p>
+
+  <div class="grid-row grid-gap shield-cards">
+    <div class="tablet:grid-col-4">
+      <a class="usa-card shield-card" href="{{ url_for('p1.index') }}">
+        <h2>Tech Debt</h2>
+        <p>Find overlapping, redundant, and shadow-IT tooling. Redirect waste to priorities.</p>
+      </a>
+    </div>
+    <div class="tablet:grid-col-4">
+      <a class="usa-card shield-card" href="{{ url_for('p2.index') }}">
+        <h2>Zero Trust</h2>
+        <p>Assess compliance posture against CISA ZTMM, DoD ZT, or CSF. Build the roadmap.</p>
+      </a>
+    </div>
+    <div class="tablet:grid-col-4">
+      <a class="usa-card shield-card" href="{{ url_for('p3.index') }}">
+        <h2>Attack Surface</h2>
+        <p>Map capabilities to MITRE ATT&amp;CK. Identify the techniques you cannot detect.</p>
+      </a>
+    </div>
+  </div>
+
+  <p>
+    <a href="{{ url_for('clients.index') }}" class="usa-button usa-button--outline">All clients</a>
+    <a href="{{ url_for('repository.browse') }}" class="usa-button usa-button--outline">Repository</a>
+  </p>
+</section>
+{% endblock %}
