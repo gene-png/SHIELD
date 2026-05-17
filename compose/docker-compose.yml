@@ -145,7 +145,11 @@ services:
     volumes:
       - artifacts:/app/artifacts
     command: ["rq", "worker", "shield-ai", "--url", "redis://redis:6379/0"]
-    networks: [shield_internal]
+    # shield_internal so it can reach db + redis on the closed network.
+    # shield_public so it has egress to the Anthropic API — without it
+    # DNS resolution of `api.anthropic.com` fails ("Temporary failure
+    # in name resolution") and every AI job dies as APIConnectionError.
+    networks: [shield_internal, shield_public]
     security_opt:
       - no-new-privileges:true
     # The worker reuses the app image, which has a curl /healthz HEALTHCHECK
