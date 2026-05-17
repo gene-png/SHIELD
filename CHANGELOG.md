@@ -21,6 +21,44 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.0] — 2026-05-17 — client-portal redesign complete (PR 6 of 6)
+
+PR 6 is the wrap-up: documentation, threat-model rows, and a small
+audit-viewer convenience. No new behavior on existing routes.
+
+### Added — threat model rows (`docs/security/THREAT_MODEL.md`)
+
+- **Cross-client read by a multi-tenant user.** The `access_denied`
+  audit pattern, 404-not-403 failure mode, and the membership /
+  assignment scoping that backs it.
+- **Phishing / social engineering inside message threads.** Append-only,
+  audited, no peer-to-peer DM, `/admin/messages/` makes every
+  conversation part of the audit surface.
+- **Invitation-token replay or theft.** SHA-256-hashed storage,
+  email-match enforcement, 7-day expiry, revocation, audit trail.
+
+### Added — audit viewer quick filters
+
+- `/audit/` page gains a row of one-click chips for the v1.8 event
+  families: client intake, artifact adoption, deliverables,
+  messages, cross-client denied, client uploads. Each chip
+  prefills the existing free-text action filter — no new query
+  parameters, no schema change.
+
+### Status
+
+- 120 tests passing across 1.0 → 1.8 (was 58/58 at v1.7 ship).
+- Six PR commits on `feat/v1.8-portal`:
+  `6889d7f` (PR 1 — schema + migration)
+  `3e2aa31` (PR 2 — access control overhaul)
+  `99abc9f` (PR 3 — welcome + intake wizard)
+  `8520bb8` (PR 4 — dashboard + deliverables + messages + invites)
+  `99cb03a` (PR 5 — admin queue + intake-view + adopt + finalize + inbox)
+  this commit (PR 6 — docs + threat model + audit quick filters)
+- Existing flows unchanged: integrity model + origin immutability
+  + audit append-only + AI-egress redaction all carry through. The
+  rework is purely additive around the v1.0 → v1.7 spine.
+
 ## [1.8.0-rc5] — 2026-05-17 — admin surfaces: queue, intake-view, adopt, finalize, inbox (PR 5 of 6)
 
 ### Added — admin landing + workflow
