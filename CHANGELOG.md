@@ -12,12 +12,58 @@ Items deferred to v2 (out of v1 scope):
 
 - Cross-platform value loop (spec §9 / Decision #5) — explicitly
   deferred per the spec until v1 is validated in production.
-- Per-user Client association on `User` — the intake surface currently
-  shows every active project to every CLIENT-role user instead of
-  scoping to one client.
 - Workspace rebuild on P1/P2 in the style of P3's executive run-detail
   (the analog is a per-project "review output" page, not a workspace
   redesign).
+- Email-delivered invites — v1.8 ships in-app only; the inviter sees
+  a copy-pasteable invitation link.
+- Deliverable revision UI — `superseded_at` / `superseded_by` ship in
+  the schema in v1.8 but the listing UI for superseded versions is
+  a v2 follow-up.
+
+## [1.8.0-rc1] — 2026-05-17 — client portal: schema only (PR 1 of 6)
+
+This release is the first of six PRs implementing the v1.8 client
+portal redesign (see `docs/v1.8-portal-spec.md`, to be added). It is
+schema-only: no new routes, no template changes, no behavior change
+for existing flows.
+
+### Added — data model
+
+- `Client` extended with intake metadata: legal/dba name, website,
+  size band, primary POC name/title/email/phone, full address,
+  compliance frameworks (JSON list), compliance deadline, prompting
+  context, `service_interests` (JSON list of `tech_debt` /
+  `zero_trust` / `attack_surface`), `consult_requested` flag,
+  `intake_completed_at` timestamp.
+- `User` extended with optional `title` and `phone` (Keycloak still
+  owns email + sub).
+- `Project` gains `is_client_repository` flag. Exactly one synthetic
+  "Client Repository" project per client; client-tier uploads land
+  there with `stage='client_repository'`.
+- `Artifact` gains a denormalized `client_id` column (NOT NULL).
+  Writers auto-fill it from `project.client_id`; every per-client
+  scoping query reads this directly.
+- Six new tables: `client_memberships`, `client_invitations`,
+  `messages`, `notifications`, `deliverables`, `reviewer_assignments`.
+
+### Added — migration
+
+- `0002_v18_client_portal` with backfill: existing artifacts get
+  `client_id` set from their project; the demo Acme client gets all
+  three service interests with `intake_completed_at = NULL` so
+  `client@demo` walks the new welcome flow on next login; a synthetic
+  "Client Repository" project is created per client; `client@demo`
+  becomes a `primary_poc` of Acme. Round-trips cleanly via
+  `flask db downgrade 0001_initial && flask db upgrade`.
+
+### Tests
+
+- 58 → 66 passing. 8 new schema-invariant tests in
+  `tests/test_v18_models.py` covering Artifact.client_id wiring,
+  ClientMembership uniqueness, ReviewerAssignment uniqueness,
+  ClientInvitation token-hash uniqueness, and basic instantiation of
+  Message / Notification / Deliverable.
 
 ## [1.7] — 2026-05-17 — UX pass against the field-review doc
 

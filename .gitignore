@@ -27,3 +27,6 @@ shield/static/htmx/htmx.min.js
 *.db
 .vscode/launch.json
 .vscode/settings.json
+
+# Claude Code transient runtime
+.local/
