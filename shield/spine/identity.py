@@ -88,20 +88,50 @@ def login():
     return _oauth_client().authorize_redirect(redirect_uri)
 
 
+def _jwt_payload(jwt_str: str) -> dict:
+    """Decode a JWT's payload without verifying — for reading realm_access
+    from Keycloak's access_token, which Authlib already verified at token
+    exchange. We're not making security decisions here, just reading
+    claims that were signed by our trusted IdP."""
+    import base64
+    import json
+    try:
+        parts = jwt_str.split(".")
+        if len(parts) != 3:
+            return {}
+        payload = parts[1] + "=" * (-len(parts[1]) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:
+        return {}
+
+
 @bp.route("/callback")
 def callback():
     token = _oauth_client().authorize_access_token()
-    # Keycloak's userinfo endpoint does not return realm_access by default,
-    # so role mapping relies on the id_token. Parse both and merge with
-    # id_token claims winning — they're the signed assertion the client
-    # is supposed to trust for identity.
+    # Realm role mapping is delicate. Keycloak ships `realm_access.roles`
+    # in the access_token by default, but the id_token only carries it
+    # when an explicit roles mapper is configured on the client scope —
+    # which the bundled `shield-dev` realm doesn't have. So we pull
+    # claims from three sources in fallback order:
+    #   1. id_token  (signed identity assertion — preferred for sub/email)
+    #   2. userinfo  (extra profile attributes, sometimes returned)
+    #   3. access_token (the one Keycloak always populates with realm
+    #      roles; safe to read because Authlib just verified the token
+    #      exchange and the access_token is a peer artifact of id_token).
     id_token_claims: dict = {}
     try:
         id_token_claims = _oauth_client().parse_id_token(token, None) or {}
     except Exception:
         id_token_claims = {}
     userinfo = token.get("userinfo") or {}
-    claims = {**userinfo, **id_token_claims}
+    access_claims = _jwt_payload(token.get("access_token", ""))
+
+    # Merge — id_token wins for shared keys, access_token only fills
+    # gaps. realm_access is the gap we care about.
+    claims = {**access_claims, **userinfo, **id_token_claims}
+    if "realm_access" not in claims and "realm_access" in access_claims:
+        claims["realm_access"] = access_claims["realm_access"]
+
     user = _upsert_user_from_claims(dict(claims))
     login_user(user, remember=False)
     log_audit("auth.login", actor=user, details={"sub": user.sub, "role": user.role.value})
