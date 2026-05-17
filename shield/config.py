@@ -37,7 +37,10 @@ class Config:
     # Anthropic
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL_APP = os.environ.get("ANTHROPIC_MODEL_APP", "claude-opus-4-7")
-    ANTHROPIC_MAX_OUTPUT_TOKENS = int(os.environ.get("ANTHROPIC_MAX_OUTPUT_TOKENS", "4096"))
+    # 16384 fits P3's full ATT&CK coverage response (222 techniques ×
+    # per-technique rationale). 4096 truncated mid-JSON in live runs
+    # and made the JSON-parse step fall back to an empty CoverageRun.
+    ANTHROPIC_MAX_OUTPUT_TOKENS = int(os.environ.get("ANTHROPIC_MAX_OUTPUT_TOKENS", "16384"))
     AI_MODE = os.environ.get("AI_MODE", "real")  # "real" or "fixture"
 
     # Keycloak (OIDC)
