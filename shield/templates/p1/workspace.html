@@ -17,13 +17,18 @@
 </p>
 
 {% set has_confirmed = informed | selectattr('stage', 'equalto', 'extraction_review') | list %}
-{% if has_confirmed %}
-  <p>
-    <a class="usa-button" href="{{ url_for('p1.finalize', project_id=project.id) }}">
-      Finalize — produce admin-final capability list →
+<p class="usa-button-group">
+  {% if has_overlap %}
+    <a class="usa-button usa-button--outline" href="{{ url_for('p1.project_summary', project_id=project.id) }}">
+      View project summary &rarr;
     </a>
-  </p>
-{% endif %}
+  {% endif %}
+  {% if has_confirmed %}
+    <a class="usa-button" href="{{ url_for('p1.finalize', project_id=project.id) }}">
+      Finalize &mdash; produce admin-final capability list &rarr;
+    </a>
+  {% endif %}
+</p>
 
 <div class="grid-row grid-gap">
   {# ============ Human lane ============ #}

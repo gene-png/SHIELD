@@ -13,10 +13,18 @@
     &middot; List: <em>not linked</em>
   {% endif %}
   {% if current_user.role.value in ('admin', 'reviewer') %}
-    &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Relink list →</a>
-    &middot; <a href="{{ url_for('p2.walkability', project_id=project.id) }}">Reviewer walkability →</a>
+    &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Relink list &rarr;</a>
+    &middot; <a href="{{ url_for('p2.walkability', project_id=project.id) }}">Reviewer walkability &rarr;</a>
   {% endif %}
 </p>
+{% if has_assessment %}
+  <p>
+    <a class="usa-button usa-button--outline"
+       href="{{ url_for('p2.project_summary', project_id=project.id) }}">
+      View project summary &rarr;
+    </a>
+  </p>
+{% endif %}
 
 {# ============ Questionnaire ============ #}
 <section class="shield-lane shield-lane--human">

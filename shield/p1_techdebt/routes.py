@@ -164,9 +164,54 @@ def workspace(project_id: str):
     human    = [a for a in artifacts if a.origin == Origin.HUMAN_INPUT]
     ai       = [a for a in artifacts if a.origin == Origin.AI_GENERATED]
     informed = [a for a in artifacts if a.origin == Origin.HUMAN_AI_INFORMED]
+    # Whether the Project summary button should be enabled — only if
+    # there's at least one overlap_analysis artifact to summarize.
+    has_overlap = any(a.stage == "overlap_analysis" for a in ai)
     return render_template(
         "p1/workspace.html", project=project,
         human=human, ai=ai, informed=informed,
+        has_overlap=has_overlap,
+    )
+
+
+@bp.route("/project/<project_id>/summary")
+@login_required
+def project_summary(project_id: str):
+    """Executive-first summary of the project (mirror of P3's run_detail).
+
+    Pulls the most recent overlap_analysis artifact, parses its JSON,
+    surfaces the headline + counts + top three overlaps, then keeps
+    the full overlap content (every group + shadow IT row) collapsible
+    below. Falls through to a friendly empty state when no overlap
+    has run yet.
+    """
+    project = _get_project_or_404(project_id)
+    overlap_art = (
+        db.session.query(Artifact)
+        .filter_by(
+            project_id=project.id,
+            origin=Origin.AI_GENERATED,
+            stage="overlap_analysis",
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+    overlap = None
+    if overlap_art is not None and overlap_art.body_text:
+        try:
+            overlap = json.loads(overlap_art.body_text)
+        except (ValueError, TypeError):
+            overlap = None
+
+    cap_list = project.capability_snapshot
+    tools_count = len(cap_list.items) if cap_list is not None else 0
+
+    return render_template(
+        "p1/project_summary.html",
+        project=project,
+        overlap=overlap,
+        overlap_art=overlap_art,
+        tools_count=tools_count,
     )
 
 

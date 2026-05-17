@@ -161,9 +161,57 @@ def workspace(project_id: str):
         .all()
     )
     answered = {r.control_id: r for r in responses}
+    has_assessment = any(a.stage == "current_state_assessment" for a in artifacts)
     return render_template(
         "p2/workspace.html", project=project, framework=framework,
         artifacts=artifacts, answered=answered,
+        has_assessment=has_assessment,
+    )
+
+
+@bp.route("/project/<project_id>/summary")
+@login_required
+def project_summary(project_id: str):
+    """Executive-first summary of the project (mirror of P3's run_detail).
+
+    Pulls the latest current_state_assessment, parses its JSON
+    `{controls: [...], summary: {implemented, partial, not_implemented}}`
+    shape, surfaces the headline + counts + top three gaps, and keeps
+    the per-pillar matrix collapsible below.
+    """
+    project = _get_project_or_404(project_id)
+    framework = FRAMEWORKS.get(project.framework or "cisa_ztmm_v2")
+    assessment_art = (
+        db.session.query(Artifact)
+        .filter_by(
+            project_id=project.id,
+            origin=Origin.AI_GENERATED,
+            stage="current_state_assessment",
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+    assessment = None
+    if assessment_art is not None and assessment_art.body_text:
+        try:
+            assessment = json.loads(assessment_art.body_text)
+        except (ValueError, TypeError):
+            assessment = None
+
+    # Build a lookup from control_id to its catalog row so the template
+    # can render names and pillars without rescanning the framework on
+    # every iteration.
+    control_lookup: dict = {}
+    if framework is not None:
+        control_lookup = {c.id: c for c in framework.controls}
+
+    return render_template(
+        "p2/project_summary.html",
+        project=project,
+        framework=framework,
+        assessment=assessment,
+        assessment_art=assessment_art,
+        control_lookup=control_lookup,
     )
 
 

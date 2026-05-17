@@ -1,0 +1,165 @@
+{% extends "_layout/base.html" %}
+{% block title %}Tech Debt summary · {{ project.name }}{% endblock %}
+{% block content %}
+<p>
+  <a href="{{ url_for('p1.workspace', project_id=project.id) }}">&larr; workspace</a>
+</p>
+
+{% if overlap is none %}
+  {# Empty state — no overlap analysis to summarize yet. #}
+  <section class="shield-exec">
+    <p class="shield-exec__eyebrow">Tech Debt summary &mdash; {{ project.client.name }}</p>
+    <h1 class="shield-exec__headline">Nothing to summarize yet.</h1>
+    <p class="usa-prose">
+      This page becomes the project's executive view once the overlap
+      analysis has run. From the workspace: upload a source file,
+      run automated extraction, review the extracted list, then
+      <strong>Run overlap analysis</strong>.
+    </p>
+    <p><a class="usa-button" href="{{ url_for('p1.workspace', project_id=project.id) }}">Open workspace</a></p>
+  </section>
+{% else %}
+
+{# ============ EXECUTIVE READING PATH (mirror of P3 run_detail) ============ #}
+
+{%- set summary       = overlap.get('summary')       or {} -%}
+{%- set overlaps      = overlap.get('overlaps')      or [] -%}
+{%- set shadow_it     = overlap.get('shadow_it')     or [] -%}
+{%- set spend_total   = summary.get('total_annual_spend_usd') -%}
+{%- set savings_est   = summary.get('consolidation_savings_estimate_usd') -%}
+
+<section class="shield-exec">
+  <p class="shield-exec__eyebrow">Tech Debt summary &mdash; {{ project.client.name }}</p>
+  <h1 class="shield-exec__headline">
+    {{ summary.get('headline', 'Overlap analysis complete.') }}
+  </h1>
+
+  <div class="grid-row grid-gap shield-exec__numbers">
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--good">
+        <h2>{{ tools_count }}</h2>
+        <p>tools in the capability list<br><small>your inventory baseline</small></p>
+      </div>
+    </div>
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--mid">
+        <h2>{{ overlaps | length }}</h2>
+        <p>overlap groups identified<br><small>same function, multiple products</small></p>
+      </div>
+    </div>
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--bad" style="border-left:6px solid #b50909">
+        <h2>
+          {%- if savings_est is not none -%}
+            ${{ "{:,.0f}".format(savings_est) }}
+          {%- else -%}&mdash;{%- endif -%}
+        </h2>
+        <p><strong>consolidation savings (est.)</strong><br><small>conservative; out-going tool's annual cost only</small></p>
+      </div>
+    </div>
+  </div>
+
+  <h2>Where the redundancy is</h2>
+  <p class="usa-prose">
+    The groups below are functional overlaps in your stack &mdash; the
+    same capability covered by more than one product. Each is a
+    candidate for consolidation, with an estimated annual cost based
+    on the out-going tool only (the in-place one stays).
+  </p>
+
+  <div class="grid-row grid-gap shield-blindspots">
+    {% for g in overlaps[:3] %}
+      <div class="tablet:grid-col-4">
+        <div class="usa-card shield-card--blindspot">
+          <p class="shield-card__tag"><code>{{ g.get('category', 'overlap') }}</code></p>
+          <h3>
+            {%- set cands = g.get('candidates') or [] -%}
+            {%- if cands -%}{{ cands | join(' + ') }}{%- else -%}(group){%- endif -%}
+          </h3>
+          {% if g.get('estimated_overlap_cost_usd') %}
+            <p class="usa-prose">
+              <strong>${{ "{:,.0f}".format(g.get('estimated_overlap_cost_usd')) }}/yr</strong>
+              {% if g.get('recommendation') %} &mdash; {{ g.get('recommendation') }}{% endif %}
+            </p>
+          {% elif g.get('recommendation') %}
+            <p class="usa-prose">{{ g.get('recommendation') }}</p>
+          {% endif %}
+          {% if g.get('rationale') %}
+            <p class="usa-hint"><strong>Why:</strong> {{ g.get('rationale') }}</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if overlaps | length > 3 %}
+    <p class="usa-hint"><em>&hellip; and {{ overlaps | length - 3 }} more overlap groups in the full analysis below.</em></p>
+  {% endif %}
+
+  <h2>The recommendation</h2>
+  <p class="usa-prose">
+    Each overlap group is a candidate for either (a) consolidating onto
+    one product, (b) renegotiating the duplicate spend, or (c) an
+    explicit, documented acceptance that the redundancy is intentional.
+    Shadow-IT findings ({{ shadow_it | length }}) need an owner before any
+    decision &mdash; you can't consolidate what no one owns.
+  </p>
+</section>
+
+{# ============ TECHNICAL SUBSTRATE (drill-down) ============ #}
+
+<details class="shield-substrate" style="margin-top:2rem;">
+  <summary>
+    <h2 style="display:inline">Full overlap analysis</h2>
+    &nbsp;&mdash; every overlap group, every shadow-IT finding (the substrate, not the surface)
+  </summary>
+  <p class="usa-hint">
+    Latest overlap artifact:
+    <a href="{{ url_for('repository.artifact_detail', artifact_id=overlap_art.id) }}">{{ overlap_art.title }}</a>
+    &middot; {{ overlap_art.created_at.strftime('%Y-%m-%d %H:%M') }}
+  </p>
+
+  {% if overlaps %}
+    <h3>Overlap groups</h3>
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr><th>Category</th><th>Candidates</th><th>Est. overlap $/yr</th><th>Recommendation</th></tr>
+      </thead>
+      <tbody>
+        {% for g in overlaps %}
+          <tr>
+            <td><code>{{ g.get('category', '') }}</code></td>
+            <td>{{ (g.get('candidates') or []) | join(', ') }}</td>
+            <td>{% if g.get('estimated_overlap_cost_usd') %}${{ "{:,.0f}".format(g.get('estimated_overlap_cost_usd')) }}{% endif %}</td>
+            <td>{{ g.get('recommendation', '') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if shadow_it %}
+    <h3>Shadow IT</h3>
+    <table class="usa-table usa-table--striped">
+      <thead><tr><th>Name</th><th>Vendor</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for s in shadow_it %}
+          <tr>
+            <td>{{ s.get('name', '') }}</td>
+            <td>{{ s.get('vendor', '') }}</td>
+            <td>{{ s.get('reason', '') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if spend_total is not none %}
+    <p class="usa-prose">
+      <strong>Total annual spend in scope:</strong> ${{ "{:,.0f}".format(spend_total) }}
+    </p>
+  {% endif %}
+</details>
+
+{% endif %}
+{% endblock %}
