@@ -30,6 +30,29 @@
 
   <fieldset class="usa-fieldset">
     <legend class="usa-legend">Framework</legend>
+    <p class="usa-hint">
+      All three frameworks describe Zero Trust posture; they differ in
+      audience, granularity, and what regulator (if any) is asking.
+      Pick the one your stakeholder reads &mdash; you can always run a
+      second project against another framework on the same data.
+    </p>
+    {# Short "this one is for you if..." hints, keyed by framework id.
+       Edit these in this template; they're not part of the catalog JSON
+       because the framework loader is data, not editorial copy. #}
+    {%- set chooser_hint = {
+          'cisa_ztmm_v2':
+            "Civilian federal agencies and federal contractors. The "
+            "executive-readable version with four maturity stages "
+            "(Traditional / Initial / Advanced / Optimal).",
+          'dod_zt':
+            "DoD components and defense industrial base. Mapped to the "
+            "DoD ZT Strategy's 152-activity execution plan; deeper, "
+            "more prescriptive than CISA's.",
+          'nist_csf_v2':
+            "Commercial enterprises, cyber-insurance reviews, board-level "
+            "reporting. The broadest framework (185 subcategories) and "
+            "the one most non-federal auditors already know.",
+       } -%}
     {% for fid, fw in frameworks.items() %}
       <div class="usa-radio">
         <input class="usa-radio__input" type="radio"
@@ -37,7 +60,10 @@
                {% if form.get('framework') == fid %}checked{% endif %}>
         <label class="usa-radio__label" for="fw-{{ fid }}">
           <strong>{{ fw.name }}</strong>
-          <span class="usa-hint">({{ fw.controls | length }} controls; {{ fw.pillars | length }} pillars)</span>
+          <span class="usa-hint">({{ fw.controls | length }} controls &middot; {{ fw.pillars | length }} pillars)</span>
+          {% if chooser_hint.get(fid) %}
+            <br><small class="shield-chooser-hint"><em>Pick this if:</em> {{ chooser_hint[fid] }}</small>
+          {% endif %}
         </label>
       </div>
     {% endfor %}

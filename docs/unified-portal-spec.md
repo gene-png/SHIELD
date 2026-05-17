@@ -5,6 +5,35 @@
 **What this document is:** the architecture, the integrity model, the shared page template, the per-platform specifications, the decision log, and the recommended build sequence. It is the contract the rework builds against.
 **What this document is not:** screen-level visual layouts, the actual questionnaire/question sets, the database schema, or the AI engine internals. Those are deliberately downstream of this and noted in Section 11.
 
+## Contents
+
+1. [The product in one paragraph](#1-the-product-in-one-paragraph)
+2. [Non-negotiable architectural principles](#2-non-negotiable-architectural-principles)
+3. [Environment & compliance constraints](#3-environment--compliance-constraints)
+4. [The origin & integrity model](#4-the-origin--integrity-model)
+5. [Shared conceptual data model](#5-shared-conceptual-data-model-entities-not-schema)
+6. [The shared page template](#6-the-shared-page-template)
+   - 6.1 [Module landing / project list](#61-module-landing--project-list)
+   - 6.2 [Project workspace](#62-project-workspace-the-hub-of-each-platform)
+   - 6.3 [Stage / processing page — integrity chokepoint](#63-stage--processing-page--the-integrity-chokepoint)
+   - 6.4 [Document detail / provenance page](#64-document-detail--provenance-page)
+   - 6.5 [Repository browser](#65-repository-browser-the-one-global-cross-module-page)
+   - 6.6 [Client intake surface](#66-client-intake-surface)
+7. [Shared components](#7-shared-components-build-once-used-everywhere)
+   - 7.1 [The attach-file component](#71-the-attach-file-component)
+   - 7.2 [The artifact picker](#72-the-client-scoped-project-linked-artifact-picker)
+   - 7.3 [The origin badge / provenance display](#73-the-origin-badge--provenance-display)
+8. [Per-platform specification](#8-per-platform-specification)
+   - 8.1 [Platform 1 — Technical Debt / Overlap](#81-platform-1--technical-debt--overlap)
+   - 8.2 [Platform 2 — Zero Trust / CSF Compliance Posture](#82-platform-2--zero-trust--csf-compliance-posture)
+   - 8.3 [Platform 3 — MITRE ATT&CK Attack Surface / Gap Analysis](#83-platform-3--mitre-attck-attack-surface--gap-analysis)
+9. [Cross-platform value loop (deferred)](#9-the-cross-platform-value-loop-decision-5--flagged-deliberately-later-phase)
+10. [Decision log](#10-decision-log)
+11. [Deliberately out of scope](#11-deliberately-out-of-scope-for-this-document)
+12. [Recommended build sequence](#12-recommended-build-sequence)
+
+See also: [GLOSSARY.md](GLOSSARY.md) for the plain-English version of the terms used here.
+
 ---
 
 ## 1. The product in one paragraph
