@@ -41,6 +41,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     login_manager.login_view = "identity.login"
 
     # --- Spine Blueprints ---
+    from .spine.audit_views import bp as audit_bp
     from .spine.clients import bp as clients_bp
     from .spine.identity import bp as identity_bp
     from .spine.intake import bp as intake_bp
@@ -53,6 +54,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     app.register_blueprint(intake_bp, url_prefix="/intake")
     app.register_blueprint(projects_bp, url_prefix="/projects")
     app.register_blueprint(jobs_bp, url_prefix="/jobs")
+    app.register_blueprint(audit_bp, url_prefix="/audit")
 
     # --- Platform Blueprints ---
     from .p1_techdebt import bp as p1_bp

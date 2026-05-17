@@ -208,6 +208,19 @@ def test_reviewer_blocked_from_mutating_routes(reviewer_client):
         assert r.status_code == 302, f"reviewer NOT blocked from {path!r}"
 
 
+def test_reviewer_can_view_audit_log(reviewer_client):
+    """Audit log is the reviewer's primary read surface."""
+    r = reviewer_client.get("/audit/")
+    assert r.status_code == 200
+
+
+def test_client_blocked_from_audit_log(client_role_client):
+    """CLIENT role should never see the audit log."""
+    r = client_role_client.get("/audit/", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["Location"].endswith("/intake/")
+
+
 def test_reviewer_can_promote_ai_artifacts(reviewer_client, admin, p2_project):
     """Reviewer is one of the two roles allowed to promote AI artifacts."""
     from shield.models import Artifact, Origin, ReuseStatus
