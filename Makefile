@@ -1,5 +1,11 @@
 # SHIELD — developer interface. Run `make` for help.
-COMPOSE        := docker compose -f compose/docker-compose.yml
+#
+# --env-file .env is required because compose lives in compose/ (not project
+# root), so its default .env discovery looks in compose/, not at the project
+# root where the gitignored .env actually lives. Without this flag every
+# ${VAR:-default} substitution falls back to its default — including
+# ANTHROPIC_API_KEY=, which breaks AI calls silently.
+COMPOSE        := docker compose --env-file .env -f compose/docker-compose.yml
 COMPOSE_DEV    := $(COMPOSE) -f compose/docker-compose.dev.yml
 SHELL          := /bin/bash
 

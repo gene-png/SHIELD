@@ -18,12 +18,14 @@ from shield.models import (
     CapabilityList,
     CapabilityListItem,
     Client,
+    MitreTechnique,
     Origin,
     PlatformType,
     Project,
     Role,
     User,
 )
+from shield.p3_attack_surface.attack_data import TECHNIQUES as MITRE_TECHNIQUES
 from shield.spine.audit import log_audit
 from scripts.seed_catalog import CATALOG
 
@@ -88,6 +90,26 @@ def seed() -> None:
                 details={"version": cl.version, "items": len(CATALOG)},
             )
 
+        # --- MITRE ATT&CK technique catalog (Platform 3) ---
+        # The starter set is curated in shield/p3_attack_surface/attack_data.py.
+        # Full STIX import is the planned `make vendor-attack` follow-up.
+        if db.session.query(MitreTechnique).count() == 0:
+            for t in MITRE_TECHNIQUES:
+                db.session.add(MitreTechnique(
+                    technique_id=t["technique_id"],
+                    name=t["name"],
+                    tactic=t["tactic"],
+                    description=t.get("description", ""),
+                    matrix="enterprise",
+                ))
+            db.session.commit()
+            log_audit(
+                "seed.mitre",
+                actor=admin,
+                target_type="mitre_technique_catalog",
+                details={"count": len(MITRE_TECHNIQUES), "matrix": "enterprise"},
+            )
+
         # --- One project per platform ---
         latest_cl = acme.latest_capability_list()
         for platform, name, framework in [
@@ -113,10 +135,14 @@ def seed() -> None:
             )
             db.session.add(p)
         db.session.commit()
+        mitre_count = db.session.query(MitreTechnique).count()
         log_audit("seed.complete", actor=admin, client_id=acme.id,
-                  details={"items": len(CATALOG), "projects": 3})
+                  details={"items": len(CATALOG), "projects": 3, "mitre_techniques": mitre_count})
 
-        print(f"Seeded: client={acme.name}, users={len(users)}, items={len(CATALOG)}, projects=3")
+        print(
+            f"Seeded: client={acme.name}, users={len(users)}, "
+            f"items={len(CATALOG)}, projects=3, mitre_techniques={mitre_count}"
+        )
 
 
 if __name__ == "__main__":

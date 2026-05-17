@@ -27,7 +27,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy import event
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from .extensions import db
 
@@ -227,6 +227,24 @@ class Artifact(db.Model):
 
     project = relationship("Project", back_populates="artifacts")
 
+    @validates("origin")
+    def _validate_origin(self, _key, value):
+        """Python-level rejection of origin mutation.
+
+        Belt-and-suspenders alongside the `before_update` event listener
+        below and the Postgres trigger in the initial migration: this
+        fires on Python attribute assignment, so an attempt to do
+        ``art.origin = Origin.AI_GENERATED`` raises immediately rather
+        than waiting until flush. Important for the test suite (SQLite
+        has no trigger) and for catching mistakes earlier in dev.
+        """
+        current = self.__dict__.get("origin")
+        if current is not None and value != current:
+            raise ValueError(
+                f"Artifact.origin is immutable (was {current!r}, attempted {value!r})"
+            )
+        return value
+
 
 # ============================================================
 # Audit log — append-only
@@ -316,6 +334,12 @@ class CoverageFinding(db.Model):
 
 @event.listens_for(Artifact, "before_update", propagate=True)
 def _artifact_origin_is_immutable(_mapper, _connection, target):
+    """Defense in depth: even if @validates is bypassed (e.g. direct
+    `db.session.execute(update(...))`), this listener catches changes at
+    flush time. The earlier `and hist.deleted` filter was incorrect:
+    `hist.deleted` can be empty after `expire_on_commit=True` even when a
+    change is pending, so the listener silently no-op'd in tests.
+    """
     hist = db.inspect(target).attrs.origin.history
-    if hist.has_changes() and hist.deleted:
+    if hist.has_changes():
         raise ValueError(f"Artifact.origin is immutable (id={target.id})")

@@ -18,8 +18,13 @@ RUN apt-get update \
 # --- builder ---
 FROM base AS builder
 WORKDIR /build
-COPY requirements.txt .
-RUN pip install --prefix=/install -r requirements.txt
+COPY requirements.txt requirements-dev.txt ./
+# Always include dev deps so `pytest`, `ruff`, `pre-commit` are available
+# in the running container. The dev compose override is the only intended
+# consumer of this image; if a lean prod image is needed later, gate the
+# dev install behind an ARG.
+RUN pip install --prefix=/install -r requirements.txt \
+ && pip install --prefix=/install -r requirements-dev.txt
 
 # --- runtime ---
 FROM python:3.11-slim AS runtime
@@ -35,6 +40,11 @@ RUN apt-get update \
 COPY --from=builder /install /usr/local
 WORKDIR /app
 COPY --chown=shield:shield . /app
+# Pre-create the artifacts dir owned by the shield user so that when
+# compose mounts a fresh `artifacts` named volume on top, Docker copies
+# this empty-but-correctly-owned directory into the volume — fixing the
+# PermissionError shield user otherwise hits writing to a root-owned vol.
+RUN mkdir -p /app/artifacts && chown shield:shield /app/artifacts
 
 USER shield
 EXPOSE 8000
