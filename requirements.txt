@@ -24,3 +24,12 @@ python-docx==1.1.2
 PyYAML==6.0.2
 itsdangerous==2.2.0
 markupsafe==3.0.2
+
+# PII redaction (defense-in-depth on the AI egress path).
+# Presidio Analyzer wraps spaCy NER + pattern recognizers. The
+# en_core_web_sm spaCy model is installed in docker/app.Dockerfile
+# (spaCy resolves models by name at runtime; it's not a normal pypi dep).
+# At ~12 MB, the small model is sufficient for PERSON/LOCATION/ORG NER on
+# the kind of free-text that shows up in capability notes and uploads.
+presidio-analyzer==2.2.354
+spacy==3.7.5

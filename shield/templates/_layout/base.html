@@ -84,6 +84,14 @@
   <footer class="usa-footer usa-footer--slim" role="contentinfo">
     <div class="grid-container">
       <small>SHIELD · Unified Portal · MIT License</small>
+      {% if current_user.is_authenticated and current_user.role.value != 'client' %}
+        <small class="shield-footer-disclosure" style="display:block;margin-top:.25rem;color:#5c5c5c;">
+          Before any automated analysis is sent off-platform, SHIELD strips
+          emails, phone numbers, addresses, the client&rsquo;s name, and
+          (where available) personal names &amp; organizations from the
+          input. Each run records what was masked.
+        </small>
+      {% endif %}
     </div>
   </footer>
 </body>

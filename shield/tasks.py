@@ -99,6 +99,26 @@ def _prompt(name: str) -> str:
     return (Path(__file__).resolve().parent / "ai" / "prompts" / name).read_text(encoding="utf-8")
 
 
+def _redaction_terms(project) -> list[str]:
+    """Per-project literals the redactor should mask in AI inputs.
+
+    The regex/NER layers in shield.ai.redact catch generic PII (emails,
+    phones, names). This is the place to add the *engagement-specific*
+    strings — the client's org name, the project name, anything else
+    a future review decides shouldn't leave SHIELD verbatim.
+
+    Returned terms shorter than 3 chars are dropped by the redactor.
+    """
+    terms: list[str] = []
+    if project is None:
+        return terms
+    if project.client and project.client.name:
+        terms.append(project.client.name)
+    if project.name:
+        terms.append(project.name)
+    return terms
+
+
 def _parse_ai_coverage_response(text: str) -> dict:
     """Parse the P3 coverage JSON; recover as much as possible if truncated.
 
@@ -201,6 +221,7 @@ def _p1_extract(project_id: str, source_artifact_id: str) -> str:
         user=source_text[:200_000],
         prompt_version="p1_extraction.v1",
         json_response=True,
+        extra_redaction_terms=_redaction_terms(project),
     )
     art = write_ai_artifact(
         project=project, stage="ai_extraction",
@@ -234,6 +255,7 @@ def _p1_overlap(project_id: str, confirmed_artifact_id: str) -> str:
         user=confirmed.body_text or "[]",
         prompt_version="p1_overlap.v1",
         json_response=True,
+        extra_redaction_terms=_redaction_terms(project),
     )
     art = write_ai_artifact(
         project=project, stage="overlap_analysis",
@@ -288,6 +310,7 @@ def _p1_chat(project_id: str, question: str) -> str:
         user=json.dumps(payload),
         prompt_version="p1_chat.v1",
         json_response=True,
+        extra_redaction_terms=_redaction_terms(project),
     )
     art = write_ai_artifact(
         project=project, stage="conversational_interrogation",
@@ -344,6 +367,7 @@ def _p2_analyze(project_id: str) -> str:
         user=json.dumps(payload, indent=2),
         prompt_version="p2_posture.v1",
         json_response=True,
+        extra_redaction_terms=_redaction_terms(project),
     )
     art = write_ai_artifact(
         project=project, stage="current_state_assessment",
@@ -414,6 +438,7 @@ def _p2_roadmap(project_id: str) -> str:
         user=json.dumps(payload, indent=2),
         prompt_version="p2_roadmap.v1",
         json_response=True,
+        extra_redaction_terms=_redaction_terms(project),
     )
     art = write_ai_artifact(
         project=project, stage="transition_roadmap",
@@ -477,6 +502,7 @@ def _p3_coverage(project_id: str) -> str:
         user=json.dumps(payload),
         prompt_version="p3_attack_coverage.v1",
         json_response=True,
+        extra_redaction_terms=_redaction_terms(project),
     )
     art = write_ai_artifact(
         project=project, stage="attack_coverage",

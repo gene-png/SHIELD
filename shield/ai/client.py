@@ -27,6 +27,12 @@ class AIClient:
         self.model = model or current_app.config.get("ANTHROPIC_MODEL_APP", "claude-opus-4-7")
         self.mode = mode or current_app.config.get("AI_MODE", "real")
         self.max_output = int(current_app.config.get("ANTHROPIC_MAX_OUTPUT_TOKENS", 4096))
+        # Redaction: defense-in-depth on the egress path. Defaults to
+        # "full" so Presidio NER runs when available; CI / dev images
+        # without spaCy gracefully fall through to regex-only.
+        self.redaction_mode = current_app.config.get("AI_REDACTION_MODE", "full")
+        extra = current_app.config.get("AI_REDACTION_EXTRA_TERMS", "") or ""
+        self.extra_terms: list[str] = [t.strip() for t in extra.split(",") if t.strip()]
         # SDK-level retries cover transient 429 (rate limit) and 5xx
         # (server-side) errors with exponential backoff. Default is 2.
         # We bump to 4 because real engagements fire 5-10 AI calls in
@@ -48,12 +54,23 @@ class AIClient:
         user: str,
         prompt_version: str,
         json_response: bool = False,
+        extra_redaction_terms: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         if self.mode == "fixture":
             return self._fixture(prompt_version)
 
         if not self.api_key:
             raise AIError("ANTHROPIC_API_KEY not set. Put it in .env or set AI_MODE=fixture.")
+
+        # Redact the user payload BEFORE it leaves SHIELD. System prompts
+        # are SHIELD-authored and don't contain client PII, so they pass
+        # through untouched; only the user message — which is the part
+        # built from client uploads / questionnaire answers — is filtered.
+        from .redact import redact
+        all_terms = list(self.extra_terms) + list(extra_redaction_terms or [])
+        user, redaction_report = redact(
+            user, mode=self.redaction_mode, extra_terms=all_terms
+        )
 
         try:
             import anthropic
@@ -113,6 +130,7 @@ class AIClient:
             # subsequent calls that hit it.
             "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
             "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
+            **redaction_report.to_dict(),
         }
         return text, lineage
 

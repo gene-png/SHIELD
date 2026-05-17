@@ -23,7 +23,8 @@
 - Browser ↔ Flask app (TLS in prod; HTTP locally).
 - Flask app ↔ Postgres (internal network only; never exposed).
 - Flask app ↔ Keycloak (internal network).
-- Flask app ↔ Anthropic API (egress only).
+- Flask app ↔ Anthropic API (egress only — every user payload is
+  redacted by `shield.ai.redact` at this boundary; see below).
 - Host filesystem ↔ dev-agent container (NO mount of host paths).
 
 ## Mitigations
@@ -40,6 +41,7 @@
 | File upload abuse              | `MAX_CONTENT_LENGTH=64MB`. Files written under a randomized filename. Stored outside the web root. |
 | Supply chain                   | Pinned versions in `requirements.txt`. `detect-secrets` pre-commit. ZAP baseline in CI. |
 | Headless agent escape          | Container runs read-only root + tmpfs; cap_drop ALL; no host paths; no Docker socket; no published ports. Even with `--dangerously-skip-permissions`, the blast radius is the repo mount. |
+| PII leakage to third-party LLM | `shield.ai.redact` runs at the only egress chokepoint (`AIClient.complete`). Regex layer (emails, phones, SSN, CC, IP, URLs, US addresses) is always on; Presidio NER layer (PERSON / LOCATION / ORG / NRP) is on by default and degrades gracefully if spaCy isn't present. Per-project literals (client org name, project name) are masked on every call via `tasks._redaction_terms`. Counts of what was redacted are recorded in the AI artifact lineage so auditors can verify the layer ran — raw values are never persisted in the report. |
 
 ## Known gaps (tracked, not silently accepted)
 

@@ -47,6 +47,17 @@ class Config:
     ANTHROPIC_MAX_OUTPUT_TOKENS = int(os.environ.get("ANTHROPIC_MAX_OUTPUT_TOKENS", "16384"))
     AI_MODE = os.environ.get("AI_MODE", "real")  # "real" or "fixture"
 
+    # PII redaction on the AI egress path. See shield/ai/redact.py.
+    #   "off"   — bypass redaction. Use only with offline fixture mode.
+    #   "regex" — regex layer only (no Presidio/spaCy needed).
+    #   "full"  — regex + Presidio NER. Default; degrades to regex-only
+    #             if Presidio/spaCy aren't installed at runtime.
+    AI_REDACTION_MODE = os.environ.get("AI_REDACTION_MODE", "full")
+    # Per-deployment literals that should always be masked (e.g. internal
+    # codename, parent-org name). Per-project terms (the client's name)
+    # are added at call time from shield.tasks._redaction_terms.
+    AI_REDACTION_EXTRA_TERMS = os.environ.get("AI_REDACTION_EXTRA_TERMS", "")
+
     # Keycloak (OIDC)
     KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://keycloak:8080")
     KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "shield-dev")
@@ -65,6 +76,10 @@ class TestConfig(Config):
     WTF_CSRF_ENABLED = False
     SESSION_COOKIE_SECURE = False
     AI_MODE = "fixture"
+    # Tests don't touch Anthropic, but the redactor is exercised through
+    # AIClient.complete() for non-fixture paths in some tests. Default
+    # to regex-only so the suite never tries to load spaCy.
+    AI_REDACTION_MODE = "regex"
     # CI runs on the bare GitHub Actions runner; the default `/app`
     # directory doesn't exist and the runner can't create it. Point
     # artifact storage at a tempdir-rooted path so the spine writers
