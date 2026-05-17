@@ -28,6 +28,18 @@ class AIClient:
         self.model = model or current_app.config.get("ANTHROPIC_MODEL_APP", "claude-opus-4-7")
         self.mode = mode or current_app.config.get("AI_MODE", "real")
         self.max_output = int(current_app.config.get("ANTHROPIC_MAX_OUTPUT_TOKENS", 4096))
+        # SDK-level retries cover transient 429 (rate limit) and 5xx
+        # (server-side) errors with exponential backoff. Default is 2.
+        # We bump to 4 because real engagements fire 5-10 AI calls in
+        # quick succession (extraction, overlap, chat, posture, roadmap,
+        # coverage) and rate-limit windows are easy to brush against.
+        # RQ-level retry is deliberately NOT used — re-running the whole
+        # job would write duplicate AI artifacts.
+        self.max_retries = int(current_app.config.get("ANTHROPIC_MAX_RETRIES", 4))
+        # Hard ceiling per attempt. Real Anthropic calls are typically
+        # under 30 s; 120 s protects against pathological hangs without
+        # cutting off legitimately slow Opus calls on large payloads.
+        self.timeout_seconds = float(current_app.config.get("ANTHROPIC_TIMEOUT_SECONDS", 120))
 
     # --------------------------------------------------------------
     def complete(
@@ -49,7 +61,11 @@ class AIClient:
         except ImportError as e:
             raise AIError("anthropic SDK not installed") from e
 
-        client = anthropic.Anthropic(api_key=self.api_key)
+        client = anthropic.Anthropic(
+            api_key=self.api_key,
+            max_retries=self.max_retries,
+            timeout=self.timeout_seconds,
+        )
         # Prompt caching: the per-platform system prompts (in ai/prompts/*.md)
         # are large and stable, so we mark them ephemeral-cacheable. The
         # first call within a 5-minute window pays full input cost; every
