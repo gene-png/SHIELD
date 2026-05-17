@@ -208,6 +208,64 @@ def test_reviewer_blocked_from_mutating_routes(reviewer_client):
         assert r.status_code == 302, f"reviewer NOT blocked from {path!r}"
 
 
+def test_p3_coverage_run_xlsx_export(admin_client, acme, admin):
+    """The .xlsx export for a coverage run returns a 4-sheet workbook."""
+    import io
+
+    import openpyxl
+
+    from shield.models import (
+        CoverageFinding,
+        CoverageRun,
+        PlatformType,
+        Project,
+    )
+    cl = acme.capability_lists[0]
+    project = Project(
+        client_id=acme.id, platform=PlatformType.ATTACK_SURFACE,
+        name="ATT&CK test", stage="intake",
+        capability_list_version_id=cl.id, created_by_id=admin.id,
+    )
+    db.session.add(project)
+    db.session.commit()
+
+    run = CoverageRun(
+        project_id=project.id,
+        capability_list_version_id=cl.id,
+        summary={
+            "headline": "You are blind to 2 techniques.",
+            "covered": 1, "partial": 1, "uncovered": 2, "total_techniques": 4,
+            "top_three_blind_spots": ["T1566", "T1486"],
+        },
+    )
+    db.session.add(run)
+    db.session.flush()
+    db.session.add(CoverageFinding(
+        coverage_run_id=run.id, technique_id="T1566",
+        coverage="uncovered", detection_tools=[], prevention_tools=[],
+        response_tools=[], rationale="No email gateway.",
+    ))
+    db.session.add(CoverageFinding(
+        coverage_run_id=run.id, technique_id="T1486",
+        coverage="partial", detection_tools=["EDR"], prevention_tools=[],
+        response_tools=["Backup"], rationale="Backups but no prevention.",
+    ))
+    db.session.commit()
+
+    r = admin_client.get(
+        f"/platform/attack-surface/project/{project.id}/run/{run.id}/export.xlsx"
+    )
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers["Content-Type"]
+
+    wb = openpyxl.load_workbook(io.BytesIO(r.data))
+    assert wb.sheetnames == ["Summary", "Coverage", "Gaps", "Methodology"]
+    # Gaps sheet should list both findings (partial + uncovered)
+    gap_rows = list(wb["Gaps"].iter_rows(values_only=True))
+    assert gap_rows[0][0] == "Technique ID"
+    assert {row[0] for row in gap_rows[1:]} == {"T1566", "T1486"}
+
+
 def test_reviewer_can_view_audit_log(reviewer_client):
     """Audit log is the reviewer's primary read surface."""
     r = reviewer_client.get("/audit/")

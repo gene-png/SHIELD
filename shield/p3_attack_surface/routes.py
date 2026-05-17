@@ -1,7 +1,7 @@
 """Platform 3 routes (Attack Surface / ATT&CK coverage)."""
 from __future__ import annotations
 
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import Response, abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from ..extensions import db
@@ -15,6 +15,7 @@ from ..models import (
     Project,
 )
 from ..spine.audit import log_audit
+from ..spine.exporters import coverage_run_to_xlsx
 from ..spine.picker import (
     link_capability_list_to_project,
     list_capability_lists_for_client,
@@ -201,6 +202,33 @@ def run_detail(project_id: str, run_id: str):
         "p3/run_detail.html",
         project=project, run=run, findings=findings,
         techniques_by_id=techniques_by_id,
+    )
+
+
+@bp.route("/project/<project_id>/run/<run_id>/export.xlsx")
+@login_required
+def run_export(project_id: str, run_id: str):
+    """4-sheet XLSX of a coverage run (Summary + Coverage + Gaps + Methodology).
+
+    No role decorator — any authenticated platform user (admin/reviewer)
+    can download. CLIENT is gated upstream by _restrict_client_to_intake.
+    """
+    project = _get_project_or_404(project_id)
+    run = db.session.get(CoverageRun, run_id)
+    if run is None or run.project_id != project.id:
+        abort(404)
+    findings = (
+        db.session.query(CoverageFinding)
+        .filter_by(coverage_run_id=run.id).all()
+    )
+    techniques_by_id = {t["technique_id"]: t for t in _load_techniques()}
+    blob = coverage_run_to_xlsx(run, project, findings, techniques_by_id)
+    safe_proj = project.name.replace(" ", "_").replace("/", "-")[:60]
+    filename = f"attack_coverage_{safe_proj}_{run.created_at.strftime('%Y%m%d_%H%M')}.xlsx"
+    return Response(
+        blob,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
