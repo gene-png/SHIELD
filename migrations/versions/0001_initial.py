@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision = "0001_initial"
@@ -17,14 +18,14 @@ branch_labels = None
 depends_on = None
 
 
-user_role     = sa.Enum("client", "admin", "reviewer", name="user_role")
-origin_enum   = sa.Enum("human_input", "ai_generated", "human_ai_informed", name="origin")
-reuse_status  = sa.Enum("draft", "approved", "superseded", name="reuse_status")
-trust_tier    = sa.Enum(
+user_role     = postgresql.ENUM("client", "admin", "reviewer", name="user_role", create_type=False)
+origin_enum   = postgresql.ENUM("human_input", "ai_generated", "human_ai_informed", name="origin", create_type=False)
+reuse_status  = postgresql.ENUM("draft", "approved", "superseded", name="reuse_status", create_type=False)
+trust_tier    = postgresql.ENUM(
     "client_asserted", "admin_assisted", "admin_entered_on_behalf",
-    "client_provided_evidence", "not_applicable", name="trust_tier",
+    "client_provided_evidence", "not_applicable", name="trust_tier", create_type=False,
 )
-platform_type = sa.Enum("tech_debt", "zero_trust", "attack_surface", name="platform_type")
+platform_type = postgresql.ENUM("tech_debt", "zero_trust", "attack_surface", name="platform_type", create_type=False)
 
 
 def upgrade() -> None:
