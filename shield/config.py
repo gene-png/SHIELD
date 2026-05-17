@@ -1,5 +1,6 @@
 """Application configuration. All settings come from environment variables."""
 import os
+import tempfile
 from datetime import timedelta
 
 
@@ -57,3 +58,11 @@ class TestConfig(Config):
     WTF_CSRF_ENABLED = False
     SESSION_COOKIE_SECURE = False
     AI_MODE = "fixture"
+    # CI runs on the bare GitHub Actions runner; the default `/app`
+    # directory doesn't exist and the runner can't create it. Point
+    # artifact storage at a tempdir-rooted path so the spine writers
+    # can mkdir under it and write files.
+    ARTIFACT_STORAGE_DIR = os.environ.get(
+        "ARTIFACT_STORAGE_DIR",
+        os.path.join(tempfile.gettempdir(), "shield-test-artifacts"),
+    )
