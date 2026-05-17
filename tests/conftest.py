@@ -19,6 +19,27 @@ from shield.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _sync_rq(monkeypatch):
+    """Run RQ jobs synchronously in-process for tests.
+
+    Real RQ + Redis live in the dev/prod stack. In tests we don't want
+    to require a Redis server — we want the test client's POST to a
+    route that calls `enqueue_ai(...)` to *immediately* run the job
+    body and write the resulting Artifact to the DB, so tests can
+    assert on the end state. `fakeredis` is the in-memory Redis stand-in;
+    `is_async=False` on the Queue runs jobs inline rather than queuing.
+    """
+    from fakeredis import FakeStrictRedis
+    from rq import Queue
+    from shield import tasks
+    conn = FakeStrictRedis()
+    q = Queue(tasks.QUEUE_NAME, connection=conn, is_async=False)
+    monkeypatch.setattr(tasks, "_redis", conn)
+    monkeypatch.setattr(tasks, "_queue", q)
+    yield
+
+
 @pytest.fixture()
 def app():
     app = create_app(TestConfig)

@@ -67,9 +67,24 @@ def enqueue_ai(fn: Callable[..., Any], *args, **kwargs):
 # --------------------------------------------------------------------
 
 def _within_app(fn: Callable[..., Any], *args, **kwargs):
-    from shield import create_app
-    app = create_app()
-    with app.app_context():
+    """Ensure an app context, then call the job body.
+
+    In the worker container there is no Flask app, so we have to build
+    one with `create_app()`. In the web request path (and in tests that
+    run RQ in sync mode), an app context is already active and we just
+    call through — building a second app would point the job's DB
+    session at the wrong database.
+    """
+    from flask import current_app
+    try:
+        current_app._get_current_object()
+    except RuntimeError:
+        # No app context — worker case.
+        from shield import create_app
+        app = create_app()
+        with app.app_context():
+            return fn(*args, **kwargs)
+    else:
         return fn(*args, **kwargs)
 
 
