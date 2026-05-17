@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from flask import Flask, redirect, render_template, url_for
+from flask import Flask, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from .config import Config
@@ -46,9 +46,11 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     from .spine.identity import bp as identity_bp
     from .spine.repository_views import bp as repo_bp
     from .spine.clients import bp as clients_bp
+    from .spine.intake import bp as intake_bp
     app.register_blueprint(identity_bp, url_prefix="/auth")
     app.register_blueprint(repo_bp, url_prefix="/repository")
     app.register_blueprint(clients_bp, url_prefix="/clients")
+    app.register_blueprint(intake_bp, url_prefix="/intake")
 
     # --- Platform Blueprints ---
     from .p1_techdebt import bp as p1_bp
@@ -58,12 +60,42 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     app.register_blueprint(p2_bp, url_prefix="/platform/zero-trust")
     app.register_blueprint(p3_bp, url_prefix="/platform/attack-surface")
 
+    # --- Role gate (spec §6.6) -----------------------------------------
+    # CLIENT-role users see ONLY the intake surface — no repository
+    # browsing, no picker, no AI-lane visibility, no platform workflows.
+    # The nav already hides those links; this server-side gate makes
+    # sure URL-typing doesn't bypass it.
+    from .models import Role as _Role
+    @app.before_request
+    def _restrict_client_to_intake():
+        if not current_user.is_authenticated:
+            return None
+        if current_user.role != _Role.CLIENT:
+            return None
+        path = request.path
+        if (
+            path.startswith("/intake")
+            or path.startswith("/auth")
+            or path.startswith("/static")
+            or path == "/"
+            or path == "/healthz"
+        ):
+            return None
+        return redirect(url_for("intake.index"))
+
     # --- Top-level routes ---
     @app.route("/")
     def home():
-        if current_user.is_authenticated:
-            return render_template("home.html")
-        return redirect(url_for("identity.login"))
+        if not current_user.is_authenticated:
+            return redirect(url_for("identity.login"))
+        # Per spec §6.6, the client intake surface is stripped — no
+        # repository browsing, no picker, no AI-lane visibility. Routing
+        # CLIENT-role users straight to /intake keeps them out of the
+        # admin-flow surface entirely.
+        from .models import Role
+        if current_user.role == Role.CLIENT:
+            return redirect(url_for("intake.index"))
+        return render_template("home.html")
 
     @app.route("/healthz")
     def healthz():

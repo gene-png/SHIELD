@@ -1,0 +1,74 @@
+{% extends "_layout/base.html" %}
+{% block title %}Submit documents · SHIELD{% endblock %}
+{% block content %}
+<h1>Submit documents</h1>
+
+<div class="usa-alert usa-alert--info">
+  <div class="usa-alert__body">
+    <h4 class="usa-alert__heading">What happens to your files</h4>
+    <p class="usa-alert__text">
+      Anything you upload here is recorded as <strong>client-provided
+      source data</strong> — labeled by your account, time-stamped, and
+      stored unchanged. It is not modified, summarized, or shared
+      automatically. Your consultant will review it and tell you what
+      else they need.
+    </p>
+  </div>
+</div>
+
+{% if not projects %}
+  <p class="usa-prose">
+    There are no projects currently accepting client submissions for
+    your organization. Your consultant will reach out when one is ready.
+  </p>
+{% endif %}
+
+{% for project in projects %}
+  <section class="shield-intake__project usa-card" style="margin:1rem 0;padding:1rem;border:1px solid #dfe1e2;">
+    <h2>{{ project.client.name }} — {{ project.name }}</h2>
+    <p class="usa-hint">
+      Stage: <strong>{{ project.stage }}</strong>
+      &middot; Platform: <code>{{ project.platform.value.replace('_', ' ') }}</code>
+    </p>
+
+    <form method="POST"
+          action="{{ url_for('intake.upload', project_id=project.id) }}"
+          enctype="multipart/form-data"
+          class="usa-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label class="usa-label" for="title-{{ project.id }}">Title (optional)</label>
+      <input class="usa-input" id="title-{{ project.id }}" name="title"
+             type="text" placeholder="e.g. Software inventory 2026">
+
+      <label class="usa-label" for="file-{{ project.id }}">File</label>
+      <input class="usa-file-input" id="file-{{ project.id }}" name="file"
+             type="file" required>
+
+      <button class="usa-button" type="submit">Upload as client-provided source</button>
+    </form>
+  </section>
+{% endfor %}
+
+{% if my_uploads %}
+  <h2>Your recent uploads</h2>
+  <p class="usa-hint">
+    Read-only confirmation of what you have submitted. You cannot edit
+    or delete uploads from here — contact your consultant if something
+    is wrong.
+  </p>
+  <table class="usa-table">
+    <thead><tr><th>Title</th><th>Filename</th><th>Project</th><th>When</th></tr></thead>
+    <tbody>
+      {% for a in my_uploads %}
+        <tr>
+          <td>{{ a.title }}</td>
+          <td><code>{{ a.filename or '—' }}</code></td>
+          <td>{{ a.project.name if a.project else '—' }}</td>
+          <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}
