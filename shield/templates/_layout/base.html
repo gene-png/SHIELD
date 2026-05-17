@@ -45,9 +45,14 @@
             <li class="usa-nav__primary-item">
               <a href="{{ url_for('repository.browse') }}" class="usa-nav__link"><span>Repository</span></a>
             </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('jobs.index') }}" class="usa-nav__link"><span>Jobs</span></a>
-            </li>
+            {# Activity (was: "Jobs") shows queued and recent background work.
+               Hidden from reviewers per UX guidance — reviewers walk
+               finished artifacts, not the worker queue. #}
+            {% if current_user.role.value == 'admin' %}
+              <li class="usa-nav__primary-item">
+                <a href="{{ url_for('jobs.index') }}" class="usa-nav__link"><span>Activity</span></a>
+              </li>
+            {% endif %}
             <li class="usa-nav__primary-item">
               <a href="{{ url_for('audit.index') }}" class="usa-nav__link"><span>Audit</span></a>
             </li>

@@ -24,7 +24,7 @@ from flask import (
 )
 from flask_login import login_required
 
-from .rbac import admin_or_reviewer
+from .rbac import admin_only
 
 bp = Blueprint("jobs", __name__, template_folder="../templates/spine")
 
@@ -43,12 +43,14 @@ def _fetch_job(job_id: str):
 
 @bp.route("/")
 @login_required
-@admin_or_reviewer
+@admin_only
 def index():
     """Admin job-observability listing: queued / running / failed / finished.
 
-    Useful when an AI call appears stuck or a worker is misbehaving —
-    the failed-job traceback shows up here. Admin + reviewer only.
+    Useful when an analysis appears stuck or a worker is misbehaving —
+    the failed-job traceback shows up here. Admin-only: reviewers walk
+    finished artifacts, not the worker queue, so exposing this to them
+    would be noise without authority to act on it.
     """
     from rq import Queue, Worker
     from rq.job import Job

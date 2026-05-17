@@ -18,7 +18,8 @@
 
 {% if art.body_text %}
 <h2>Body</h2>
-<pre class="shield-body-text">{{ art.body_text }}</pre>
+{% set body_text = art.body_text %}
+{% include "_components/readable_body.html" %}
 {% endif %}
 
 <h2>Lineage</h2>

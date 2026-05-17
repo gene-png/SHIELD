@@ -32,6 +32,22 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     # --- Security headers + CSP for GCC High self-hosting posture ---
     register_security_headers(app)
 
+    # --- Template filters ---
+    # `from_json`: safe JSON parse in Jinja. Returns None on failure
+    # rather than raising — templates branch on the result. Used by
+    # _components/readable_body.html to render AI artifact bodies
+    # as structured content instead of opaque <pre> dumps.
+    import json as _json
+
+    def _from_json(text):
+        if not text:
+            return None
+        try:
+            return _json.loads(text)
+        except (ValueError, TypeError):
+            return None
+    app.jinja_env.filters["from_json"] = _from_json
+
     # --- Models must be imported before migrations ---
     from . import models  # noqa: F401
 

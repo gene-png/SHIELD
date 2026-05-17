@@ -1,10 +1,13 @@
 {% extends "_layout/base.html" %}
-{% block title %}Jobs · SHIELD{% endblock %}
+{% block title %}Activity · SHIELD{% endblock %}
 {% block content %}
-<h1>Background jobs</h1>
+<h1>Activity</h1>
 <p class="usa-prose">
-  RQ queue: <code>{{ queue_name }}</code>
-  &middot; Workers registered: <strong>{{ workers | length }}</strong>
+  Background analyses, queued and recent. Admin-only view.
+  <br><small>
+    Queue: <code>{{ queue_name }}</code>
+    &middot; Workers registered: <strong>{{ workers | length }}</strong>
+  </small>
   {% for w in workers %}
     <br><small><code>{{ w.name }}</code> &middot; state: <code>{{ w.get_state() }}</code> &middot; last heartbeat: {{ w.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') if w.last_heartbeat else '—' }}</small>
   {% endfor %}

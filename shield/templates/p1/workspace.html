@@ -63,10 +63,9 @@
               {% set origin = 'ai_generated' %}{% set reuse = a.reuse_status.value %}
               {% include "_components/origin_badge.html" %}
             </span>
-            <details>
-              <summary>Inspect output</summary>
-              <pre class="shield-body-text">{{ a.body_text[:4000] }}</pre>
-            </details>
+            {% set body_text = a.body_text %}
+            {% set truncate = 4000 %}
+            {% include "_components/readable_body.html" %}
             {% if a.stage == 'ai_extraction' %}
               <a class="usa-button usa-button--small" href="{{ url_for('p1.review_extraction', project_id=project.id, ai_artifact_id=a.id) }}">Review &amp; confirm</a>
             {% endif %}
@@ -137,10 +136,10 @@
             </span>
             <em>{{ c.created_at.strftime('%H:%M') }}</em>
           </p>
-          <details>
-            <summary>Response</summary>
-            <pre class="shield-body-text">{{ c.body_text[:3000] }}</pre>
-          </details>
+          {% set body_text = c.body_text %}
+          {% set truncate = 3000 %}
+          {% include "_components/readable_body.html" %}
+          {% set truncate = None %}
           <form method="POST"
                 action="{{ url_for('p1.commit_chat', project_id=project.id, chat_artifact_id=c.id) }}"
                 class="usa-form usa-form--inline">
