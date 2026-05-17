@@ -57,6 +57,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     login_manager.login_view = "identity.login"
 
     # --- Spine Blueprints ---
+    from .spine.admin_views import bp as admin_bp
     from .spine.audit_views import bp as audit_bp
     from .spine.clients import bp as clients_bp
     from .spine.identity import bp as identity_bp
@@ -73,6 +74,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     app.register_blueprint(projects_bp, url_prefix="/projects")
     app.register_blueprint(jobs_bp, url_prefix="/jobs")
     app.register_blueprint(audit_bp, url_prefix="/audit")
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
     # --- Platform Blueprints ---
     from .p1_techdebt import bp as p1_bp
@@ -111,18 +113,18 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     def home():
         if not current_user.is_authenticated:
             return redirect(url_for("identity.login"))
-        # CLIENT users: first-time → /portal/welcome to walk the wizard;
-        # returning → /portal/ for the dashboard. The portal blueprint
-        # picks the right page via landing_url_for().
         from .models import Role
+        # CLIENT users: first-time → /portal/welcome; returning → /portal/.
         if current_user.role == Role.CLIENT:
             from .spine.portal import _current_client, landing_url_for
             client = _current_client()
             if client is not None:
                 return redirect(landing_url_for(client))
-            # No accepted membership yet — fall through to a generic
-            # confirm page that says "we'll set you up" rather than a 404.
             return redirect(url_for("portal.confirm"))
+        # ADMIN: the queue is the new default landing (v1.8 PR 5).
+        if current_user.role == Role.ADMIN:
+            return redirect(url_for("clients.queue"))
+        # REVIEWER: the existing home page lists what's available.
         return render_template("home.html")
 
     @app.route("/healthz")

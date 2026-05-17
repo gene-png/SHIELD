@@ -24,9 +24,10 @@ from flask import (
 from flask_login import current_user, login_required
 
 from ..extensions import db
-from ..models import PlatformType, Project
+from ..models import Artifact, Deliverable, PlatformType, Project
+from .audit import log_audit
 from .picker import link_capability_list_to_project, list_capability_lists_for_client
-from .rbac import admin_or_reviewer
+from .rbac import admin_only, admin_or_reviewer
 
 bp = Blueprint("projects", __name__, template_folder="../templates/spine")
 
@@ -99,3 +100,77 @@ def relink_capability_list(project_id: str):
         "spine/relink_capability_list.html",
         project=project, available=available, form={},
     )
+
+
+# ====================================================================
+# Finalize an artifact as a client-facing Deliverable (v1.8)
+# ====================================================================
+# Why this lives on the project, not the artifact: a Deliverable is
+# anchored to the *project's* output (Capability List v1.2, P3 run
+# 2026-04-15, etc.), and a single artifact's id stays internal to the
+# working repository. Finalizing produces a row in `deliverables` that
+# clients see via /portal/deliverables/. The underlying Artifact is
+# unchanged — origin stays whatever it was; finalization is purely a
+# snapshot/index entry, not a state change.
+
+@bp.route("/<project_id>/finalize-artifact/<artifact_id>", methods=["POST"])
+@login_required
+@admin_only
+def finalize_artifact(project_id: str, artifact_id: str):
+    project = db.session.get(Project, project_id)
+    if project is None:
+        abort(404)
+    from .access import require_client_access
+    require_client_access(project.client_id)
+
+    art = db.session.get(Artifact, artifact_id)
+    if art is None or art.project_id != project.id:
+        abort(404)
+
+    title = (request.form.get("title") or art.title).strip() or art.title
+    summary = (request.form.get("summary") or "").strip() or None
+
+    # If an existing un-superseded deliverable already covers this
+    # artifact, mark it superseded and create a new one. That's the
+    # "Tech Debt report — Q2 vs Q3" use case the schema supports.
+    existing = (
+        db.session.query(Deliverable)
+        .filter_by(project_id=project.id, artifact_id=art.id, superseded_at=None)
+        .first()
+    )
+
+    new_deliverable = Deliverable(
+        client_id=project.client_id, project_id=project.id, artifact_id=art.id,
+        title=title, summary=summary, finalized_by=current_user.id,
+    )
+    db.session.add(new_deliverable)
+    db.session.flush()  # need new_deliverable.id for the superseded_by link
+
+    from datetime import datetime
+    if existing is not None:
+        existing.superseded_at = datetime.utcnow()
+        existing.superseded_by = new_deliverable.id
+
+    db.session.commit()
+
+    log_audit(
+        "deliverable.finalized",
+        actor=current_user,
+        target_type="deliverable", target_id=new_deliverable.id,
+        project_id=project.id, client_id=project.client_id,
+        details={
+            "artifact_id": art.id,
+            "title": title,
+            "supersedes": existing.id if existing else None,
+        },
+    )
+    if existing is not None:
+        log_audit(
+            "deliverable.superseded",
+            actor=current_user,
+            target_type="deliverable", target_id=existing.id,
+            project_id=project.id, client_id=project.client_id,
+            details={"superseded_by": new_deliverable.id},
+        )
+    flash("Finalized. The client can see it in their Deliverables.", "info")
+    return redirect(_workspace_url(project))

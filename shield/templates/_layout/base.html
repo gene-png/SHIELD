@@ -46,6 +46,11 @@
               <a href="{{ url_for('portal.settings') }}" class="usa-nav__link"><span>Settings</span></a>
             </li>
           {% else %}
+            {% if current_user.role.value == 'admin' %}
+              <li class="usa-nav__primary-item">
+                <a href="{{ url_for('clients.queue') }}" class="usa-nav__link"><span>Queue</span></a>
+              </li>
+            {% endif %}
             <li class="usa-nav__primary-item">
               <a href="{{ url_for('clients.index') }}" class="usa-nav__link"><span>Clients</span></a>
             </li>
@@ -60,6 +65,9 @@
             </li>
             <li class="usa-nav__primary-item">
               <a href="{{ url_for('repository.browse') }}" class="usa-nav__link"><span>Repository</span></a>
+            </li>
+            <li class="usa-nav__primary-item">
+              <a href="{{ url_for('admin_views.messages_inbox') }}" class="usa-nav__link"><span>Inbox</span></a>
             </li>
             {# Activity (was: "Jobs") shows queued and recent background work.
                Hidden from reviewers per UX guidance — reviewers walk

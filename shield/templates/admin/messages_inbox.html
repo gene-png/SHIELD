@@ -1,0 +1,56 @@
+{% extends "_layout/base.html" %}
+{% block title %}Messages inbox &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">Admin inbox</p>
+  <h1 class="shield-exec__headline">Messages across every client.</h1>
+  <p class="usa-prose">
+    One row per client/project thread. Sorted by unread first, then
+    newest first. The unread count is per-thread &mdash; messages
+    from a CLIENT user that no consultant has marked read yet.
+  </p>
+</section>
+
+<table class="usa-table usa-table--striped" style="max-width:64rem;margin:0 auto;">
+  <thead>
+    <tr>
+      <th>Client</th>
+      <th>Thread</th>
+      <th>Latest</th>
+      <th>Unread</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+      {% set c = clients.get(r.client_id) %}
+      {% set p = projects.get(r.project_id) %}
+      <tr>
+        <td><strong>{{ c.name if c else r.client_id[:8] }}</strong></td>
+        <td>
+          {% if p %}
+            {{ p.name }} <small>({{ p.platform.value }})</small>
+          {% else %}
+            <em>General</em>
+          {% endif %}
+        </td>
+        <td>
+          <small>{{ r.latest.created_at.strftime('%Y-%m-%d %H:%M') }}</small><br>
+          {{ r.latest.body[:120] }}{% if r.latest.body|length > 120 %}&hellip;{% endif %}
+        </td>
+        <td>{{ r.unread if r.unread else '' }}</td>
+        <td>
+          <a class="usa-button usa-button--small"
+             href="{{ url_for('admin_views.messages_thread',
+                              client_id=r.client_id,
+                              thread_key=(r.project_id or 'general')) }}">Open</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5"><em>Inbox empty.</em></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

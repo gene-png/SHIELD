@@ -1,0 +1,126 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ client.name }} &mdash; intake &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:56rem;margin:0 auto;">
+  <a href="{{ url_for('clients.queue') }}">&larr; Queue</a>
+  &middot; <a href="{{ url_for('clients.detail', client_id=client.id) }}">Client detail</a>
+</p>
+
+<section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <h1 class="shield-exec__headline">What they shared on intake.</h1>
+  <p class="usa-prose">
+    Everything the client submitted via /portal/welcome → /portal/about
+    → /portal/documents. Read-only &mdash; admins can adopt files
+    into a project below.
+  </p>
+
+  <h2>Status</h2>
+  <ul class="usa-prose">
+    <li>
+      <strong>Intake completed:</strong>
+      {% if client.intake_completed_at %}
+        {{ client.intake_completed_at.strftime('%Y-%m-%d %H:%M UTC') }}
+      {% else %}
+        <em>not yet</em>
+      {% endif %}
+    </li>
+    <li>
+      <strong>Services interested in:</strong>
+      {% set service_labels = {
+          'tech_debt':'Tech Debt',
+          'zero_trust':'Zero Trust',
+          'attack_surface':'Attack Surface'} %}
+      {% if client.service_interests %}
+        {% for s in client.service_interests %}
+          <span class="usa-tag">{{ service_labels.get(s, s) }}</span>
+        {% endfor %}
+      {% else %}
+        <em>none picked</em>
+      {% endif %}
+      {% if client.consult_requested %}
+        &middot; <strong>also requested a consult call.</strong>
+      {% endif %}
+    </li>
+    <li>
+      <strong>Compliance:</strong>
+      {% if client.compliance_frameworks %}
+        {{ client.compliance_frameworks | join(', ') }}
+      {% else %}
+        <em>not specified</em>
+      {% endif %}
+      {% if client.compliance_deadline %}
+        &middot; deadline {{ client.compliance_deadline.strftime('%Y-%m-%d') }}
+      {% endif %}
+    </li>
+  </ul>
+
+  <h2>Primary point of contact</h2>
+  <dl class="shield-walkability__provenance">
+    <dt>Name</dt>    <dd>{{ client.primary_poc_name or '—' }}</dd>
+    <dt>Title</dt>   <dd>{{ client.primary_poc_title or '—' }}</dd>
+    <dt>Email</dt>   <dd>{{ client.primary_poc_email or '—' }}</dd>
+    <dt>Phone</dt>   <dd>{{ client.primary_poc_phone or '—' }}</dd>
+  </dl>
+
+  <h2>Organization</h2>
+  <dl class="shield-walkability__provenance">
+    <dt>Legal name</dt> <dd>{{ client.legal_name or '—' }}</dd>
+    <dt>DBA</dt>        <dd>{{ client.dba_name or '—' }}</dd>
+    <dt>Website</dt>    <dd>{{ client.website or '—' }}</dd>
+    <dt>Size</dt>       <dd>{{ client.size_band or '—' }}</dd>
+    <dt>Address</dt>
+    <dd>
+      {{ client.address_line1 or '' }}{% if client.address_line2 %}, {{ client.address_line2 }}{% endif %}<br>
+      {{ client.city or '' }}{% if client.state %}, {{ client.state }}{% endif %} {{ client.postal_code or '' }}<br>
+      {{ client.country or '' }}
+    </dd>
+  </dl>
+
+  <h2>What's prompting this</h2>
+  <p class="usa-prose">{{ client.prompting_context or '—' }}</p>
+
+  <h2>Uploaded documents <small class="usa-hint">({{ repo_uploads | length }})</small></h2>
+  {% if repo_uploads %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr><th>File</th><th>Uploaded</th><th>Size</th><th>Adopt into</th></tr>
+      </thead>
+      <tbody>
+        {% for a in repo_uploads %}
+          <tr>
+            <td>
+              <strong>{{ a.title }}</strong>
+              <br><small>{{ a.id[:8] }}</small>
+            </td>
+            <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ a.size_bytes or '—' }}</td>
+            <td>
+              {% if real_projects %}
+                <form method="POST"
+                      action="{{ url_for('clients.adopt_artifact', client_id=client.id, artifact_id=a.id) }}"
+                      style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <select name="project_id" class="usa-select usa-select--small">
+                    {% for p in real_projects %}
+                      <option value="{{ p.id }}">{{ p.name }} &middot; {{ p.platform.value }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="usa-button usa-button--small" type="submit">Adopt</button>
+                </form>
+              {% else %}
+                <em class="usa-hint">no project yet</em>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No documents shared yet.</em></p>
+  {% endif %}
+
+</section>
+
+{% endblock %}

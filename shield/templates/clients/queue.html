@@ -1,0 +1,119 @@
+{% extends "_layout/base.html" %}
+{% block title %}Action queue &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">Admin queue</p>
+  <h1 class="shield-exec__headline">Who needs you next.</h1>
+  <p class="usa-prose">
+    Three buckets &mdash; new leads (intake not finished), waiting on
+    us (intake done, services requested, no project yet), and active
+    (work in flight). The unread-message count surfaces conversational
+    work that needs a reply.
+  </p>
+</section>
+
+<div style="max-width:64rem;margin:0 auto;">
+
+  {# ============ New leads ============ #}
+  <h2>New leads <small class="usa-hint">({{ new_leads | length }})</small></h2>
+  {% if new_leads %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr><th>Client</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for c in new_leads %}
+          <tr>
+            <td>
+              <strong>{{ c.name }}</strong>
+              {% if c.industry %}<br><small>{{ c.industry }}</small>{% endif %}
+            </td>
+            <td>{{ c.created_at.strftime('%Y-%m-%d') }}</td>
+            <td><a class="usa-button usa-button--small"
+                   href="{{ url_for('clients.intake_view', client_id=c.id) }}">Open intake</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No new leads.</em></p>
+  {% endif %}
+
+  {# ============ Waiting on us ============ #}
+  <h2 style="margin-top:2rem;">Waiting on us <small class="usa-hint">({{ waiting | length }})</small></h2>
+  {% if waiting %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr><th>Client</th><th>Wants</th><th>Existing projects</th><th>Unread from them</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% set service_labels = {
+            'tech_debt':'Tech Debt',
+            'zero_trust':'Zero Trust',
+            'attack_surface':'Attack Surface'} %}
+        {% for row in waiting %}
+          <tr>
+            <td><strong>{{ row.client.name }}</strong></td>
+            <td>
+              {% for g in row.gaps %}
+                <span class="usa-tag">{{ service_labels.get(g, g) }}</span>
+              {% endfor %}
+              {% if row.consult_requested %}
+                <br><small><em>also requested a consult call</em></small>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.projects %}
+                {% for p in row.projects %}
+                  <small>{{ p.name }} &middot; {{ p.stage }}</small><br>
+                {% endfor %}
+              {% else %}
+                <em class="usa-hint">none yet</em>
+              {% endif %}
+            </td>
+            <td>{{ row.admin_replies_needed or '' }}</td>
+            <td>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('clients.intake_view', client_id=row.client.id) }}">Open intake</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>Nothing waiting.</em></p>
+  {% endif %}
+
+  {# ============ Active ============ #}
+  <h2 style="margin-top:2rem;">Active <small class="usa-hint">({{ active | length }})</small></h2>
+  {% if active %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr><th>Client</th><th>Projects</th><th>Unread from them</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for row in active %}
+          <tr>
+            <td><strong>{{ row.client.name }}</strong></td>
+            <td>
+              {% for p in row.projects %}
+                <small>{{ p.name }} &middot; {{ p.stage }}</small><br>
+              {% endfor %}
+            </td>
+            <td>{{ row.admin_replies_needed or '' }}</td>
+            <td>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('clients.detail', client_id=row.client.id) }}">Open client</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No active engagements.</em></p>
+  {% endif %}
+
+</div>
+
+{% endblock %}

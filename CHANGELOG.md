@@ -21,6 +21,64 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.0-rc5] — 2026-05-17 — admin surfaces: queue, intake-view, adopt, finalize, inbox (PR 5 of 6)
+
+### Added — admin landing + workflow
+
+- `/` (home) now redirects ADMIN users to `/clients/queue`.
+  CLIENT and REVIEWER redirects unchanged.
+- `/clients/queue` — three-bucket action queue:
+    - **New leads** (intake_completed_at NULL)
+    - **Waiting on us** (intake done, service interests with no
+      matching Project, or consult requested)
+    - **Active** (at least one non-repository Project)
+  Plus a per-client "unread from them" count so conversational work
+  surfaces alongside intake work.
+
+- `/clients/<id>/intake` — admin's read-only view of every Client
+  metadata field the client submitted via `/portal/welcome` →
+  `/portal/about`, plus the documents in the synthetic Client
+  Repository project.
+- `POST /clients/<id>/adopt-artifact/<artifact_id>` — link a
+  repository artifact to a real Project. The artifact stays
+  origin=human_input (origin is immutable); only `project_id`
+  moves. Cross-client targets are refused. Audited as
+  `artifact.adopted_into_project`.
+
+### Added — finalize artifacts as Deliverables
+
+- `POST /projects/<id>/finalize-artifact/<artifact_id>` creates a
+  `Deliverable` snapshot the client sees in `/portal/deliverables/`.
+  Re-running for the same `(project, artifact)` marks the previous
+  Deliverable superseded (`superseded_at` + `superseded_by`).
+- Audited as `deliverable.finalized` (+ `deliverable.superseded`
+  when applicable).
+
+### Added — admin cross-client messages
+
+- New `shield.spine.admin_views` blueprint mounted at `/admin/*`.
+- `/admin/messages/` — inbox of every accessible thread, sorted by
+  unread-first then newest-first. Reviewers see only their assigned
+  clients' threads (scope_query); admins see everything.
+- `/admin/messages/<client_id>/<thread_key>` — admin view of one
+  thread + reply form. GET marks read; POST appends with the same
+  `message.posted` audit row the portal side writes.
+
+### Changed — clients list + nav
+
+- `/clients/` adds **Services** + **Intake** columns showing each
+  client's service_interests + intake state.
+- Admin nav adds **Queue** (first) and **Inbox**.
+
+### Tests
+
+- 109 → 120 passing. 11 new tests in `tests/test_v18_admin.py`:
+  admin home → queue redirect, queue bucketing, intake-view renders
+  client metadata, adopt-artifact moves the project_id + audits +
+  rejects cross-client targets, finalize creates a Deliverable +
+  supersedes the previous, admin messages inbox lists threads, admin
+  thread POST writes the reply.
+
 ## [1.8.0-rc4] — 2026-05-17 — client portal: dashboard, messages, deliverables, invites (PR 4 of 6)
 
 ### Added — returning-client surfaces
