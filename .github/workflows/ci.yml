@@ -38,6 +38,8 @@ jobs:
         run: ruff check shield scripts tests
       - name: bandit (SAST)
         run: bandit -r shield scripts -q
+      - name: pip-audit (SCA)
+        run: pip-audit -r requirements.txt --strict
       - name: migrate
         run: flask --app wsgi:app db upgrade
       - name: tests

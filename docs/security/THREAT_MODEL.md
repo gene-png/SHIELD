@@ -49,7 +49,12 @@
   via `# nosec B310` — those calls are provision-time vendoring of
   pinned URLs (MITRE STIX, USWDS, HTMX), never user input.
 - No DAST coverage of authenticated paths. ZAP baseline is unauthenticated.
-- No SCA tool (pip-audit/Trivy) on the dev-agent image yet.
+- ~~No SCA tool (pip-audit/Trivy) on the dev-agent image yet.~~
+  **Closed in v1.9** — `pip-audit -r requirements.txt --strict` runs
+  in CI. Initial baseline cleared 36 CVEs across Flask, Werkzeug,
+  authlib, requests, python-dotenv, and pypdf via version bumps.
+  The dev-agent image inherits the same requirements; Trivy on the
+  built image is a separate v2 task.
 - ~~No formal `RBAC` matrix doc; per-route role checks are inline.~~
   **Closed in v1.3** — see [RBAC_MATRIX.md](RBAC_MATRIX.md). Defensive
   decorators (`@admin_only` / `@admin_or_reviewer`) enforce on every
