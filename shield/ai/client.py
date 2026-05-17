@@ -50,10 +50,19 @@ class AIClient:
             raise AIError("anthropic SDK not installed") from e
 
         client = anthropic.Anthropic(api_key=self.api_key)
+        # Prompt caching: the per-platform system prompts (in ai/prompts/*.md)
+        # are large and stable, so we mark them ephemeral-cacheable. The
+        # first call within a 5-minute window pays full input cost; every
+        # subsequent call hits cache at 10% of the input cost. The user
+        # message varies per call so it is NOT cached.
         message = client.messages.create(
             model=self.model,
             max_tokens=self.max_output,
-            system=system,
+            system=[{
+                "type": "text",
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }],
             messages=[{"role": "user", "content": user}],
         )
         text = "".join(block.text for block in message.content if getattr(block, "type", None) == "text")
@@ -61,13 +70,20 @@ class AIClient:
         if json_response:
             text = _coerce_json_block(text)
 
+        usage = message.usage
         lineage = {
             "prompt_version": prompt_version,
             "model": self.model,
             "mode": self.mode,
             "produced_at": datetime.utcnow().isoformat() + "Z",
-            "input_tokens": getattr(message.usage, "input_tokens", None),
-            "output_tokens": getattr(message.usage, "output_tokens", None),
+            "input_tokens": getattr(usage, "input_tokens", None),
+            "output_tokens": getattr(usage, "output_tokens", None),
+            # Cache stats: how much of the input was cached vs. fresh.
+            # cache_creation_input_tokens is non-zero on the first call that
+            # creates the cache; cache_read_input_tokens is non-zero on
+            # subsequent calls that hit it.
+            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
+            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
         }
         return text, lineage
 
