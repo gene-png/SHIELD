@@ -70,7 +70,16 @@ class AIClient:
         # first call within a 5-minute window pays full input cost; every
         # subsequent call hits cache at 10% of the input cost. The user
         # message varies per call so it is NOT cached.
-        message = client.messages.create(
+        #
+        # Stream the response. The non-streaming `messages.create` hangs
+        # past ~5 minutes on long generations (P3's 16K output) — httpx /
+        # SSL connections appear to time out somewhere in the chain even
+        # when the SDK timeout is generous. Streaming sends bytes every
+        # ~500 ms which keeps the connection actively used and lets the
+        # SDK reconstruct the same final Message object via
+        # `get_final_message()`. Verified live: P3 stream finishes in
+        # ~2:45 vs >10 min hang for the non-streaming equivalent.
+        with client.messages.stream(
             model=self.model,
             max_tokens=self.max_output,
             system=[{
@@ -79,7 +88,12 @@ class AIClient:
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user}],
-        )
+        ) as stream:
+            # Drain the stream — the SDK accumulates chunks internally
+            # so `get_final_message()` returns a fully-populated Message.
+            for _ in stream.text_stream:
+                pass
+            message = stream.get_final_message()
         text = "".join(block.text for block in message.content if getattr(block, "type", None) == "text")
 
         if json_response:
