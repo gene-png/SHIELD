@@ -37,12 +37,14 @@ class Config:
     # Anthropic
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL_APP = os.environ.get("ANTHROPIC_MODEL_APP", "claude-opus-4-7")
-    # 32000 is the Opus 4 family's max-output ceiling. P3 ATT&CK
-    # coverage (222 techniques × per-technique rationale) needed
-    # ~38KB at 16384 tokens and still truncated. The route uses a
-    # truncation-aware JSON parser as a fallback if a future scale-up
-    # still overruns this.
-    ANTHROPIC_MAX_OUTPUT_TOKENS = int(os.environ.get("ANTHROPIC_MAX_OUTPUT_TOKENS", "32000"))
+    # 16384 is the practical operating point: large enough to fit
+    # ~100 of 222 P3 ATT&CK findings with rationale, small enough to
+    # finish well inside the 600s RQ job timeout (32000 took ~10 min
+    # and got killed by the death penalty). The truncation-aware JSON
+    # parser in shield/tasks.py recovers whatever findings did fit and
+    # synthesizes the summary counts from them, so a partial response
+    # is still actionable.
+    ANTHROPIC_MAX_OUTPUT_TOKENS = int(os.environ.get("ANTHROPIC_MAX_OUTPUT_TOKENS", "16384"))
     AI_MODE = os.environ.get("AI_MODE", "real")  # "real" or "fixture"
 
     # Keycloak (OIDC)

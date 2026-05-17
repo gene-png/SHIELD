@@ -1,20 +1,29 @@
-{# Small HTMX-polled fragment. The wait page swaps this in every ~2 s.
-   When the job is `finished`, the server returns an empty body with
-   HX-Redirect set, so HTMX never actually renders that case here. #}
+{# Small HTMX-polled fragment. The wait page swaps this in every ~2 s
+   WHILE the job is queued or started. Once the job hits a terminal
+   state (failed; finished is handled by HX-Redirect upstream), the
+   server returns this fragment WITHOUT the hx-trigger — polling
+   stops so any <details> the user opened (e.g. the failed-job
+   traceback) stays open. #}
 <div id="job-status"
+     {% if status not in ('failed', 'finished') %}
      hx-get="{{ url_for('jobs.status_fragment', job_id=job_id, next=next_url) }}"
      hx-trigger="every 2s"
-     hx-swap="outerHTML">
+     hx-swap="outerHTML"
+     {% endif %}>
   <p>
     Status: <code>{{ status }}</code>
     {% if status == 'queued' %}<em>— waiting for a worker</em>{% endif %}
     {% if status == 'started' %}<em>— AI call in flight</em>{% endif %}
+    {% if status == 'failed' %}<em>— the worker logged the failure</em>{% endif %}
   </p>
   {% if status == 'failed' %}
     <div class="shield-banner shield-banner--locked">
       <strong>The job raised an exception.</strong> Artifact was NOT written.
     </div>
-    <details><summary>Traceback</summary><pre class="shield-body-text">{{ error }}</pre></details>
+    <details>
+      <summary>Traceback</summary>
+      <pre class="shield-body-text">{{ error }}</pre>
+    </details>
     <p><a class="usa-button" href="{{ next_url }}">Back to the workspace</a></p>
   {% endif %}
 </div>
