@@ -47,7 +47,17 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME: localhost
+      # Full URL for KC_HOSTNAME — sets scheme + host + port for the
+      # browser-facing front-channel (authorize endpoint, `iss` claim).
+      KC_HOSTNAME: "http://localhost:8080"
+      # With this enabled, back-channel discovery URLs (token_endpoint,
+      # jwks_uri, etc.) are derived from the request's Host header rather
+      # than the static KC_HOSTNAME. The Flask app fetches discovery via
+      # `http://keycloak:8080` (internal docker DNS), so it gets a token
+      # endpoint at `http://keycloak:8080/.../token` and can complete the
+      # OIDC code exchange. The `iss` claim and authorize URL still use
+      # KC_HOSTNAME (localhost:8080), reachable from the browser.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
     volumes:
       - keycloak_data:/opt/keycloak/data
       - ../keycloak/import:/opt/keycloak/data/import:ro
