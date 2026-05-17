@@ -264,6 +264,11 @@ def test_p3_coverage_run_xlsx_export(admin_client, acme, admin):
     gap_rows = list(wb["Gaps"].iter_rows(values_only=True))
     assert gap_rows[0][0] == "Technique ID"
     assert {row[0] for row in gap_rows[1:]} == {"T1566", "T1486"}
+    # "uncovered" gets re-labeled to "not covered" in the XLSX (the DB
+    # value stays "uncovered" so no migration is needed). Column index
+    # 3 on the Gaps sheet is "Coverage".
+    coverage_labels = {row[3] for row in gap_rows[1:]}
+    assert coverage_labels == {"not covered", "partial"}
 
 
 def test_reviewer_can_view_audit_log(reviewer_client):

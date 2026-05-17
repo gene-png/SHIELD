@@ -106,6 +106,20 @@ def capability_list_to_xlsx(cl: CapabilityList) -> bytes:
 # Platform 3 — ATT&CK coverage run
 # --------------------------------------------------------------------
 
+# DB stores the raw AI label ("uncovered"); the executive deliverable
+# reads more clearly as "not covered" — parallel construction with
+# "covered" and "partial". The mapping only applies in XLSX rendering;
+# DB rows and the web UI are unchanged so no migration is needed.
+_COVERAGE_DISPLAY = {
+    "uncovered": "not covered",
+    # "covered" and "partial" pass through identically.
+}
+
+
+def _coverage_label(raw: str) -> str:
+    return _COVERAGE_DISPLAY.get(raw, raw)
+
+
 def coverage_run_to_xlsx(
     run: CoverageRun,
     project: Project,
@@ -151,11 +165,11 @@ def coverage_run_to_xlsx(
     for c in ("A8", "B8"):
         ws[c].font = _header_font()
         ws[c].fill = _header_fill()
-    ws["A9"] = "covered"
+    ws["A9"] = _coverage_label("covered")
     ws["B9"] = int(summary.get("covered", 0) or 0)
-    ws["A10"] = "partial"
+    ws["A10"] = _coverage_label("partial")
     ws["B10"] = int(summary.get("partial", 0) or 0)
-    ws["A11"] = "uncovered"
+    ws["A11"] = _coverage_label("uncovered")
     ws["B11"] = int(summary.get("uncovered", 0) or 0)
     ws["A12"] = "total"
     ws["B12"] = int(summary.get("total_techniques", len(findings)) or len(findings))
@@ -199,7 +213,7 @@ def coverage_run_to_xlsx(
             f.technique_id,
             t.get("name", ""),
             t.get("tactic", ""),
-            f.coverage,
+            _coverage_label(f.coverage),
             ", ".join(f.detection_tools or []),
             ", ".join(f.prevention_tools or []),
             ", ".join(f.response_tools or []),
@@ -226,7 +240,7 @@ def coverage_run_to_xlsx(
             t = techniques_by_id.get(f.technique_id, {}) or {}
             gaps.append([
                 f.technique_id, t.get("name", ""), t.get("tactic", ""),
-                f.coverage, f.rationale or "",
+                _coverage_label(f.coverage), f.rationale or "",
             ])
     _ws_set_widths(gaps, {"A": 14, "B": 36, "C": 22, "D": 12, "E": 60})
 
