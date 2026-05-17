@@ -10,7 +10,6 @@ to the AI artifact it writes via RepositoryWriter.write_ai_artifact.
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any

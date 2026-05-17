@@ -36,7 +36,6 @@ from ..models import (
 from ..services.text_extraction import extract_text
 from .audit import log_audit
 
-
 # --------------------------------------------------------------------
 # Storage backend
 # --------------------------------------------------------------------

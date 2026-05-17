@@ -11,12 +11,18 @@ submission". Client users only see their own uploads.
 from __future__ import annotations
 
 from flask import (
-    Blueprint, abort, flash, redirect, render_template, request, url_for,
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
 from flask_login import current_user, login_required
 
 from ..extensions import db
-from ..models import Artifact, Origin, Project, Role
+from ..models import Artifact, Origin, Project
 from .audit import log_audit
 from .repository import write_human_artifact
 

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from flask import Flask, Response
 
-
 CSP_POLICY = (
     "default-src 'self'; "
     "script-src 'self'; "

@@ -19,7 +19,6 @@ from shield.models import (
     Project,
     ReuseStatus,
     Role,
-    TrustTier,
     User,
 )
 from shield.spine.repository import (
@@ -79,8 +78,10 @@ def test_origin_cannot_be_mutated(app):
         project=project, stage="raw_intake", title="t", file_stream=None, filename=None,
         mime_type=None, actor=admin, body_text="x",
     )
-    art.origin = Origin.AI_GENERATED
-    with pytest.raises(Exception):
+    # The @validates raises on attribute set; the SQLAlchemy listener
+    # raises on flush. Wrap both lines so whichever fires first is caught.
+    with pytest.raises(ValueError):
+        art.origin = Origin.AI_GENERATED
         db.session.commit()
     db.session.rollback()
 

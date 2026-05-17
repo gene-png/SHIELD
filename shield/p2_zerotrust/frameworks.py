@@ -45,7 +45,10 @@ CISA_ZTMM = Framework(
 DOD_ZT = Framework(
     id="dod_zt",
     name="DoD Zero Trust Reference Architecture",
-    pillars=["User", "Device", "Network/Environment", "Application/Workload", "Data", "Visibility & Analytics", "Automation & Orchestration"],
+    pillars=[
+        "User", "Device", "Network/Environment", "Application/Workload",
+        "Data", "Visibility & Analytics", "Automation & Orchestration",
+    ],
     controls=[
         Control("DODZT.USER.1",     "User",                  "Continuous authentication"),
         Control("DODZT.USER.2",     "User",                  "Risk-adaptive access"),

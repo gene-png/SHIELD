@@ -1,14 +1,9 @@
 """Platform 3 routes (Attack Surface / ATT&CK coverage)."""
 from __future__ import annotations
 
-import json
-
 from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
-from . import bp
-from .attack_data import TECHNIQUES as STARTER_TECHNIQUES
-from ..ai.client import AIClient, AIError
 from ..extensions import db
 from ..models import (
     Artifact,
@@ -16,16 +11,16 @@ from ..models import (
     CoverageFinding,
     CoverageRun,
     MitreTechnique,
-    Origin,
     PlatformType,
     Project,
 )
 from ..spine.audit import log_audit
 from ..spine.picker import (
-    list_capability_lists_for_client,
     link_capability_list_to_project,
+    list_capability_lists_for_client,
 )
-from ..spine.repository import write_ai_artifact
+from . import bp
+from .attack_data import TECHNIQUES as STARTER_TECHNIQUES
 
 
 def _load_techniques() -> list[dict]:

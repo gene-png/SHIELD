@@ -13,13 +13,19 @@ unchanged — only `Project.capability_list_version_id` is updated.
 from __future__ import annotations
 
 from flask import (
-    Blueprint, abort, flash, redirect, render_template, request, url_for,
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
 from flask_login import current_user, login_required
 
 from ..extensions import db
 from ..models import PlatformType, Project, Role
-from .picker import list_capability_lists_for_client, link_capability_list_to_project
+from .picker import link_capability_list_to_project, list_capability_lists_for_client
 
 bp = Blueprint("projects", __name__, template_folder="../templates/spine")
 

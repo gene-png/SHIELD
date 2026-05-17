@@ -13,8 +13,15 @@ The JSON /jobs/<id>/status endpoint is preserved for non-HTMX clients
 from __future__ import annotations
 
 from flask import (
-    Blueprint, abort, flash, jsonify, make_response, redirect, render_template,
-    request, url_for,
+    Blueprint,
+    abort,
+    flash,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
 from flask_login import current_user, login_required
 
@@ -25,8 +32,9 @@ bp = Blueprint("jobs", __name__, template_folder="../templates/spine")
 
 def _fetch_job(job_id: str):
     """Look up the rq.Job by id; return None if not found."""
-    from rq.job import Job
     from rq.exceptions import NoSuchJobError
+    from rq.job import Job
+
     from ..tasks import _redis_conn
     try:
         return Job.fetch(job_id, connection=_redis_conn())
@@ -47,10 +55,13 @@ def index():
         return redirect(url_for("home"))
 
     from rq import Queue, Worker
-    from rq.registry import (
-        StartedJobRegistry, FailedJobRegistry, FinishedJobRegistry,
-    )
     from rq.job import Job
+    from rq.registry import (
+        FailedJobRegistry,
+        FinishedJobRegistry,
+        StartedJobRegistry,
+    )
+
     from ..tasks import QUEUE_NAME, _redis_conn
 
     conn = _redis_conn()
@@ -61,8 +72,12 @@ def index():
         for jid in ids:
             try:
                 out.append(Job.fetch(jid, connection=conn))
-            except Exception:  # noqa: BLE001
-                continue
+            except Exception as e:  # noqa: BLE001
+                # A job in the registry can be missing payload if its
+                # TTL expired or it was force-deleted; skip it but log
+                # so an op investigating a gap can see why.
+                from flask import current_app
+                current_app.logger.warning("jobs.index: skipping %r (%s)", jid, e)
         return out
 
     queued   = q.get_jobs()

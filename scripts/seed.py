@@ -12,6 +12,7 @@ from pathlib import Path
 # Allow running as a script directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.seed_catalog import CATALOG
 from shield import create_app
 from shield.extensions import db
 from shield.models import (
@@ -27,8 +28,6 @@ from shield.models import (
 )
 from shield.p3_attack_surface.attack_data import TECHNIQUES as MITRE_TECHNIQUES
 from shield.spine.audit import log_audit
-from scripts.seed_catalog import CATALOG
-
 
 SEED_USERS = [
     ("admin@demo",    "Demo Admin",    Role.ADMIN),

@@ -38,7 +38,7 @@ def register_cli(app: Flask) -> None:
     @click.option("--dry-run", is_flag=True, help="Parse only; no DB writes.")
     def vendor_attack_cmd(file_: str | None, url: str | None, dry_run: bool):
         """Vendor full MITRE ATT&CK Enterprise technique catalog into DB."""
-        from scripts.vendor_attack import vendor_attack, STIX_URL
+        from scripts.vendor_attack import STIX_URL, vendor_attack
         source = file_ or url or STIX_URL
         result = vendor_attack(source, dry_run=dry_run)
         click.echo(

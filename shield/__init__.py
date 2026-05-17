@@ -6,13 +6,11 @@ capability list, shared components). See docs/architecture/INTEGRITY_MODEL.md.
 """
 from __future__ import annotations
 
-import os
-
 from flask import Flask, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from .config import Config
-from .extensions import db, login_manager, migrate, csrf, limiter
+from .extensions import csrf, db, limiter, login_manager, migrate
 from .security import register_security_headers
 
 
@@ -43,12 +41,12 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     login_manager.login_view = "identity.login"
 
     # --- Spine Blueprints ---
-    from .spine.identity import bp as identity_bp
-    from .spine.repository_views import bp as repo_bp
     from .spine.clients import bp as clients_bp
+    from .spine.identity import bp as identity_bp
     from .spine.intake import bp as intake_bp
-    from .spine.projects import bp as projects_bp
     from .spine.jobs import bp as jobs_bp
+    from .spine.projects import bp as projects_bp
+    from .spine.repository_views import bp as repo_bp
     app.register_blueprint(identity_bp, url_prefix="/auth")
     app.register_blueprint(repo_bp, url_prefix="/repository")
     app.register_blueprint(clients_bp, url_prefix="/clients")

@@ -7,7 +7,13 @@ particular platform's workflow routes.
 from __future__ import annotations
 
 from flask import (
-    Blueprint, abort, flash, redirect, render_template, request, url_for,
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
 from flask_login import current_user, login_required
 from sqlalchemy import select

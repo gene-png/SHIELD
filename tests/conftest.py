@@ -7,7 +7,15 @@ from shield import create_app
 from shield.config import TestConfig
 from shield.extensions import db
 from shield.models import (
-    CapabilityList, Client as ClientModel, Origin, PlatformType, Project, Role, User,
+    CapabilityList,
+    Origin,
+    PlatformType,
+    Project,
+    Role,
+    User,
+)
+from shield.models import (
+    Client as ClientModel,
 )
 
 

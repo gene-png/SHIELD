@@ -15,18 +15,18 @@ from datetime import datetime
 
 from flask_login import UserMixin
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
+    event,
 )
-from sqlalchemy import event
 from sqlalchemy.orm import relationship, validates
 
 from .extensions import db
@@ -34,6 +34,16 @@ from .extensions import db
 
 def _uuid() -> str:
     return str(uuid.uuid4())
+
+
+def _enum_values(enum_cls):
+    """Tell SQLAlchemy to persist enum members by .value (lowercase), not .name.
+
+    Pass to ``Enum(..., values_callable=_enum_values)``. Without this,
+    SQLAlchemy stores ``Role.ADMIN`` as ``"ADMIN"`` and Postgres rejects
+    it (the type was created with lowercase variants).
+    """
+    return [e.value for e in enum_cls]
 
 
 # ============================================================
@@ -86,7 +96,7 @@ class User(UserMixin, db.Model):
     sub = Column(String(255), unique=True, index=True, nullable=False)  # Keycloak subject
     email = Column(String(255), unique=True, nullable=False)
     display_name = Column(String(255), nullable=False)
-    role = Column(Enum(Role, name="user_role", values_callable=lambda x: [e.value for e in x]), nullable=False, default=Role.CLIENT)
+    role = Column(Enum(Role, name="user_role", values_callable=_enum_values), nullable=False, default=Role.CLIENT)
     is_active_flag = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -122,7 +132,7 @@ class Client(db.Model):
         order_by="CapabilityList.version.desc()",
     )
 
-    def latest_capability_list(self) -> "CapabilityList | None":
+    def latest_capability_list(self) -> CapabilityList | None:
         return next(iter(self.capability_lists), None)
 
 
@@ -138,7 +148,7 @@ class CapabilityList(db.Model):
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
     version = Column(Integer, nullable=False)
     label = Column(String(255), nullable=False)
-    origin = Column(Enum(Origin, name="origin", values_callable=lambda x: [e.value for e in x]), nullable=False)
+    origin = Column(Enum(Origin, name="origin", values_callable=_enum_values), nullable=False)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_by_id = Column(String(36), ForeignKey("users.id"))
@@ -176,7 +186,7 @@ class Project(db.Model):
 
     id = Column(String(36), primary_key=True, default=_uuid)
     client_id = Column(String(36), ForeignKey("clients.id"), nullable=False, index=True)
-    platform = Column(Enum(PlatformType, name="platform_type", values_callable=lambda x: [e.value for e in x]), nullable=False)
+    platform = Column(Enum(PlatformType, name="platform_type", values_callable=_enum_values), nullable=False)
     name = Column(String(255), nullable=False)
     stage = Column(String(120), nullable=False, default="intake")
     capability_list_version_id = Column(String(36), ForeignKey("capability_lists.id"))
@@ -202,9 +212,15 @@ class Artifact(db.Model):
     stage = Column(String(120), nullable=False)
 
     # ORIGIN IS IMMUTABLE — enforced by DB trigger (see initial migration).
-    origin = Column(Enum(Origin, name="origin", values_callable=lambda x: [e.value for e in x]), nullable=False)
-    trust_tier = Column(Enum(TrustTier, name="trust_tier", values_callable=lambda x: [e.value for e in x]), default=TrustTier.NOT_APPLICABLE, nullable=False)
-    reuse_status = Column(Enum(ReuseStatus, name="reuse_status", values_callable=lambda x: [e.value for e in x]), default=ReuseStatus.DRAFT, nullable=False)
+    origin = Column(Enum(Origin, name="origin", values_callable=_enum_values), nullable=False)
+    trust_tier = Column(
+        Enum(TrustTier, name="trust_tier", values_callable=_enum_values),
+        default=TrustTier.NOT_APPLICABLE, nullable=False,
+    )
+    reuse_status = Column(
+        Enum(ReuseStatus, name="reuse_status", values_callable=_enum_values),
+        default=ReuseStatus.DRAFT, nullable=False,
+    )
 
     title = Column(String(255), nullable=False)
     filename = Column(String(255))
@@ -217,7 +233,7 @@ class Artifact(db.Model):
     lineage = Column(JSON, default=dict, nullable=False)
 
     actor_id = Column(String(36), ForeignKey("users.id"))
-    actor_role = Column(Enum(Role, name="user_role", values_callable=lambda x: [e.value for e in x]))
+    actor_role = Column(Enum(Role, name="user_role", values_callable=_enum_values))
     capability_list_version_id = Column(String(36), ForeignKey("capability_lists.id"))
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -276,10 +292,11 @@ class QuestionnaireResponse(db.Model):
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     framework = Column(String(120), nullable=False)
     control_id = Column(String(120), nullable=False, index=True)  # e.g. ZTMM 2.0 control ref
-    answer = Column(String(40), nullable=False)                   # e.g. "implemented" / "partial" / "not_implemented" / "na"
+    # answer is a free-form short string: "implemented" / "partial" / "not_implemented" / "na"
+    answer = Column(String(40), nullable=False)
     rationale = Column(Text)
     evidence_artifact_id = Column(String(36), ForeignKey("artifacts.id"))
-    trust_tier = Column(Enum(TrustTier, name="trust_tier", values_callable=lambda x: [e.value for e in x]), nullable=False)
+    trust_tier = Column(Enum(TrustTier, name="trust_tier", values_callable=_enum_values), nullable=False)
     attributed_user_id = Column(String(36), ForeignKey("users.id"))
     submitted_at = Column(DateTime)
     locked = Column(Boolean, default=False, nullable=False)

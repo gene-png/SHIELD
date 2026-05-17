@@ -20,8 +20,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -85,9 +86,9 @@ def p1_extract_job(project_id: str, source_artifact_id: str) -> str:
 
 
 def _p1_extract(project_id: str, source_artifact_id: str) -> str:
+    from .ai.client import AIClient
     from .extensions import db
     from .models import Artifact, Origin, Project
-    from .ai.client import AIClient
     from .spine.repository import write_ai_artifact
 
     project = db.session.get(Project, project_id)
@@ -119,9 +120,9 @@ def p1_overlap_job(project_id: str, confirmed_artifact_id: str) -> str:
 
 
 def _p1_overlap(project_id: str, confirmed_artifact_id: str) -> str:
+    from .ai.client import AIClient
     from .extensions import db
     from .models import Artifact, Origin, Project
-    from .ai.client import AIClient
     from .spine.repository import write_ai_artifact
 
     project = db.session.get(Project, project_id)
@@ -152,9 +153,9 @@ def p1_chat_job(project_id: str, question: str) -> str:
 
 
 def _p1_chat(project_id: str, question: str) -> str:
+    from .ai.client import AIClient
     from .extensions import db
     from .models import Artifact, Origin, Project
-    from .ai.client import AIClient
     from .spine.repository import write_ai_artifact
 
     project = db.session.get(Project, project_id)
@@ -210,9 +211,9 @@ def p2_analyze_job(project_id: str) -> str:
 
 
 def _p2_analyze(project_id: str) -> str:
+    from .ai.client import AIClient
     from .extensions import db
     from .models import Project, QuestionnaireResponse
-    from .ai.client import AIClient
     from .p2_zerotrust.frameworks import FRAMEWORKS
     from .spine.repository import write_ai_artifact
 
@@ -263,9 +264,9 @@ def p2_roadmap_job(project_id: str) -> str:
 
 
 def _p2_roadmap(project_id: str) -> str:
+    from .ai.client import AIClient
     from .extensions import db
     from .models import Artifact, Origin, Project
-    from .ai.client import AIClient
     from .p2_zerotrust.frameworks import FRAMEWORKS
     from .spine.repository import write_ai_artifact
 
@@ -337,9 +338,9 @@ def p3_coverage_job(project_id: str) -> str:
 
 
 def _p3_coverage(project_id: str) -> str:
+    from .ai.client import AIClient
     from .extensions import db
     from .models import CoverageFinding, CoverageRun, MitreTechnique, Project
-    from .ai.client import AIClient
     from .p3_attack_surface.attack_data import TECHNIQUES as STARTER
     from .spine.repository import write_ai_artifact
 

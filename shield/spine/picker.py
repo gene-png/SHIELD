@@ -10,15 +10,12 @@ This module produces the candidate set; the template renders the gate.
 """
 from __future__ import annotations
 
-from typing import Iterable
-
 from sqlalchemy import select
 
 from ..extensions import db
 from ..models import (
     Artifact,
     CapabilityList,
-    Client,
     Origin,
     Project,
     ReuseStatus,

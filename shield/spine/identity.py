@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from authlib.integrations.flask_client import OAuth
-from flask import Blueprint, current_app, redirect, request, session, url_for, render_template
-from flask_login import login_user, logout_user, login_required
+from flask import Blueprint, current_app, redirect, session, url_for
+from flask_login import login_required, login_user, logout_user
 
 from ..extensions import db
 from ..models import Role, User

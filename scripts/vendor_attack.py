@@ -39,7 +39,6 @@ from shield import create_app
 from shield.extensions import db
 from shield.models import MitreTechnique
 
-
 STIX_URL = (
     "https://raw.githubusercontent.com/mitre/cti/master/"
     "enterprise-attack/enterprise-attack.json"
@@ -54,7 +53,7 @@ def _fetch_stix(source: str) -> dict:
             with urllib.request.urlopen(source, timeout=60) as r:
                 return json.load(r)
         except urllib.error.URLError as e:
-            raise SystemExit(f"Failed to download STIX bundle: {e}")
+            raise SystemExit(f"Failed to download STIX bundle: {e}") from e
     p = Path(source)
     if not p.exists():
         raise SystemExit(f"STIX file not found: {source}")

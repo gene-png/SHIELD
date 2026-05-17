@@ -17,10 +17,12 @@ import io
 
 from shield.extensions import db
 from shield.models import (
-    Artifact, CapabilityList, Origin, PlatformType, Project,
-    QuestionnaireResponse, Role, TrustTier, User,
+    Artifact,
+    Origin,
+    Project,
+    QuestionnaireResponse,
+    TrustTier,
 )
-
 
 # --------------------------------------------------------------------
 # Picker — AI-origin acknowledgment gate on relink
