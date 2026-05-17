@@ -30,6 +30,7 @@ from ..spine.picker import (
     link_capability_list_to_project,
     list_capability_lists_for_client,
 )
+from ..spine.rbac import admin_only
 from ..spine.repository import (
     write_human_ai_informed_artifact,
     write_human_artifact,
@@ -54,6 +55,7 @@ def index():
 
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
+@admin_only
 def new_project():
     """Create a new Tech Debt project.
 
@@ -170,6 +172,7 @@ def workspace(project_id: str):
 
 @bp.route("/project/<project_id>/upload", methods=["POST"])
 @login_required
+@admin_only
 def upload(project_id: str):
     project = _get_project_or_404(project_id)
     f = request.files.get("file")
@@ -190,6 +193,7 @@ def upload(project_id: str):
 
 @bp.route("/project/<project_id>/extract", methods=["POST"])
 @login_required
+@admin_only
 def extract(project_id: str):
     project = _get_project_or_404(project_id)
     src_id = request.form.get("artifact_id")
@@ -211,6 +215,7 @@ def extract(project_id: str):
 
 @bp.route("/project/<project_id>/review/<ai_artifact_id>", methods=["GET", "POST"])
 @login_required
+@admin_only
 def review_extraction(project_id: str, ai_artifact_id: str):
     project = _get_project_or_404(project_id)
     src = db.session.get(Artifact, ai_artifact_id)
@@ -234,6 +239,7 @@ def review_extraction(project_id: str, ai_artifact_id: str):
 
 @bp.route("/project/<project_id>/overlap", methods=["POST"])
 @login_required
+@admin_only
 def overlap(project_id: str):
     project = _get_project_or_404(project_id)
     confirmed_id = request.form.get("artifact_id")
@@ -270,6 +276,7 @@ def _find_latest(project: Project, origin: Origin, stage: str) -> Artifact | Non
 
 @bp.route("/project/<project_id>/chat", methods=["POST"])
 @login_required
+@admin_only
 def chat(project_id: str):
     project = _get_project_or_404(project_id)
     question = (request.form.get("question") or "").strip()
@@ -298,6 +305,7 @@ def chat(project_id: str):
 
 @bp.route("/project/<project_id>/chat/<chat_artifact_id>/commit", methods=["POST"])
 @login_required
+@admin_only
 def commit_chat(project_id: str, chat_artifact_id: str):
     """Explicitly commit a chat exchange to the admin-final list.
 
@@ -350,6 +358,7 @@ def commit_chat(project_id: str, chat_artifact_id: str):
 
 @bp.route("/project/<project_id>/finalize", methods=["GET", "POST"])
 @login_required
+@admin_only
 def finalize(project_id: str):
     project = _get_project_or_404(project_id)
     confirmed = _find_latest(project, Origin.HUMAN_AI_INFORMED, "extraction_review")

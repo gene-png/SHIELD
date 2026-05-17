@@ -20,6 +20,7 @@ from sqlalchemy import select
 
 from ..extensions import db
 from ..models import Artifact, Origin, Project
+from .rbac import admin_or_reviewer
 from .repository import promote_artifact
 
 bp = Blueprint("repository", __name__, template_folder="../templates/repository")
@@ -62,6 +63,7 @@ def artifact_detail(artifact_id: str):
 
 @bp.route("/artifact/<artifact_id>/promote", methods=["POST"])
 @login_required
+@admin_or_reviewer
 def promote(artifact_id: str):
     """Promote an AI artifact to APPROVED.
 

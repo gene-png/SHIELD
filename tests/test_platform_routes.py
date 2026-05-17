@@ -178,3 +178,51 @@ def test_client_role_can_reach_intake(client_role_client):
     """The intake surface itself is allowed for CLIENT-role users."""
     r = client_role_client.get("/intake/")
     assert r.status_code == 200
+
+
+# --------------------------------------------------------------------
+# Defensive RBAC — REVIEWER can browse, can NOT mutate (v1.3)
+# --------------------------------------------------------------------
+
+def test_reviewer_can_browse_platform_indexes(reviewer_client):
+    """Reviewer is the audit persona: read access across all platforms."""
+    for path in (
+        "/platform/tech-debt/",
+        "/platform/zero-trust/",
+        "/platform/attack-surface/",
+        "/clients/",
+        "/repository/",
+    ):
+        r = reviewer_client.get(path)
+        assert r.status_code == 200, f"reviewer cannot view {path!r}"
+
+
+def test_reviewer_blocked_from_mutating_routes(reviewer_client):
+    """Every @admin_only route must reject reviewer with a redirect."""
+    for path in (
+        "/platform/tech-debt/new",
+        "/platform/zero-trust/new",
+        "/platform/attack-surface/new",
+    ):
+        r = reviewer_client.get(path, follow_redirects=False)
+        assert r.status_code == 302, f"reviewer NOT blocked from {path!r}"
+
+
+def test_reviewer_can_promote_ai_artifacts(reviewer_client, admin, p2_project):
+    """Reviewer is one of the two roles allowed to promote AI artifacts."""
+    from shield.models import Artifact, Origin, ReuseStatus
+    from shield.spine.repository import write_ai_artifact
+    art = write_ai_artifact(
+        project=p2_project, stage="current_state_assessment",
+        title="ai", body_text="{}",
+        input_artifact_ids=[], prompt_version="p2_posture.v1", model="x",
+    )
+    r = reviewer_client.post(
+        f"/repository/artifact/{art.id}/promote",
+        data={"reason": "Reviewed against three controls; signs off."},
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    refreshed = db.session.get(Artifact, art.id)
+    assert refreshed.origin == Origin.AI_GENERATED   # origin unchanged
+    assert refreshed.reuse_status == ReuseStatus.APPROVED

@@ -15,7 +15,6 @@ from __future__ import annotations
 from flask import (
     Blueprint,
     abort,
-    flash,
     jsonify,
     make_response,
     redirect,
@@ -23,9 +22,9 @@ from flask import (
     request,
     url_for,
 )
-from flask_login import current_user, login_required
+from flask_login import login_required
 
-from ..models import Role
+from .rbac import admin_or_reviewer
 
 bp = Blueprint("jobs", __name__, template_folder="../templates/spine")
 
@@ -44,16 +43,13 @@ def _fetch_job(job_id: str):
 
 @bp.route("/")
 @login_required
+@admin_or_reviewer
 def index():
     """Admin job-observability listing: queued / running / failed / finished.
 
     Useful when an AI call appears stuck or a worker is misbehaving —
     the failed-job traceback shows up here. Admin + reviewer only.
     """
-    if current_user.role not in (Role.ADMIN, Role.REVIEWER):
-        flash("Job listing is admin/reviewer only.", "error")
-        return redirect(url_for("home"))
-
     from rq import Queue, Worker
     from rq.job import Job
     from rq.registry import (

@@ -23,6 +23,7 @@ from ..spine.picker import (
     link_capability_list_to_project,
     list_capability_lists_for_client,
 )
+from ..spine.rbac import admin_only, admin_or_reviewer
 from ..spine.repository import (
     write_human_artifact,
 )
@@ -53,6 +54,7 @@ def index():
 
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
+@admin_only
 def new_project():
     """Create a new Zero Trust project.
 
@@ -167,6 +169,7 @@ def workspace(project_id: str):
 
 @bp.route("/project/<project_id>/answer", methods=["POST"])
 @login_required
+@admin_only
 def answer(project_id: str):
     project = _get_project_or_404(project_id)
     if project.stage == "submitted":
@@ -225,6 +228,7 @@ def answer(project_id: str):
 
 @bp.route("/project/<project_id>/analyze", methods=["POST"])
 @login_required
+@admin_only
 def analyze(project_id: str):
     project = _get_project_or_404(project_id)
     framework = FRAMEWORKS.get(project.framework or "cisa_ztmm_v2")
@@ -250,6 +254,7 @@ def analyze(project_id: str):
 
 @bp.route("/project/<project_id>/set-target", methods=["GET", "POST"])
 @login_required
+@admin_only
 def set_target(project_id: str):
     project = _get_project_or_404(project_id)
     framework = FRAMEWORKS.get(project.framework or "")
@@ -309,6 +314,7 @@ def set_target(project_id: str):
 
 @bp.route("/project/<project_id>/roadmap", methods=["POST"])
 @login_required
+@admin_only
 def generate_roadmap(project_id: str):
     """Generate the transition roadmap AI artifact.
 
@@ -363,6 +369,7 @@ def generate_roadmap(project_id: str):
 
 @bp.route("/project/<project_id>/evidence/<control_id>", methods=["POST"])
 @login_required
+@admin_only
 def upload_evidence(project_id: str, control_id: str):
     project = _get_project_or_404(project_id)
     if project.stage == "submitted":
@@ -420,6 +427,7 @@ def upload_evidence(project_id: str, control_id: str):
 
 @bp.route("/project/<project_id>/submit", methods=["POST"])
 @login_required
+@admin_only
 def submit(project_id: str):
     """Lock every QuestionnaireResponse so attribution is immutable.
 
@@ -428,9 +436,6 @@ def submit(project_id: str):
     response. The project's `stage` moves to "submitted".
     """
     project = _get_project_or_404(project_id)
-    if current_user.role != Role.ADMIN:
-        flash("Only admins can submit.", "error")
-        return redirect(url_for("p2.workspace", project_id=project.id))
 
     now = datetime.utcnow()
     locked_count = 0
@@ -473,11 +478,9 @@ _TIER_RANK = {
 
 @bp.route("/project/<project_id>/answer/<control_id>/downgrade", methods=["POST"])
 @login_required
+@admin_only
 def downgrade_attribution(project_id: str, control_id: str):
     project = _get_project_or_404(project_id)
-    if current_user.role != Role.ADMIN:
-        flash("Only admins can change attribution.", "error")
-        return redirect(url_for("p2.workspace", project_id=project.id))
 
     new_tier_str = (request.form.get("trust_tier") or "").strip()
     try:
@@ -544,11 +547,9 @@ def downgrade_attribution(project_id: str, control_id: str):
 
 @bp.route("/project/<project_id>/walkability")
 @login_required
+@admin_or_reviewer
 def walkability(project_id: str):
     project = _get_project_or_404(project_id)
-    if current_user.role not in (Role.ADMIN, Role.REVIEWER):
-        flash("Walkability view is for reviewers and admins.", "error")
-        return redirect(url_for("p2.workspace", project_id=project.id))
 
     framework = FRAMEWORKS.get(project.framework or "")
     if framework is None:

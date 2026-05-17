@@ -24,8 +24,9 @@ from flask import (
 from flask_login import current_user, login_required
 
 from ..extensions import db
-from ..models import PlatformType, Project, Role
+from ..models import PlatformType, Project
 from .picker import link_capability_list_to_project, list_capability_lists_for_client
+from .rbac import admin_or_reviewer
 
 bp = Blueprint("projects", __name__, template_folder="../templates/spine")
 
@@ -46,15 +47,11 @@ def _workspace_url(project: Project) -> str:
 
 @bp.route("/<project_id>/relink-capability-list", methods=["GET", "POST"])
 @login_required
+@admin_or_reviewer
 def relink_capability_list(project_id: str):
     project = db.session.get(Project, project_id)
     if project is None or project.archived:
         abort(404)
-    # Only admin / reviewer can relink (CLIENT-role users are gated out
-    # by the role guard anyway, but be explicit).
-    if current_user.role not in (Role.ADMIN, Role.REVIEWER):
-        flash("Only admins and reviewers can relink capability lists.", "error")
-        return redirect(_workspace_url(project))
 
     available = list_capability_lists_for_client(project.client_id)
 

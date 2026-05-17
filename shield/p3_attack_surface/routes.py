@@ -19,6 +19,7 @@ from ..spine.picker import (
     link_capability_list_to_project,
     list_capability_lists_for_client,
 )
+from ..spine.rbac import admin_only
 from . import bp
 from .attack_data import TECHNIQUES as STARTER_TECHNIQUES
 
@@ -72,6 +73,7 @@ def index():
 
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
+@admin_only
 def new_project():
     """Create a new Attack Surface project."""
     from flask_login import current_user
@@ -166,6 +168,7 @@ def workspace(project_id: str):
 
 @bp.route("/project/<project_id>/analyze", methods=["POST"])
 @login_required
+@admin_only
 def analyze(project_id: str):
     project = _get_project_or_404(project_id)
     cl = project.capability_snapshot

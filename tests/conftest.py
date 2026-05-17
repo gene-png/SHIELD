@@ -78,6 +78,22 @@ def client_role_client(client, client_user):
 
 
 @pytest.fixture()
+def reviewer(app):
+    """Create + return a REVIEWER User."""
+    u = User(sub="t-reviewer", email="t-reviewer@example.com",
+             display_name="Test Reviewer", role=Role.REVIEWER)
+    db.session.add(u)
+    db.session.commit()
+    return u
+
+
+@pytest.fixture()
+def reviewer_client(client, reviewer):
+    _login(client, reviewer.id)
+    return client
+
+
+@pytest.fixture()
 def acme(app, admin):
     """Test client (organization) + a v1 human-input capability list."""
     c = ClientModel(name="Acme Test")

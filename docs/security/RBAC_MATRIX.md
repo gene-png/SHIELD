@@ -51,20 +51,43 @@ Some rules are enforced regardless of role. They apply equally to ADMIN.
 | Promotion never alters origin.                                           | `spine.repository.promote_artifact` only sets `reuse_status`   |
 | Submitted questionnaire responses are locked.                            | `p2.answer` refuses on locked; routes refuse mutations after `project.stage == "submitted"` |
 
-## Known gaps (v0.6)
+## Enforcement layers
+
+The matrix above is enforced by **three independent layers**, any one
+of which is sufficient to reject an unauthorized request:
+
+1. **Nav hiding** — `shield/templates/_layout/base.html` renders nav
+   based on role. CLIENT sees only "Submit documents"; ADMIN/REVIEWER
+   see the full nav. The platform workspace templates also hide their
+   mutating buttons from REVIEWER.
+
+2. **The role gate** — `shield/__init__.py:_restrict_client_to_intake`
+   redirects CLIENT-role users to `/intake` from every non-intake,
+   non-auth, non-static URL. Runs `before_request`.
+
+3. **Defensive decorators** — `shield/spine/rbac.py` exposes
+   `@admin_only` and `@admin_or_reviewer`. Applied to every mutating
+   route in the platforms + spine. These run after `@login_required`
+   and before the view, so URL-typing or replaying a captured form by a
+   REVIEWER yields a 302 + flash, not a successful mutation.
+
+The decorator layer (added in v1.3) closes the "convention only" gap
+flagged in the v0.6 version of this document. The behavior is locked
+in by tests in `tests/test_platform_routes.py`:
+`test_reviewer_can_browse_platform_indexes`,
+`test_reviewer_blocked_from_mutating_routes`,
+`test_reviewer_can_promote_ai_artifacts`.
+
+## Known gaps (v1.3)
 
 1. **No per-user Client association.** The intake surface currently
    shows projects from any client to any CLIENT-role user. Once a
-   `User.client_id` FK lands (planned v1.0+ once multi-tenant testing
-   demands it), the intake surface tightens to the user's own client.
+   `User.client_id` FK lands, the intake surface tightens to the user's
+   own client.
 
-2. **REVIEWER's "R/O across the platforms" is enforced only by convention
-   in v0.6.** Reviewer can navigate the platform pages but does not have
-   a mutate button anywhere — the templates conditionally hide them by
-   role. A defensive layer (decorator) on the platform mutating routes
-   should be added in v1.x.
-
-3. **`promote` is open to REVIEWER as well as ADMIN.** This matches
-   `promote_artifact`'s role check (`Role.ADMIN, Role.REVIEWER`). If
-   strict separation is desired (admin promotes, reviewer audits), the
-   spine function is the place to tighten it.
+2. **`promote` is open to REVIEWER as well as ADMIN.** This matches
+   `promote_artifact`'s role check (`Role.ADMIN, Role.REVIEWER`). The
+   spec's audit persona is meant to be able to approve AI artifacts for
+   downstream reuse; this is intentional, not a gap. If strict
+   separation is later wanted, narrow `admin_or_reviewer` to `admin_only`
+   on the promote route and adjust the spine function to match.
