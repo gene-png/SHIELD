@@ -1,0 +1,42 @@
+{% extends "_layout/base.html" %}
+{% block title %}Decline request &mdash; {{ client | client_label }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:40rem;margin:0 auto;">
+  <a href="{{ url_for('clients.intake_view', client_id=client.id) }}">&larr; {{ client | client_label }} intake</a>
+</p>
+
+<section class="shield-exec" style="max-width:40rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
+  <h1 class="shield-exec__headline">Decline this request.</h1>
+  <p class="usa-prose">
+    The reason you type here shows up on the client's dashboard card.
+    Be specific enough that they understand &mdash; they can
+    re-request later if the situation changes.
+  </p>
+
+  <dl class="shield-walkability__provenance">
+    <dt>Service</dt> <dd><code>{{ request_.service }}</code></dd>
+    {% if request_.notes %}
+      <dt>Their notes</dt> <dd>{{ request_.notes }}</dd>
+    {% endif %}
+  </dl>
+
+  <form method="POST" action="{{ url_for('clients.decline_request',
+                                           client_id=client.id,
+                                           request_id=request_.id) }}"
+        class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="usa-label" for="reason">Reason</label>
+    <textarea class="usa-textarea" id="reason" name="reason" rows="5"
+              required minlength="10"
+              placeholder="Out of scope for the current contract. Happy to revisit in Q3 &hellip;"></textarea>
+    <div class="usa-button-group" style="margin-top:1rem;">
+      <button class="usa-button" type="submit">Decline with this reason</button>
+      <a class="usa-button usa-button--outline"
+         href="{{ url_for('clients.intake_view', client_id=client.id) }}">Cancel</a>
+    </div>
+  </form>
+</section>
+
+{% endblock %}

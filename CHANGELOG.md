@@ -21,6 +21,55 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.1] — 2026-05-17 — round-3 PR 3C: admin fulfill / decline + notifications
+
+Final of three round-3 sub-PRs. Closes the loop on the
+"client requests, admin acts" flow.
+
+### Added — admin actions on a ServiceRequest
+
+- `/clients/queue` "Waiting on us" bucket now surfaces open
+  ServiceRequests inline: service tag, request date, optional
+  deadline, notes excerpt, and per-row **Fulfill** / **Decline**
+  buttons.
+- `GET /clients/<id>/requests/<id>/fulfill` renders a small form
+  pre-populated with a suggested project name (`{label} —
+  {service} ({yyyy-mm})`) and an optional client-facing label.
+  POST creates a Project with `stage='intake'`, links
+  `ServiceRequest.fulfilled_project_id`, audits as
+  `client.service_request_fulfilled`, writes a `Notification` for
+  every accepted client member, redirects to the new project's
+  workspace. Rejects `unsure` requests (admin should reply in
+  messages first).
+- `GET /clients/<id>/requests/<id>/decline` renders a reason form;
+  POST sets `declined_at`/`declined_reason`, audits as
+  `client.service_request_declined`, notifies client members.
+  Reason must be ≥10 chars.
+
+### Tests
+
+- 157 → 167 passing. 10 new in
+  `tests/test_v18_round3_admin_actions.py` covering: queue surfaces
+  open requests; fulfill creates the project, links the request,
+  writes audit + notification, requires a name, rejects `unsure`,
+  idempotent on already-fulfilled; decline records reason + state,
+  writes audit + notification, requires a 10-char reason; reviewers
+  blocked from fulfill (admin-only).
+
+### Round-3 complete
+
+Three sub-PRs stacked on `feat/v1.8-portal`:
+  `eed3d97` (PR 3A — schema + leak fix)
+  `9db62a6` (PR 3B — state machine + request form)
+  this commit (PR 3C — admin fulfill / decline + notifications)
+
+The bug the user reported on the v1.8 walkthrough is closed:
+the dashboard now renders cards as legitimate state transitions
+(seed Acme projects show as `in_review` / `ready_to_view` because
+the migration backfilled fulfilled ServiceRequests for them), and
+every portal screen renders the client's typed legal_name rather
+than the seed name.
+
 ## [1.8.1-rc2] — 2026-05-17 — round-3 PR 3B: dashboard state machine + request-a-service
 
 Second of three round-3 sub-PRs. Replaces the round-2 dashboard's

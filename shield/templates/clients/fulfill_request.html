@@ -1,0 +1,59 @@
+{% extends "_layout/base.html" %}
+{% block title %}Fulfill request &mdash; {{ client | client_label }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:48rem;margin:0 auto;">
+  <a href="{{ url_for('clients.intake_view', client_id=client.id) }}">&larr; {{ client | client_label }} intake</a>
+</p>
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
+  <h1 class="shield-exec__headline">Create a project from this request.</h1>
+
+  <h2>Request details</h2>
+  <dl class="shield-walkability__provenance">
+    <dt>Service</dt> <dd><code>{{ request_.service }}</code></dd>
+    <dt>Requested</dt> <dd>{{ request_.requested_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+    {% if request_.deadline %}
+      <dt>Client deadline</dt> <dd>{{ request_.deadline.strftime('%Y-%m-%d') }}</dd>
+    {% endif %}
+    {% if request_.notes %}
+      <dt>Notes from client</dt> <dd>{{ request_.notes }}</dd>
+    {% endif %}
+  </dl>
+
+  <h2>Project</h2>
+  <form method="POST" action="{{ url_for('clients.fulfill_request',
+                                           client_id=client.id,
+                                           request_id=request_.id) }}"
+        class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label class="usa-label" for="name">
+      Internal project name <span class="usa-hint">(what admins + reviewers see)</span>
+    </label>
+    <input id="name" class="usa-input" name="name" type="text" required
+           value="{{ suggested_name }}">
+
+    <label class="usa-label" for="client_display_name">
+      Client-facing label <span class="usa-hint">(optional &mdash; what the client sees on their dashboard card)</span>
+    </label>
+    <input id="client_display_name" class="usa-input"
+           name="client_display_name" type="text"
+           placeholder="My Zero Trust review">
+
+    <p class="usa-hint">
+      Platform is locked to <code>{{ platform.value }}</code> from the
+      request. Stage starts at <code>intake</code>; you can attach the
+      capability list and set a framework from the platform workspace.
+    </p>
+
+    <div class="usa-button-group" style="margin-top:1rem;">
+      <button class="usa-button" type="submit">Create project</button>
+      <a class="usa-button usa-button--outline"
+         href="{{ url_for('clients.intake_view', client_id=client.id) }}">Cancel</a>
+    </div>
+  </form>
+</section>
+
+{% endblock %}

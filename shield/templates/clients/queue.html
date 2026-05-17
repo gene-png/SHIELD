@@ -45,22 +45,46 @@
   {% if waiting %}
     <table class="usa-table usa-table--striped">
       <thead>
-        <tr><th>Client</th><th>Wants</th><th>Existing projects</th><th>Unread from them</th><th></th></tr>
+        <tr><th>Client</th><th>Wants / requested</th><th>Existing projects</th><th>Unread from them</th><th></th></tr>
       </thead>
       <tbody>
         {% set service_labels = {
             'tech_debt':'Tech Debt',
             'zero_trust':'Zero Trust',
-            'attack_surface':'Attack Surface'} %}
+            'attack_surface':'Attack Surface',
+            'unsure':'Unsure (talk to them)'} %}
         {% for row in waiting %}
           <tr>
-            <td><strong>{{ row.client.name }}</strong></td>
+            <td><strong>{{ row.client | client_label }}</strong></td>
             <td>
               {% for g in row.gaps %}
                 <span class="usa-tag">{{ service_labels.get(g, g) }}</span>
               {% endfor %}
               {% if row.consult_requested %}
                 <br><small><em>also requested a consult call</em></small>
+              {% endif %}
+              {% if row.open_requests %}
+                <br><strong>Open requests:</strong>
+                <ul class="usa-prose" style="margin:.25rem 0 0 0;">
+                {% for sr in row.open_requests %}
+                  <li>
+                    <span class="usa-tag">{{ service_labels.get(sr.service, sr.service) }}</span>
+                    <small>requested {{ sr.requested_at.strftime('%Y-%m-%d') }}</small>
+                    {% if sr.deadline %}&middot; <small>deadline {{ sr.deadline.strftime('%Y-%m-%d') }}</small>{% endif %}
+                    {% if sr.notes %}<br><small><em>{{ sr.notes[:80] }}{% if sr.notes|length > 80 %}&hellip;{% endif %}</em></small>{% endif %}
+                    {% if sr.service != 'unsure' %}
+                      <a class="usa-button usa-button--small"
+                         href="{{ url_for('clients.fulfill_request',
+                                          client_id=row.client.id,
+                                          request_id=sr.id) }}">Fulfill</a>
+                    {% endif %}
+                    <a class="usa-button usa-button--small usa-button--outline"
+                       href="{{ url_for('clients.decline_request',
+                                        client_id=row.client.id,
+                                        request_id=sr.id) }}">Decline</a>
+                  </li>
+                {% endfor %}
+                </ul>
               {% endif %}
             </td>
             <td>
