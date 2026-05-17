@@ -92,6 +92,83 @@ def _prompt(name: str) -> str:
     return (Path(__file__).resolve().parent / "ai" / "prompts" / name).read_text(encoding="utf-8")
 
 
+def _parse_ai_coverage_response(text: str) -> dict:
+    """Parse the P3 coverage JSON; recover as much as possible if truncated.
+
+    The Anthropic SDK can stop generation mid-JSON when the response hits
+    `max_tokens`. The body_text we get is a prefix of valid JSON cut at
+    an arbitrary character. This function tries the happy path first;
+    on failure it walks the prefix tracking brace depth, finds the last
+    complete `}` at depth 1 (which is a complete object inside the
+    "findings" array), and closes the JSON manually with `]}`.
+
+    If recovery yields findings but no executive_summary, the summary is
+    synthesized from the recovered findings' coverage counts. That way
+    the UI shows real numbers (e.g. "180 of 222 evaluated") instead of
+    silent zeros.
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Walk the prefix tracking brace depth + JSON strings; remember the
+    # last position where we closed a depth-1 object (i.e. a complete
+    # finding inside the findings array).
+    depth = 0
+    in_string = False
+    escape = False
+    last_complete_at_depth_1 = -1
+    for i, ch in enumerate(text):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 1:
+                last_complete_at_depth_1 = i
+
+    if last_complete_at_depth_1 < 0:
+        return {"findings": [], "executive_summary": {}}
+
+    repaired = text[: last_complete_at_depth_1 + 1] + "]}"
+    try:
+        parsed = json.loads(repaired)
+    except json.JSONDecodeError:
+        return {"findings": [], "executive_summary": {}}
+
+    findings = parsed.get("findings", []) if isinstance(parsed, dict) else []
+    if not parsed.get("executive_summary"):
+        covered = sum(1 for f in findings if (f or {}).get("coverage") == "covered")
+        partial = sum(1 for f in findings if (f or {}).get("coverage") == "partial")
+        uncovered = sum(1 for f in findings if (f or {}).get("coverage") == "uncovered")
+        parsed["executive_summary"] = {
+            "total_techniques": len(findings),
+            "covered": covered,
+            "partial": partial,
+            "uncovered": uncovered,
+            "headline": (
+                f"Coverage evaluated against {len(findings)} ATT&CK techniques "
+                f"(response was truncated; counts derive from recovered findings)."
+            ),
+            "top_three_blind_spots": [
+                f.get("technique_id") for f in findings
+                if (f or {}).get("coverage") == "uncovered"
+            ][:3],
+        }
+    return parsed
+
+
 # ====================================================================
 # Platform 1 — Tech Debt
 # ====================================================================
@@ -397,10 +474,10 @@ def _p3_coverage(project_id: str) -> str:
     )
 
     # Materialize the run + per-technique findings.
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        parsed = {"findings": [], "executive_summary": {}}
+    # Use the truncation-aware parser: if the AI response hit the
+    # max_output_tokens cap mid-JSON, recover as many complete findings
+    # as we can and synthesize the summary counts from them.
+    parsed = _parse_ai_coverage_response(text)
     run = CoverageRun(
         project_id=project.id,
         capability_list_version_id=cl.id,
