@@ -3,7 +3,18 @@
 {% block content %}
 <p><a href="{{ url_for('p3.index') }}">&larr; Attack Surface</a></p>
 <h1>{{ project.name }}</h1>
-<p>Capability list snapshot: {% if project.capability_snapshot %}<strong>v{{ project.capability_snapshot.version }}</strong> · {{ project.capability_snapshot.items|length }} items{% else %}<em>not linked</em>{% endif %}</p>
+<p>
+  Capability list snapshot:
+  {% if project.capability_snapshot %}
+    <a href="{{ url_for('clients.capability_list_detail', client_id=project.client_id, list_id=project.capability_snapshot.id) }}"><strong>v{{ project.capability_snapshot.version }}</strong></a>
+    &middot; {{ project.capability_snapshot.items|length }} items
+  {% else %}
+    <em>not linked</em>
+  {% endif %}
+  {% if current_user.role.value in ('admin', 'reviewer') %}
+    &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Relink →</a>
+  {% endif %}
+</p>
 <p>Technique set (bundled MITRE ATT&amp;CK Enterprise slice): <strong>{{ technique_count }}</strong></p>
 
 <section class="shield-lane shield-lane--human">

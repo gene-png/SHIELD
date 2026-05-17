@@ -1,0 +1,88 @@
+{% extends "_layout/base.html" %}
+{% block title %}Relink capability list · {{ project.name }} · SHIELD{% endblock %}
+{% block content %}
+<p>
+  <a href="{{ url_for('clients.detail', client_id=project.client_id) }}">{{ project.client.name }}</a>
+  &middot; <em>{{ project.name }}</em>
+</p>
+<h1>Relink capability list</h1>
+
+<p class="usa-prose">
+  Pick a different version of <strong>{{ project.client.name }}</strong>'s
+  capability list to use as this project's snapshot. The link is
+  <strong>frozen</strong> at the moment of selection — if the underlying
+  list version is later replaced, this project still points at the version
+  you pick now. The previous link and any artifacts it produced remain
+  untouched.
+</p>
+
+{% if project.capability_snapshot %}
+  <div class="usa-alert usa-alert--info usa-alert--slim">
+    <div class="usa-alert__body">
+      <p class="usa-alert__text">
+        Currently linked: <strong>v{{ project.capability_snapshot.version }}</strong>
+        — {{ project.capability_snapshot.label }}
+        ({{ project.capability_snapshot.items | length }} items)
+        {% set origin = project.capability_snapshot.origin.value %}
+        {% set reuse = 'draft' %}
+        {% include "_components/origin_badge.html" %}
+      </p>
+    </div>
+  </div>
+{% endif %}
+
+{% if not available %}
+  <p><em>No capability lists exist yet for {{ project.client.name }}. Run a
+  Tech Debt engagement first, or upload a fresh list in this project's
+  intake stage.</em></p>
+{% else %}
+  <form method="POST"
+        action="{{ url_for('projects.relink_capability_list', project_id=project.id) }}"
+        class="usa-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <fieldset class="usa-fieldset">
+      <legend class="usa-legend">Choose a version</legend>
+      {% for cl in available %}
+        {% set is_current = project.capability_list_version_id == cl.id %}
+        <div class="usa-radio">
+          <input class="usa-radio__input" type="radio"
+                 id="cl-{{ cl.id }}" name="capability_list_id" value="{{ cl.id }}"
+                 {% if form.get('capability_list_id') == cl.id %}checked{% endif %}>
+          <label class="usa-radio__label" for="cl-{{ cl.id }}">
+            v{{ cl.version }} — {{ cl.label }}
+            ({{ cl.items | length }} items, {{ cl.created_at.strftime('%Y-%m-%d') }})
+            {% set origin = cl.origin.value %}
+            {% set reuse = 'draft' %}
+            {% include "_components/origin_badge.html" %}
+            {% if is_current %}<small class="usa-hint">— currently linked</small>{% endif %}
+          </label>
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    <fieldset class="usa-fieldset shield-ai-ack">
+      <legend class="usa-legend">AI-origin reuse acknowledgment</legend>
+      <p class="usa-hint">
+        Required only if the version you picked is AI-generated. Spec §4
+        rule: AI-origin reuse is a deliberate, recorded act.
+      </p>
+      <div class="usa-checkbox">
+        <input class="usa-checkbox__input" type="checkbox"
+               id="ack" name="acknowledged_ai_reuse" value="yes"
+               {% if form.get('ack') %}checked{% endif %}>
+        <label class="usa-checkbox__label" for="ack">
+          I understand this is AI-generated, not source data, and I am
+          deliberately reusing it as the basis for this project.
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="usa-button-group">
+      <button class="usa-button" type="submit">Relink</button>
+      <a class="usa-button usa-button--outline"
+         href="{{ url_for('clients.detail', client_id=project.client_id) }}">Cancel</a>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

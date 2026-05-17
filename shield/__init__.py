@@ -47,10 +47,12 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     from .spine.repository_views import bp as repo_bp
     from .spine.clients import bp as clients_bp
     from .spine.intake import bp as intake_bp
+    from .spine.projects import bp as projects_bp
     app.register_blueprint(identity_bp, url_prefix="/auth")
     app.register_blueprint(repo_bp, url_prefix="/repository")
     app.register_blueprint(clients_bp, url_prefix="/clients")
     app.register_blueprint(intake_bp, url_prefix="/intake")
+    app.register_blueprint(projects_bp, url_prefix="/projects")
 
     # --- Platform Blueprints ---
     from .p1_techdebt import bp as p1_bp

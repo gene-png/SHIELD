@@ -7,7 +7,13 @@
   Client: <a href="{{ url_for('clients.detail', client_id=project.client_id) }}">{{ project.client.name }}</a>
   &middot; Framework: <strong>{{ framework.name if framework else project.framework or '—' }}</strong>
   &middot; Stage: <strong>{{ project.stage }}</strong>
+  {% if project.capability_snapshot %}
+    &middot; List: <a href="{{ url_for('clients.capability_list_detail', client_id=project.client_id, list_id=project.capability_snapshot.id) }}">v{{ project.capability_snapshot.version }}</a>
+  {% else %}
+    &middot; List: <em>not linked</em>
+  {% endif %}
   {% if current_user.role.value in ('admin', 'reviewer') %}
+    &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Relink list →</a>
     &middot; <a href="{{ url_for('p2.walkability', project_id=project.id) }}">Reviewer walkability →</a>
   {% endif %}
 </p>
