@@ -45,13 +45,14 @@
     <p class="usa-prose"><em>Nothing yet. Files you upload here appear in this list.</em></p>
   {% endif %}
 
-  <form method="POST" action="{{ url_for('portal.confirm') }}" class="usa-form" style="margin-top:1.5rem;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="usa-button-group">
-      <button class="usa-button" type="submit">I'm done for now &rarr;</button>
-      <a class="usa-button usa-button--outline" href="{{ url_for('portal.about') }}">&larr; Back</a>
-    </div>
-  </form>
+  {# GET link to /portal/confirm so the user actually SEES the
+     "got it, we're on it" recap page. POSTing here would jump past
+     it straight to the dashboard. The Finish-setup button on the
+     confirm page itself is the one that stamps intake_completed_at. #}
+  <p style="margin-top:1.5rem;">
+    <a class="usa-button" href="{{ url_for('portal.confirm') }}">I'm done for now &rarr;</a>
+    <a class="usa-button usa-button--outline" href="{{ url_for('portal.about') }}">&larr; Back</a>
+  </p>
 </section>
 
 {% endblock %}
