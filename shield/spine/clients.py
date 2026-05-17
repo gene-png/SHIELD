@@ -1,11 +1,12 @@
 """Clients Blueprint: top-tier client browsing + capability-list views."""
 from __future__ import annotations
 
-from flask import Blueprint, abort, render_template
+from flask import Blueprint, Response, abort, render_template
 from flask_login import login_required
 
 from ..extensions import db
 from ..models import CapabilityList, Client
+from .exporters import capability_list_to_xlsx
 
 bp = Blueprint("clients", __name__, template_folder="../templates/clients")
 
@@ -39,3 +40,25 @@ def capability_list_detail(client_id: str, list_id: str):
     if cl is None or cl.client_id != client_id:
         abort(404)
     return render_template("clients/capability_list_detail.html", cl=cl)
+
+
+@bp.route("/<client_id>/capability-list/<list_id>/export.xlsx")
+@login_required
+def capability_list_export(client_id: str, list_id: str):
+    """Polished XLSX download. Auditable provenance on sheet 1, items on sheet 2.
+
+    No role decorator: any authenticated user with platform access
+    (admin / reviewer) can download. CLIENT-role users are blocked
+    upstream by _restrict_client_to_intake before they reach this URL.
+    """
+    cl = db.session.get(CapabilityList, list_id)
+    if cl is None or cl.client_id != client_id:
+        abort(404)
+    blob = capability_list_to_xlsx(cl)
+    safe_label = (cl.label or "list").replace(" ", "_").replace("/", "-")[:60]
+    filename = f"{cl.client.name}_v{cl.version}_{safe_label}.xlsx".replace(" ", "_")
+    return Response(
+        blob,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -214,6 +214,34 @@ def test_reviewer_can_view_audit_log(reviewer_client):
     assert r.status_code == 200
 
 
+def test_capability_list_xlsx_export(admin_client, acme):
+    """The .xlsx export returns a valid openpyxl-readable workbook."""
+    import io
+
+    import openpyxl
+
+    from shield.models import CapabilityListItem
+    cl = acme.capability_lists[0]
+    db.session.add(CapabilityListItem(
+        capability_list_id=cl.id, name="Splunk", vendor="Splunk Inc",
+        category="SIEM", function="log aggregation",
+        annual_cost_usd=420000, license_count=1,
+    ))
+    db.session.commit()
+
+    r = admin_client.get(f"/clients/{acme.id}/capability-list/{cl.id}/export.xlsx")
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers["Content-Type"]
+    assert 'attachment; filename="' in r.headers["Content-Disposition"]
+
+    wb = openpyxl.load_workbook(io.BytesIO(r.data))
+    assert "Overview" in wb.sheetnames
+    assert "Items" in wb.sheetnames
+    items_rows = list(wb["Items"].iter_rows(values_only=True))
+    assert items_rows[0][0] == "Name"           # header row
+    assert items_rows[1][0] == "Splunk"         # body row
+
+
 def test_client_blocked_from_audit_log(client_role_client):
     """CLIENT role should never see the audit log."""
     r = client_role_client.get("/audit/", follow_redirects=False)

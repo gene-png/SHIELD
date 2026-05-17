@@ -154,6 +154,7 @@ class CapabilityList(db.Model):
     created_by_id = Column(String(36), ForeignKey("users.id"))
 
     client = relationship("Client", back_populates="capability_lists")
+    created_by = relationship("User", foreign_keys=[created_by_id])
     items = relationship(
         "CapabilityListItem", back_populates="capability_list",
         cascade="all,delete-orphan", order_by="CapabilityListItem.category, CapabilityListItem.name",
