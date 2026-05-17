@@ -46,3 +46,57 @@
 .shield-lane--ai       { border-left: 6px solid #b50909; }
 .shield-lane--promoted { border-left: 6px solid #0076d6; }
 .shield-lane h3 { margin-top: 0; }
+
+/* ============ banners / pills ============ */
+.shield-banner { padding: 0.85rem 1rem; border-radius: 4px; margin: 1rem 0; }
+.shield-banner--locked { background: #fdf4d4; border-left: 6px solid #b50909; color: #4a3b00; }
+.shield-locked-pill { display: inline-block; background: #b50909; color: #fff; font-size: 0.7rem; padding: 0 0.45rem; border-radius: 999px; margin-left: 0.4rem; vertical-align: middle; }
+
+/* ============ Platform 3 — executive-first run_detail (spec §8.3) ========= */
+.shield-exec { background: #fff; border-radius: 4px; padding: 1rem 1.25rem; }
+.shield-exec__eyebrow { text-transform: uppercase; letter-spacing: 0.08em; color: #565c65; font-size: 0.8rem; margin: 0 0 0.25rem 0; }
+.shield-exec__headline { font-size: 1.75rem; line-height: 1.25; color: #1b1b1b; margin: 0 0 1.25rem 0; }
+.shield-exec__numbers { margin: 1rem 0; }
+.shield-exec__numbers h2 { font-size: 2.25rem; margin: 0; }
+
+.shield-card--good      { border-left: 6px solid #1a7733; }
+.shield-card--mid       { border-left: 6px solid #936f00; background: #fff5c2; }
+.shield-card--bad       { background: #fdf4d4; }
+.shield-card--blindspot { border: 1px solid #c9c9c9; border-left: 6px solid #b50909; padding: 0.85rem; background: #fff; height: 100%; }
+.shield-card--blindspot h3 { margin: 0.5rem 0; color: #b50909; }
+.shield-card__tag { color: #565c65; font-size: 0.85rem; margin: 0; }
+.shield-blindspots { margin-top: 1rem; }
+
+/* ============ Platform 3 — technical substrate (drill-down) ========= */
+.shield-substrate { border-top: 1px solid #c9c9c9; margin-top: 2rem; padding-top: 1rem; }
+.shield-substrate summary { cursor: pointer; padding: 0.5rem 0; color: #005ea2; }
+.shield-rationale { font-size: 0.85rem; color: #565c65; max-width: 24rem; }
+
+/* ============ artifact detail — promotion ============ */
+.shield-promoted { background: #ecf3ec; padding: 0.85rem 1rem; border-left: 6px solid #1a7733; border-radius: 0 4px 4px 0; }
+.shield-promotion-reason { margin: 0.75rem 0 0 0; padding: 0.5rem 1rem; background: #fff; border-left: 3px solid #71767a; font-style: italic; }
+
+/* ============ Platform 2 — reviewer walkability ============ */
+.shield-walkability__provenance { background: #fff; padding: 1rem; border: 1px solid #c9c9c9; border-radius: 4px; margin: 1rem 0; display: grid; grid-template-columns: 12rem 1fr; gap: 0.5rem 1rem; }
+.shield-walkability__provenance dt { font-weight: 600; color: #565c65; }
+.shield-walkability__provenance dd { margin: 0; }
+.shield-walkability__control { border-radius: 4px; background: #fff; }
+.shield-walkability__control h2 { color: #005ea2; margin-top: 0; }
+.shield-walk__step { font-size: 0.95rem; color: #1b1b1b; margin-top: 0.75rem; margin-bottom: 0.25rem; padding-bottom: 0.15rem; border-bottom: 2px solid #dfe1e2; }
+.shield-diverge { color: #b50909; font-weight: 600; margin-left: 0.5rem; }
+
+/* ============ Platform 1 — conversational interrogation ============ */
+.shield-chat { background: #fff; padding: 1rem; border: 1px solid #c9c9c9; border-radius: 4px; }
+.shield-chat__history { list-style: none; padding: 0; margin: 1rem 0; }
+.shield-chat__exchange { border-left: 4px solid #b50909; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; background: #fffaf0; }
+
+/* ============ JSON editor (P1 finalize) ============ */
+.shield-json-edit { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 0.85rem; }
+
+/* ============ intake surface ============ */
+.shield-intake__project { background: #fff; }
+.shield-intake__project h2 { color: #005ea2; margin-top: 0; }
+
+/* ============ picker variants ============ */
+.shield-picker__client { margin: 0.75rem 0; padding-left: 0.5rem; border-left: 2px solid #dfe1e2; }
+.shield-ai-ack { background: #fdf4d4; border-left: 4px solid #936f00; padding: 0.5rem 1rem; margin-top: 1rem; }
