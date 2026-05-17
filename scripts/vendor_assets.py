@@ -26,7 +26,10 @@ HTMX_URL = f"https://unpkg.com/htmx.org@{HTMX_VERSION}/dist/htmx.min.js"
 
 def _download(url: str) -> bytes:
     print(f"  fetching {url}")
-    with urllib.request.urlopen(url, timeout=60) as r:  # noqa: S310 -- pinned vendor URLs
+    # Pinned vendor URLs (USWDS / HTMX), provision-time only; not
+    # influenced by user input. nosec covers the static-analysis warning;
+    # noqa silences the corresponding ruff/flake8 rule.
+    with urllib.request.urlopen(url, timeout=60) as r:  # noqa: S310  # nosec B310
         return r.read()
 
 

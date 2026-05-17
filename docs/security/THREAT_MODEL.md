@@ -43,7 +43,14 @@
 
 ## Known gaps (tracked, not silently accepted)
 
-- No SAST (Bandit/Semgrep) wired in. Decided ZAP-only for v0.1. Add Bandit on the first follow-up PR if you want SAST.
+- ~~No SAST (Bandit/Semgrep) wired in.~~ **Closed in v1.8** — Bandit
+  runs in CI (`bandit -r shield scripts -q`). Current state: 0 findings
+  in `shield/`. Two `B310 urlopen` warnings in `scripts/` are suppressed
+  via `# nosec B310` — those calls are provision-time vendoring of
+  pinned URLs (MITRE STIX, USWDS, HTMX), never user input.
 - No DAST coverage of authenticated paths. ZAP baseline is unauthenticated.
 - No SCA tool (pip-audit/Trivy) on the dev-agent image yet.
-- No formal `RBAC` matrix doc; per-route role checks are inline. To be extracted in a follow-up.
+- ~~No formal `RBAC` matrix doc; per-route role checks are inline.~~
+  **Closed in v1.3** — see [RBAC_MATRIX.md](RBAC_MATRIX.md). Defensive
+  decorators (`@admin_only` / `@admin_or_reviewer`) enforce on every
+  mutating route; convention-only enforcement was eliminated.

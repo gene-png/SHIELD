@@ -50,7 +50,11 @@ def _fetch_stix(source: str) -> dict:
     if source.startswith(("http://", "https://")):
         print(f"Downloading {source} (this may take a moment) ...")
         try:
-            with urllib.request.urlopen(source, timeout=60) as r:
+            # Source defaults to the pinned MITRE GitHub raw URL above;
+            # admin can override via --url/--file. Provision-time only;
+            # never influenced by web-app user input. nosec covers the
+            # static-analysis warning; noqa silences ruff.
+            with urllib.request.urlopen(source, timeout=60) as r:  # noqa: S310  # nosec B310
                 return json.load(r)
         except urllib.error.URLError as e:
             raise SystemExit(f"Failed to download STIX bundle: {e}") from e
