@@ -1,12 +1,31 @@
-"""Framework definitions (lifted in concept from cyberdashboardV2/data/frameworks).
+"""Zero-Trust framework definitions.
 
-These are intentionally compact starter sets for v0.1. The full control
-catalogs (CISA ZTMM 2.0, DoD ZT, NIST CSF 2.0) ship as YAML/JSON files in
-later iterations.
+The catalogs live as JSON in `shield/p2_zerotrust/catalogs/` and are
+loaded at import. Regenerate them with:
+
+    docker compose exec app python scripts/vendor_zt_catalogs.py
+
+That script pulls NIST CSF 2.0 from its OSCAL JSON release and writes
+all three frameworks into the catalogs directory. CISA ZTMM 2.0 and
+the DoD Zero Trust Strategy are mirrored structurally (the official
+documents are PDFs); rerun the script after either body publishes a
+revision and commit the regenerated JSON.
+
+Loading from JSON (rather than pinning the controls in Python) gives
+us two things:
+  1. Updates are diff-reviewable as data, not as code edits to a 200-
+     line literal.
+  2. CI / tests assert against the JSON contract, so a malformed
+     catalog produced by a future vendor-script change fails loudly
+     instead of silently shipping a bad framework.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
+
+CATALOG_DIR = Path(__file__).parent / "catalogs"
 
 
 @dataclass
@@ -23,55 +42,40 @@ class Framework:
     name: str
     pillars: list[str]
     controls: list[Control] = field(default_factory=list)
+    source: str = ""
+    version: str = ""
 
 
-# A small representative slice per framework. Real catalogs land in a later PR
-# (sourced from cyberdashboardV2/data/frameworks/*).
-CISA_ZTMM = Framework(
-    id="cisa_ztmm_v2",
-    name="CISA Zero Trust Maturity Model 2.0",
-    pillars=["Identity", "Devices", "Networks", "Applications & Workloads", "Data"],
-    controls=[
-        Control("ZTMM.IDENT.1",     "Identity",                  "MFA for all users"),
-        Control("ZTMM.IDENT.2",     "Identity",                  "Privileged access management"),
-        Control("ZTMM.DEVICE.1",    "Devices",                   "Endpoint inventory"),
-        Control("ZTMM.NET.1",       "Networks",                  "Macro-segmentation"),
-        Control("ZTMM.APP.1",       "Applications & Workloads",  "Application access governance"),
-        Control("ZTMM.DATA.1",      "Data",                      "Data classification"),
-        Control("ZTMM.DATA.2",      "Data",                      "DLP for sensitive categories"),
-    ],
-)
+def _load(filename: str) -> Framework:
+    """Load one catalog JSON and build a Framework dataclass.
 
-DOD_ZT = Framework(
-    id="dod_zt",
-    name="DoD Zero Trust Reference Architecture",
-    pillars=[
-        "User", "Device", "Network/Environment", "Application/Workload",
-        "Data", "Visibility & Analytics", "Automation & Orchestration",
-    ],
-    controls=[
-        Control("DODZT.USER.1",     "User",                  "Continuous authentication"),
-        Control("DODZT.USER.2",     "User",                  "Risk-adaptive access"),
-        Control("DODZT.DEV.1",      "Device",                "Device posture for access decisions"),
-        Control("DODZT.NET.1",      "Network/Environment",   "Micro-segmentation"),
-        Control("DODZT.DATA.1",     "Data",                  "Data tagging"),
-        Control("DODZT.VIS.1",      "Visibility & Analytics","Centralized logging + correlation"),
-    ],
-)
+    Raises FileNotFoundError at import time if the catalog hasn't been
+    vendored — that's the right failure: app startup should refuse to
+    run with a missing framework rather than serve an empty pillar list.
+    """
+    path = CATALOG_DIR / filename
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return Framework(
+        id=payload["id"],
+        name=payload["name"],
+        pillars=list(payload["pillars"]),
+        controls=[
+            Control(
+                id=c["id"],
+                pillar=c["pillar"],
+                title=c["title"],
+                description=c.get("description", ""),
+            )
+            for c in payload["controls"]
+        ],
+        source=payload.get("source", ""),
+        version=payload.get("version", ""),
+    )
 
-NIST_CSF = Framework(
-    id="nist_csf_v2",
-    name="NIST CSF 2.0",
-    pillars=["Govern", "Identify", "Protect", "Detect", "Respond", "Recover"],
-    controls=[
-        Control("CSF.GV.OC-1", "Govern",   "Organizational mission understood"),
-        Control("CSF.ID.AM-1", "Identify", "Asset inventory"),
-        Control("CSF.PR.AA-1", "Protect",  "Identities and credentials managed"),
-        Control("CSF.DE.CM-1", "Detect",   "Networks monitored"),
-        Control("CSF.RS.RP-1", "Respond",  "Incident response plan tested"),
-        Control("CSF.RC.RP-1", "Recover",  "Recovery plan tested"),
-    ],
-)
+
+CISA_ZTMM = _load("cisa_ztmm_v2.json")
+DOD_ZT = _load("dod_zt.json")
+NIST_CSF = _load("nist_csf_v2.json")
 
 FRAMEWORKS: dict[str, Framework] = {
     f.id: f for f in (CISA_ZTMM, DOD_ZT, NIST_CSF)

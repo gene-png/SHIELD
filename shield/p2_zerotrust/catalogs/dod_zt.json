@@ -1,0 +1,281 @@
+{
+  "id": "dod_zt",
+  "name": "DoD Zero Trust Strategy & Reference Architecture",
+  "source": "https://dodcio.defense.gov/Library/",
+  "version": "v2.0 (Nov 2022)",
+  "pillars": [
+    "User",
+    "Device",
+    "Application & Workload",
+    "Data",
+    "Network & Environment",
+    "Automation & Orchestration",
+    "Visibility & Analytics"
+  ],
+  "controls": [
+    {
+      "id": "DODZT.USER.1.1",
+      "pillar": "User",
+      "title": "User Inventory",
+      "description": ""
+    },
+    {
+      "id": "DODZT.USER.1.2",
+      "pillar": "User",
+      "title": "Conditional User Access",
+      "description": ""
+    },
+    {
+      "id": "DODZT.USER.1.3",
+      "pillar": "User",
+      "title": "Multi-Factor Authentication",
+      "description": ""
+    },
+    {
+      "id": "DODZT.USER.1.4",
+      "pillar": "User",
+      "title": "Privileged Access Management",
+      "description": ""
+    },
+    {
+      "id": "DODZT.USER.1.5",
+      "pillar": "User",
+      "title": "Identity Federation & User Credentialing",
+      "description": ""
+    },
+    {
+      "id": "DODZT.USER.1.6",
+      "pillar": "User",
+      "title": "Behavioral, Contextual ID, & Biometrics",
+      "description": ""
+    },
+    {
+      "id": "DODZT.USER.1.7",
+      "pillar": "User",
+      "title": "Least Privileged Access",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DEV.2.1",
+      "pillar": "Device",
+      "title": "Device Inventory",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DEV.2.2",
+      "pillar": "Device",
+      "title": "Device Detection & Compliance",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DEV.2.3",
+      "pillar": "Device",
+      "title": "Device Authorization with Real Time Inspection",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DEV.2.4",
+      "pillar": "Device",
+      "title": "Remote Access",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DEV.2.5",
+      "pillar": "Device",
+      "title": "Partially & Fully Automated Asset, Vulnerability & Patch Management",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DEV.2.6",
+      "pillar": "Device",
+      "title": "Unified Endpoint Management (UEM) & Mobile Device Management (MDM)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.APP.3.1",
+      "pillar": "Application & Workload",
+      "title": "Application Inventory",
+      "description": ""
+    },
+    {
+      "id": "DODZT.APP.3.2",
+      "pillar": "Application & Workload",
+      "title": "Secure Software Development & Integration",
+      "description": ""
+    },
+    {
+      "id": "DODZT.APP.3.3",
+      "pillar": "Application & Workload",
+      "title": "Software Risk Management",
+      "description": ""
+    },
+    {
+      "id": "DODZT.APP.3.4",
+      "pillar": "Application & Workload",
+      "title": "Resource Authorization & Integration",
+      "description": ""
+    },
+    {
+      "id": "DODZT.APP.3.5",
+      "pillar": "Application & Workload",
+      "title": "Continuous Monitoring and Ongoing Authorizations",
+      "description": ""
+    },
+    {
+      "id": "DODZT.APP.3.6",
+      "pillar": "Application & Workload",
+      "title": "Approved Binaries / Code",
+      "description": ""
+    },
+    {
+      "id": "DODZT.APP.3.7",
+      "pillar": "Application & Workload",
+      "title": "Application Delivery",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DATA.4.1",
+      "pillar": "Data",
+      "title": "Data Catalog Risk Alignment",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DATA.4.2",
+      "pillar": "Data",
+      "title": "DoD Enterprise Data Governance",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DATA.4.3",
+      "pillar": "Data",
+      "title": "Data Labeling and Tagging",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DATA.4.4",
+      "pillar": "Data",
+      "title": "Data Monitoring and Sensing",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DATA.4.5",
+      "pillar": "Data",
+      "title": "Data Encryption & Rights Management",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DATA.4.6",
+      "pillar": "Data",
+      "title": "Data Loss Prevention (DLP)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.DATA.4.7",
+      "pillar": "Data",
+      "title": "Data Access Control",
+      "description": ""
+    },
+    {
+      "id": "DODZT.NET.5.1",
+      "pillar": "Network & Environment",
+      "title": "Data Flow Mapping",
+      "description": ""
+    },
+    {
+      "id": "DODZT.NET.5.2",
+      "pillar": "Network & Environment",
+      "title": "Software Defined Networking (SDN)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.NET.5.3",
+      "pillar": "Network & Environment",
+      "title": "Macro Segmentation",
+      "description": ""
+    },
+    {
+      "id": "DODZT.NET.5.4",
+      "pillar": "Network & Environment",
+      "title": "Micro Segmentation",
+      "description": ""
+    },
+    {
+      "id": "DODZT.AUTO.6.1",
+      "pillar": "Automation & Orchestration",
+      "title": "Policy Decision Point (PDP) & Policy Orchestration",
+      "description": ""
+    },
+    {
+      "id": "DODZT.AUTO.6.2",
+      "pillar": "Automation & Orchestration",
+      "title": "Critical Process Automation",
+      "description": ""
+    },
+    {
+      "id": "DODZT.AUTO.6.3",
+      "pillar": "Automation & Orchestration",
+      "title": "Machine Learning",
+      "description": ""
+    },
+    {
+      "id": "DODZT.AUTO.6.4",
+      "pillar": "Automation & Orchestration",
+      "title": "Artificial Intelligence",
+      "description": ""
+    },
+    {
+      "id": "DODZT.AUTO.6.5",
+      "pillar": "Automation & Orchestration",
+      "title": "Security Orchestration, Automation & Response (SOAR)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.AUTO.6.6",
+      "pillar": "Automation & Orchestration",
+      "title": "API Standardization",
+      "description": ""
+    },
+    {
+      "id": "DODZT.AUTO.6.7",
+      "pillar": "Automation & Orchestration",
+      "title": "Security Operations Center (SOC) & Incident Response (IR)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.VIS.7.1",
+      "pillar": "Visibility & Analytics",
+      "title": "Log All Traffic (Network, Data, Apps, Users)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.VIS.7.2",
+      "pillar": "Visibility & Analytics",
+      "title": "Security Information & Event Management (SIEM)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.VIS.7.3",
+      "pillar": "Visibility & Analytics",
+      "title": "Common Security & Risk Analytics",
+      "description": ""
+    },
+    {
+      "id": "DODZT.VIS.7.4",
+      "pillar": "Visibility & Analytics",
+      "title": "User & Entity Behavior Analytics (UEBA)",
+      "description": ""
+    },
+    {
+      "id": "DODZT.VIS.7.5",
+      "pillar": "Visibility & Analytics",
+      "title": "Threat Intelligence Integration",
+      "description": ""
+    },
+    {
+      "id": "DODZT.VIS.7.6",
+      "pillar": "Visibility & Analytics",
+      "title": "Automated Dynamic Policies",
+      "description": ""
+    }
+  ]
+}
