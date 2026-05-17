@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "shield" / "static"
 
-USWDS_VERSION = "3.8.1"
+USWDS_VERSION = "3.10.0"
 USWDS_URL = f"https://github.com/uswds/uswds/releases/download/v{USWDS_VERSION}/uswds-{USWDS_VERSION}.zip"
 
 HTMX_VERSION = "2.0.3"
@@ -63,15 +63,27 @@ def vendor_htmx() -> None:
 
 
 def main() -> int:
-    try:
-        vendor_uswds()
-        vendor_htmx()
-    except Exception as e:  # noqa: BLE001
-        print(f"vendor failed: {e}", file=sys.stderr)
-        print("If you're offline, the app still runs but USWDS/HTMX features will be missing.", file=sys.stderr)
-        return 1
-    print("Done. Commit the vendored files OR add them to .gitignore (default).")
-    return 0
+    """Vendor both assets independently — a USWDS download failure must
+    not skip the HTMX download, because HTMX is required for job-wait
+    polling (and other interactive bits) to work at all.
+    """
+    exit_code = 0
+    for name, fn in (("USWDS", vendor_uswds), ("HTMX", vendor_htmx)):
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"{name} vendor failed: {e}", file=sys.stderr)
+            exit_code = 1
+    if exit_code:
+        print(
+            "One or more assets failed to vendor. The app still runs but "
+            "anything that needs the missing asset (USWDS styling, HTMX "
+            "polling) will degrade.",
+            file=sys.stderr,
+        )
+    else:
+        print("Done. Commit the vendored files OR add them to .gitignore (default).")
+    return exit_code
 
 
 if __name__ == "__main__":
