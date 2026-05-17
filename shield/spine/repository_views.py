@@ -82,5 +82,5 @@ def promote(artifact_id: str):
     except ValueError as e:
         flash(f"Promotion rejected: {e}", "error")
     else:
-        flash("Artifact promoted — AI-origin, human-approved for reuse.", "info")
+        flash("Draft approved for reuse — still labeled as an automated-analysis draft.", "info")
     return redirect(url_for("repository.artifact_detail", artifact_id=art.id))

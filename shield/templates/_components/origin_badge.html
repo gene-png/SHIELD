@@ -7,16 +7,20 @@
 #}
 {%- set origin = origin | default(artifact.origin.value if artifact is defined else 'human_input') -%}
 {%- set reuse  = reuse  | default(artifact.reuse_status.value if artifact is defined else 'draft') -%}
+{# User-facing relabel of the origin enum. DB still stores
+   human_input / ai_generated / human_ai_informed verbatim — those are
+   the integrity-model values from spec §7.3 and never change. The
+   labels below are what end-users see on screen. #}
 {%- set label  = {
-      'human_input':      'Human source',
-      'ai_generated':     'AI-generated',
-      'human_ai_informed':'Human, AI-informed',
+      'human_input':      'From your team',
+      'ai_generated':     'Automated draft',
+      'human_ai_informed':'Your reviewed version',
    }.get(origin, origin) -%}
 <span class="shield-badge shield-badge--{{ origin }}"
-      aria-label="Origin: {{ label }}{% if origin == 'ai_generated' and reuse == 'approved' %}, promoted{% endif %}">
+      aria-label="Source: {{ label }}{% if origin == 'ai_generated' and reuse == 'approved' %}, approved for reuse{% endif %}">
   <span class="shield-badge__dot" aria-hidden="true"></span>
   <span class="shield-badge__text">{{ label }}</span>
   {% if origin == 'ai_generated' and reuse == 'approved' %}
-    <span class="shield-badge__pill" title="Promoted: AI-origin, human-approved for reuse">promoted</span>
+    <span class="shield-badge__pill" title="Approved by a human reviewer for reuse downstream">approved</span>
   {% endif %}
 </span>

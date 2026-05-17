@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="{{ url_for('p1.workspace', project_id=project.id) }}">&larr; workspace</a></p>
 <h1>Review extraction</h1>
-<p>Edit the AI-extracted JSON below. The result becomes a <em>human-authored, AI-informed</em> artifact and is what overlap analysis will run on. Garbage in, garbage out — this checkpoint matters.</p>
+<p>Edit the automatically-extracted JSON below. What you save here becomes <em>your reviewed version</em> and is what the overlap analysis runs on. Garbage in, garbage out &mdash; this checkpoint matters.</p>
 
 <form method="POST">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

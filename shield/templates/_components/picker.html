@@ -38,14 +38,17 @@
         </li>
       {% endfor %}
     </ul>
-    {# Reuse-moment acknowledgment (spec §4). Required for AI-origin selection. #}
+    {# Reuse-moment acknowledgment (spec §4). Required when an
+       automated-analysis draft is selected. The form field name stays
+       `acknowledged_ai_reuse` because the route reads it by name. #}
     <fieldset class="shield-picker__ack">
-      <legend class="usa-sr-only">AI-origin reuse acknowledgment</legend>
+      <legend class="usa-sr-only">Automated-analysis reuse acknowledgment</legend>
       <label class="usa-checkbox__label" for="ack-ai">
         <input class="usa-checkbox__input" id="ack-ai" name="acknowledged_ai_reuse" type="checkbox" value="yes">
-        I understand that AI-generated items are <strong>not source data</strong>. I am consuming this as analysis, not as fact.
+        I understand this is an <strong>automated-analysis draft</strong>, not source data,
+        and I&rsquo;m using it as analysis I&rsquo;ll review &mdash; not as a fact on the record.
       </label>
-      <p class="shield-picker__ack-note">Required only when an AI-origin item is selected. The server will reject AI selections without it.</p>
+      <p class="shield-picker__ack-note">Only required when you pick an automated-analysis draft. The server will reject selections of those without the box checked.</p>
     </fieldset>
     <button type="submit" class="usa-button">{{ pick_label | default('Use selected') }}</button>
   {% endif %}

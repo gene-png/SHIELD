@@ -62,18 +62,18 @@
     </fieldset>
 
     <fieldset class="usa-fieldset shield-ai-ack">
-      <legend class="usa-legend">AI-origin reuse acknowledgment</legend>
+      <legend class="usa-legend">Automated-analysis reuse acknowledgment</legend>
       <p class="usa-hint">
-        Required only if the version you picked is AI-generated. Spec §4
-        rule: AI-origin reuse is a deliberate, recorded act.
+        Required only if the version you picked is an automated-analysis
+        draft. Reusing a draft is a deliberate act, and we record it.
       </p>
       <div class="usa-checkbox">
         <input class="usa-checkbox__input" type="checkbox"
                id="ack" name="acknowledged_ai_reuse" value="yes"
                {% if form.get('ack') %}checked{% endif %}>
         <label class="usa-checkbox__label" for="ack">
-          I understand this is AI-generated, not source data, and I am
-          deliberately reusing it as the basis for this project.
+          I understand this is an automated-analysis draft, not source data,
+          and I'm deliberately using it as the starting point for this project.
         </label>
       </div>
     </fieldset>

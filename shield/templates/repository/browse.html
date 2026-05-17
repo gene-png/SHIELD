@@ -4,15 +4,15 @@
 <h1>Repository</h1>
 <p>Read-only browser across every project and platform you are authorized to see.</p>
 
-<nav class="shield-filters" aria-label="Origin filter">
+<nav class="shield-filters" aria-label="Source filter">
   <a class="usa-button usa-button--{{ 'base' if origin_filter == 'all' else 'outline' }}" href="?origin=all">All</a>
-  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_input' else 'outline' }}" href="?origin=human_input">Human source</a>
-  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'ai_generated' else 'outline' }}" href="?origin=ai_generated">AI-generated</a>
-  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_ai_informed' else 'outline' }}" href="?origin=human_ai_informed">Human, AI-informed</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_input' else 'outline' }}" href="?origin=human_input">From your team</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'ai_generated' else 'outline' }}" href="?origin=ai_generated">Automated drafts</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_ai_informed' else 'outline' }}" href="?origin=human_ai_informed">Reviewed versions</a>
 </nav>
 
 <table class="usa-table usa-table--striped">
-  <thead><tr><th>Title</th><th>Origin</th><th>Stage</th><th>Project</th><th>Created</th></tr></thead>
+  <thead><tr><th>Title</th><th>Source</th><th>Stage</th><th>Project</th><th>Created</th></tr></thead>
   <tbody>
     {% for a in artifacts %}
       <tr>

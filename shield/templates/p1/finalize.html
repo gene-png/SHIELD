@@ -5,12 +5,12 @@
 <h1>Finalize — admin-final reconciled list</h1>
 
 <p class="usa-prose">
-  This produces the engagement's headline output: a new
+  This produces the project's headline output: a new
   <strong>capability list version</strong> for
-  <em>{{ project.client.name }}</em>, labeled <code>human, AI-informed</code>.
-  The earlier states (raw upload, AI extraction, admin-confirmed
-  extraction) are retained, never overwritten — that's the spec's
-  "distinct states" rule.
+  <em>{{ project.client.name }}</em>, labeled as <em>your reviewed
+  version</em>. The earlier states (raw upload, automated extraction,
+  admin-confirmed extraction) are retained, never overwritten &mdash;
+  the integrity model requires distinct, separately-labeled states.
 </p>
 
 <form method="POST" action="{{ url_for('p1.finalize', project_id=project.id) }}" class="usa-form usa-form--large">

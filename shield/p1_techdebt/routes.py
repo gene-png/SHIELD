@@ -204,7 +204,7 @@ def extract(project_id: str):
 
     from ..tasks import enqueue_ai, p1_extract_job
     job = enqueue_ai(p1_extract_job, project.id, src.id)
-    flash("AI extraction queued. Refreshing as it runs …", "info")
+    flash("Automated extraction queued. We'll refresh as it runs …", "info")
     return redirect(url_for(
         "jobs.wait", job_id=job.id,
         next=url_for("p1.workspace", project_id=project.id),
@@ -245,7 +245,7 @@ def overlap(project_id: str):
     confirmed_id = request.form.get("artifact_id")
     confirmed = db.session.get(Artifact, confirmed_id) if confirmed_id else None
     if confirmed is None or confirmed.origin != Origin.HUMAN_AI_INFORMED:
-        flash("Run overlap on the admin-confirmed extraction, not the raw AI output.", "error")
+        flash("Run overlap on the admin-confirmed extraction, not the raw automated output.", "error")
         return redirect(url_for("p1.workspace", project_id=project.id))
 
     from ..tasks import enqueue_ai, p1_overlap_job
@@ -296,7 +296,7 @@ def chat(project_id: str):
 
     from ..tasks import enqueue_ai, p1_chat_job
     job = enqueue_ai(p1_chat_job, project.id, question)
-    flash("Question queued. Refreshing as the AI thinks …", "info")
+    flash("Question queued. We'll refresh as the analysis runs …", "info")
     return redirect(url_for(
         "jobs.wait", job_id=job.id,
         next=url_for("p1.workspace", project_id=project.id) + "#chat",
@@ -343,7 +343,7 @@ def commit_chat(project_id: str, chat_artifact_id: str):
         cites_artifact_ids=[src.id],
         actor=current_user,
     )
-    flash("Committed to the human, AI-informed lane.", "info")
+    flash("Committed to your reviewed version.", "info")
     return redirect(url_for("p1.workspace", project_id=project.id) + "#chat")
 
 

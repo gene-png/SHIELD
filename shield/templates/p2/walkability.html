@@ -4,11 +4,12 @@
 <p><a href="{{ url_for('p2.workspace', project_id=project.id) }}">&larr; {{ project.name }}</a></p>
 <h1>Reviewer walkability — {{ project.name }}</h1>
 <p class="usa-prose">
-  For each control: framework definition → client's claim → evidence
-  provided → AI's assessment → identified gap → proposed remediation.
-  Each part is visibly separable so a reviewer can walk the line without
-  trusting any of the others. Per spec §8.2 — this is the audit-reader
-  view, not the admin-flow view.
+  For each control: framework definition &rarr; client&rsquo;s claim
+  &rarr; evidence provided &rarr; the automated assessment &rarr;
+  identified gap &rarr; proposed remediation. Each part is visibly
+  separable so a reviewer can walk the line without trusting any of
+  the others &mdash; this is the audit-reader view, not the
+  admin-flow view.
 </p>
 
 <dl class="shield-walkability__provenance">
@@ -95,19 +96,19 @@
     </div>
 
     <div class="grid-row grid-gap">
-      {# ----- AI's assessment ----- #}
+      {# ----- Automated assessment ----- #}
       <div class="tablet:grid-col-6">
-        <h3 class="shield-walk__step">③ AI's assessment</h3>
+        <h3 class="shield-walk__step">&#9314; Automated assessment</h3>
         {% if ai %}
           <p>
-            Assessment: <strong>{{ ai.get('ai_assessment', '—') }}</strong>
+            Assessment: <strong>{{ ai.get('ai_assessment', '&mdash;') }}</strong>
             {% if ai.get('client_claim') and ai.get('client_claim') != ai.get('ai_assessment') %}
-              <span class="shield-diverge" title="AI disagrees with the client's claim">⚠️ diverges from client claim ({{ ai.get('client_claim') }})</span>
+              <span class="shield-diverge" title="The automated assessment disagrees with the client's claim">&#9888;&#65039; diverges from client claim ({{ ai.get('client_claim') }})</span>
             {% endif %}
           </p>
           {% if ai.get('rationale') %}<blockquote class="usa-prose">{{ ai.get('rationale') }}</blockquote>{% endif %}
         {% else %}
-          <p><em>No AI assessment for this control yet.</em></p>
+          <p><em>No automated assessment for this control yet.</em></p>
         {% endif %}
       </div>
 

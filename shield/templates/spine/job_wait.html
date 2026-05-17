@@ -1,11 +1,19 @@
 {% extends "_layout/base.html" %}
-{% block title %}AI is working — SHIELD{% endblock %}
+{% block title %}Working — SHIELD{% endblock %}
 {% block content %}
 <section class="shield-exec" style="max-width:38rem;margin:2rem auto;">
-  <p class="shield-exec__eyebrow">Background job</p>
-  <h1 class="shield-exec__headline">AI is working …</h1>
+  <p class="shield-exec__eyebrow">Automated analysis in progress</p>
+  <h1 class="shield-exec__headline">Working on your draft …</h1>
 
-  <p>Job id: <code>{{ job_id }}</code></p>
+  <p class="usa-prose">
+    This usually takes about 30 seconds to a few minutes depending on
+    how much SHIELD has to read. Three things happen behind this page:
+  </p>
+  <ol class="usa-prose">
+    <li>Inputs are redacted of personal info before they leave SHIELD.</li>
+    <li>The analysis service produces a draft.</li>
+    <li>The draft is saved to the project so a human can review it.</li>
+  </ol>
 
   {# HTMX polls /jobs/<id>/status-fragment every 2 s. The fragment
      replaces this <div> in place; when the job finishes, the server
@@ -18,7 +26,7 @@
     <div class="usa-alert usa-alert--info usa-alert--slim">
       <div class="usa-alert__body">
         <p class="usa-alert__text">
-          JavaScript is disabled — the page won't auto-poll. Use
+          JavaScript is disabled — the page won't auto-update. Use
           <a href="{{ url_for('jobs.wait', job_id=job_id, next=next_url) }}">refresh now</a>
           or <a href="{{ next_url }}">return to the workspace</a>.
         </p>
@@ -27,13 +35,19 @@
   </noscript>
 
   <p class="usa-prose">
-    Anthropic calls typically take 10–30 seconds. You can also
-    <a href="{{ next_url }}">return to the workspace</a> and come back
-    later — the worker keeps running.
+    You can <a href="{{ next_url }}">return to the workspace</a> and
+    come back later — the work keeps running in the background.
   </p>
-  <p><small>
-    Prompt caching is enabled — the second call against the same system
-    prompt within ~5 minutes is ~10× cheaper on input tokens.
-  </small></p>
+
+  {% if current_user.is_authenticated and current_user.role.value == 'admin' %}
+    <details>
+      <summary><small>Technical detail (admin)</small></summary>
+      <p><small>Job id: <code>{{ job_id }}</code></small></p>
+      <p><small>
+        Prompt caching is enabled — the second call against the same
+        system prompt within ~5 minutes is ~10× cheaper on input tokens.
+      </small></p>
+    </details>
+  {% endif %}
 </section>
 {% endblock %}

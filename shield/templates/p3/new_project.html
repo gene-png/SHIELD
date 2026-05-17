@@ -31,8 +31,8 @@
     <legend class="usa-legend">Capability list (optional)</legend>
     <p class="usa-hint">
       Pick a version, or leave blank to link later from the workspace.
-      Picking an <strong>AI-origin</strong> list requires the
-      acknowledgment below.
+      Picking an <strong>automated-analysis draft</strong> list requires
+      the acknowledgment below.
     </p>
     {% for c in clients %}
       {% set client_lists = lists_by_client.get(c.id, []) %}
@@ -59,15 +59,15 @@
   </fieldset>
 
   <fieldset class="usa-fieldset shield-ai-ack">
-    <legend class="usa-legend">AI-origin reuse acknowledgment</legend>
-    <p class="usa-hint">Required only if you pick an AI-generated capability list above.</p>
+    <legend class="usa-legend">Automated-analysis reuse acknowledgment</legend>
+    <p class="usa-hint">Required only if you pick an automated-analysis draft above.</p>
     <div class="usa-checkbox">
       <input class="usa-checkbox__input" type="checkbox"
              id="ack" name="acknowledged_ai_reuse" value="yes"
              {% if form.get('ack') %}checked{% endif %}>
       <label class="usa-checkbox__label" for="ack">
-        I understand this is AI-generated, not source data, and I am
-        deliberately reusing it as the basis for this project.
+        I understand this is an automated-analysis draft, not source data,
+        and I'm deliberately using it as the starting point for this project.
       </label>
     </div>
   </fieldset>

@@ -152,7 +152,7 @@
   <div class="tablet:grid-col-4">
     <section class="shield-lane shield-lane--ai">
       <h3>1. Current-state assessment</h3>
-      <p class="usa-hint"><em>AI-generated · evidence-backed · factual.</em></p>
+      <p class="usa-hint"><em>Automated analysis &middot; evidence-backed &middot; factual.</em></p>
       {% set current_arts = artifacts | selectattr('stage', 'equalto', 'current_state_assessment') | list %}
       {% if current_arts %}
         <ul>
@@ -200,7 +200,7 @@
   <div class="tablet:grid-col-4">
     <section class="shield-lane shield-lane--promoted">
       <h3>3. Transition roadmap</h3>
-      <p class="usa-hint"><em>AI-informed · forward-looking · a plan, not a finding.</em></p>
+      <p class="usa-hint"><em>Automated draft &middot; forward-looking &middot; a plan, not a finding.</em></p>
       {% set roadmap_arts = artifacts | selectattr('stage', 'equalto', 'transition_roadmap') | list %}
       {% if roadmap_arts %}
         <ul>

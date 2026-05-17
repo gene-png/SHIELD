@@ -10,15 +10,20 @@
      hx-trigger="every 2s"
      hx-swap="outerHTML"
      {% endif %}>
-  <p>
-    Status: <code>{{ status }}</code>
-    {% if status == 'queued' %}<em>— waiting for a worker</em>{% endif %}
-    {% if status == 'started' %}<em>— AI call in flight</em>{% endif %}
-    {% if status == 'failed' %}<em>— the worker logged the failure</em>{% endif %}
-  </p>
+  {# Friendlier status labels. The DB enum is `queued|started|finished|failed`;
+     the user sees plain English. Admins still see the raw value below
+     the wait-page's "Technical detail" disclosure. #}
+  {%- set friendly = {
+        'queued':   'Waiting in line …',
+        'started':  'Drafting your analysis …',
+        'finished': 'Done.',
+        'failed':   'Something went wrong.',
+     }.get(status, status) -%}
+  <p><strong>{{ friendly }}</strong></p>
   {% if status == 'failed' %}
     <div class="shield-banner shield-banner--locked">
-      <strong>The job raised an exception.</strong> Artifact was NOT written.
+      <strong>The automated analysis didn't finish.</strong>
+      No draft was saved — you can try again, or contact an admin if it keeps failing.
     </div>
     <details>
       <summary>Traceback</summary>

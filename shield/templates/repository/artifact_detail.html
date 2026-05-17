@@ -24,26 +24,25 @@
 <h2>Lineage</h2>
 <pre>{{ art.lineage | tojson(indent=2) }}</pre>
 
-{# ============ Promotion ============ #}
+{# ============ Approval (was "Promotion") ============ #}
 {% if art.reuse_status.value == 'approved' %}
-  <h2>Promotion</h2>
+  <h2>Approval</h2>
   <p class="shield-promoted">
-    Promoted{% if promoter %} by <strong>{{ promoter.display_name }}</strong>{% endif %}
+    Approved{% if promoter %} by <strong>{{ promoter.display_name }}</strong>{% endif %}
     {% if art.promoted_at %}on {{ art.promoted_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}.
     <br>
-    <em>Origin remains <strong>AI-generated</strong>; only the reuse status changed.</em>
+    <em>This is still an automated-analysis draft; only its reuse status changed.</em>
   </p>
   {% if art.promotion_reason %}
     <blockquote class="shield-promotion-reason">{{ art.promotion_reason }}</blockquote>
   {% endif %}
 {% elif art.origin.value == 'ai_generated' and current_user.role.value in ('admin', 'reviewer') %}
-  <h2>Promote</h2>
+  <h2>Approve for reuse</h2>
   <p>
-    Promoting elevates this artifact's <em>reuse status</em> to
-    <strong>approved</strong>, making it eligible for cross-project reuse
-    via the picker. <strong>Origin remains <em>AI-generated</em></strong> —
-    promotion never relabels AI output as source data. A reason is
-    required and becomes part of the permanent lineage.
+    Approving marks this draft as ready to be reused in other projects
+    via the picker. <strong>It stays labeled as an automated-analysis
+    draft</strong> — approval never converts a draft into source data.
+    A short reason is required and is recorded permanently.
   </p>
   <form method="POST" action="{{ url_for('repository.promote', artifact_id=art.id) }}" class="usa-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -53,16 +52,16 @@
     </label>
     <textarea class="usa-textarea" id="reason" name="reason" rows="3"
               required minlength="10"
-              placeholder="Why this AI artifact is approved for downstream reuse."></textarea>
+              placeholder="Why this draft is approved for downstream reuse."></textarea>
     <div class="usa-button-group">
-      <button class="usa-button" type="submit">Promote to approved</button>
+      <button class="usa-button" type="submit">Approve for reuse</button>
       <a class="usa-button usa-button--outline"
          href="{{ url_for('repository.browse') }}">Cancel</a>
     </div>
   </form>
 {% elif art.origin.value == 'ai_generated' %}
   <p class="usa-hint">
-    <em>Promotion is restricted to admin or reviewer roles.</em>
+    <em>Only admin or reviewer roles can approve drafts for reuse.</em>
   </p>
 {% endif %}
 {% endblock %}

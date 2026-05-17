@@ -39,7 +39,7 @@
             <form method="POST" action="{{ url_for('p1.extract', project_id=project.id) }}" style="display:inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="artifact_id" value="{{ a.id }}">
-              <button class="usa-button usa-button--small">→ AI extract</button>
+              <button class="usa-button usa-button--small">→ Run automated extraction</button>
             </form>
           </li>
         {% endfor %}
@@ -50,10 +50,10 @@
     </section>
   </div>
 
-  {# ============ AI lane ============ #}
+  {# ============ Automated-analysis drafts ============ #}
   <div class="tablet:grid-col-4">
     <section class="shield-lane shield-lane--ai">
-      <h3>AI-generated</h3>
+      <h3>Automated drafts</h3>
       {% if ai %}
         <ul>
         {% for a in ai %}
@@ -74,15 +74,15 @@
         {% endfor %}
         </ul>
       {% else %}
-        <p>No AI artifacts yet. Upload a source file, then click "AI extract".</p>
+        <p>No drafts yet. Upload a source file, then run the automated extraction.</p>
       {% endif %}
     </section>
   </div>
 
-  {# ============ Human-authored-AI-informed lane ============ #}
+  {# ============ Reviewed versions ============ #}
   <div class="tablet:grid-col-4">
     <section class="shield-lane shield-lane--promoted">
-      <h3>Human, AI-informed</h3>
+      <h3>Your reviewed versions</h3>
       {% if informed %}
         <ul>
         {% for a in informed %}
@@ -109,10 +109,9 @@
 <section id="chat" class="shield-chat" style="margin-top:2rem;">
   <h2>Conversation (workspace, not a report)</h2>
   <p class="usa-prose">
-    Query your overlap findings. The conversation is <strong>AI-lane
-    scratch</strong>; nothing committed unless you explicitly do so. Per
-    the integrity model, the chat must never silently leak into the
-    admin-final list.
+    Query your overlap findings. The conversation is a
+    <strong>scratchpad</strong>; nothing is recorded as a finding until
+    you explicitly commit it to the admin-final list.
   </p>
 
   {% set chats = ai | selectattr('stage', 'equalto', 'conversational_interrogation') | list %}
@@ -122,7 +121,7 @@
     <label class="usa-label" for="question">Ask</label>
     <textarea class="usa-textarea" id="question" name="question" rows="3"
               placeholder="e.g. Show everything that overlaps our SIEM spend. What would consolidating these three save?"></textarea>
-    <button class="usa-button" type="submit">Ask AI</button>
+    <button class="usa-button" type="submit">Ask</button>
   </form>
 
   {% if chats %}
@@ -139,7 +138,7 @@
             <em>{{ c.created_at.strftime('%H:%M') }}</em>
           </p>
           <details>
-            <summary>AI response</summary>
+            <summary>Response</summary>
             <pre class="shield-body-text">{{ c.body_text[:3000] }}</pre>
           </details>
           <form method="POST"
