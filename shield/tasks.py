@@ -48,11 +48,18 @@ def _redis_conn():
 
 
 def get_queue():
-    """Return the RQ Queue, lazily creating it on first access."""
+    """Return the RQ Queue, lazily creating it on first access.
+
+    `default_timeout=1200` (20 min) is the job-level death penalty. The
+    P3 ATT&CK coverage call against the full 222-technique catalog with
+    16K output tokens takes ~5 min of actual generation; pair with the
+    600s per-call ANTHROPIC_TIMEOUT_SECONDS this allows one full attempt
+    plus margin for SDK-level retries on transient network failures.
+    """
     global _queue
     if _queue is None:
         from rq import Queue
-        _queue = Queue(QUEUE_NAME, connection=_redis_conn(), default_timeout=600)
+        _queue = Queue(QUEUE_NAME, connection=_redis_conn(), default_timeout=1200)
     return _queue
 
 
