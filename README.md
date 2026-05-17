@@ -51,7 +51,7 @@ make demo                  # builds, migrates, seeds, prints the URL
 
 Open `http://localhost:8000`. You'll be redirected to Keycloak to log in.
 
-**Windows note:** use Git Bash, WSL, or PowerShell with `make` available. If you don't want Make, the underlying commands are in the Makefile — copy them out.
+**Windows note:** use Git Bash, WSL, or PowerShell with `make` available. **No `make`?** Run `dev.cmd <target>` from the repo root — it mirrors every Makefile target (e.g. `dev.cmd demo`, `dev.cmd test`, `dev.cmd vendor-attack`).
 
 **OneDrive note:** clone SHIELD to a path **outside OneDrive** (e.g. `C:\Users\you\source\SHIELD`). OneDrive sync + Docker bind mounts cause intermittent file-lock issues on Windows.
 
@@ -80,8 +80,18 @@ After login, you land on the **home page** with cards for the three platforms.
 - **Zero Trust** (`/platform/zero-trust`) — Platform 2: framework-scoped questionnaire + posture analysis. One framework per engagement.
 - **Attack Surface** (`/platform/attack-surface`) — Platform 3: ATT&CK coverage analysis over the linked capability list. Executive output first, technical matrix as substrate.
 - **Repository** (`/repository`) — read-only browser across everything you're authorized to see. Filter by origin. No uploads happen here.
+- **Jobs** (`/jobs`) — admin/reviewer-only async job listing: queued, started, failed (with captured traceback), recently finished. Useful when an AI call appears stuck or a worker is misbehaving.
+- **Submit documents** (`/intake`) — the stripped client-intake surface (spec §6.6). CLIENT-role users see ONLY this view — no repository browsing, no picker, no AI-lane visibility.
 
-The seed includes a demo client "Acme Co" with a **75-product capability list** specifically curated for breadth and deliberate overlaps (two SIEMs, two EDRs, Slack + Teams, etc.), so Platform 1's overlap analysis produces real findings on first run, not a hand-tuned softball.
+Workspace pages support a **Relink capability list →** action (admin/reviewer) so a project can swap to a different `CapabilityListVersion` after creation. The picker's AI-origin acknowledgment gate fires there too.
+
+The seed includes a demo client "Acme Co" with a **75-product capability list** specifically curated for breadth and deliberate overlaps (two SIEMs, two EDRs, Slack + Teams, etc.), so Platform 1's overlap analysis produces real findings on first run, not a hand-tuned softball. Run `make vendor-attack` once after first boot to vendor the **full MITRE ATT&CK Enterprise catalog** (~222 top-level techniques) into the `mitre_techniques` table — Platform 3 then operates against the real catalog rather than the 33-technique starter set.
+
+## Async AI
+
+AI calls are **asynchronous**: the route enqueues a job onto a Redis queue (`shield-ai`), redirects the browser to `/jobs/<id>/wait`, and the `worker` container picks the job up and writes the resulting AI artifact when the Anthropic call returns. The wait page polls a small HTMX status fragment every 2 s; when the job's done the server returns an `HX-Redirect` to take the browser back to the workspace. This is why the stack has a `redis` and a `worker` service — `make up` and `make demo` bring them up automatically.
+
+Failures (rate limits, network errors, model errors) surface in the `/jobs` admin listing with the captured traceback. The Anthropic SDK does its own retry/backoff for transient 429/5xx with `ANTHROPIC_MAX_RETRIES=4`.
 
 ---
 
@@ -135,8 +145,11 @@ make agent-shell
 | Lint                            | `make lint`                                                |
 | OWASP ZAP baseline scan         | `make security-scan` → report at `reports/zap/baseline.html` |
 | Vendor USWDS + HTMX assets      | `make vendor-assets`                                       |
+| Vendor full MITRE catalog       | `make vendor-attack`                                       |
 | Bash inside the app container   | `make shell`                                               |
 | Run the dev agent               | `make agent ARGS="your prompt"`                            |
+
+Windows users without `make`: run the same targets via `dev.cmd <target>` from the repo root.
 
 ---
 
@@ -144,8 +157,16 @@ make agent-shell
 
 - **The integrity model** — [docs/architecture/INTEGRITY_MODEL.md](docs/architecture/INTEGRITY_MODEL.md). Read this before changing anything in `shield/spine/`.
 - **Threat model** — [docs/security/THREAT_MODEL.md](docs/security/THREAT_MODEL.md). Includes the dev-agent sandbox boundary.
-- **Unified portal spec** — the design contract this repo implements.
+- **RBAC matrix** — [docs/security/RBAC_MATRIX.md](docs/security/RBAC_MATRIX.md). Authoritative who-can-do-what; if it disagrees with the code, the code wins.
+- **v1.0 fix list** — [docs/v1.0-fix-list.md](docs/v1.0-fix-list.md). The original triage list; check items show the v1.x milestones.
+- **Unified portal spec** — [docs/unified-portal-spec.md](docs/unified-portal-spec.md). The design contract this repo implements.
 - **Attributions** — [docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md).
+
+Code pointers:
+- `shield/spine/` — the integrity primitives (identity, repository, picker, audit, intake, projects, jobs)
+- `shield/tasks.py` — all AI work runs here, in the RQ worker
+- `shield/p1_techdebt/`, `shield/p2_zerotrust/`, `shield/p3_attack_surface/` — the three platforms
+- `shield/templates/_components/` — the build-once attach / picker / origin-badge components
 
 Layout:
 
