@@ -1,0 +1,38 @@
+/* USWDS placeholder — replaced by scripts/vendor_assets.py with the real bundle.
+   This minimal stub keeps the app usable if the real USWDS hasn't been vendored yet. */
+:root { --primary: #005ea2; --primary-dark: #1a4480; --base-darker: #3d4551; --base: #71767a; --base-light: #a9aeb1; }
+body { font-family: "Source Sans Pro", "Helvetica Neue", Arial, sans-serif; margin: 0; line-height: 1.5; }
+a { color: var(--primary); }
+.usa-section { padding: 1.5rem 0; }
+.grid-container { max-width: 80rem; margin: 0 auto; padding: 0 1.5rem; }
+.grid-row { display: flex; flex-wrap: wrap; }
+.grid-gap > * { padding: 0 0.5rem; }
+.tablet\:grid-col-4 { flex: 1 1 33%; box-sizing: border-box; }
+.usa-header { padding: 0.75rem 1.5rem; }
+.usa-nav-container { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.usa-logo__text a { font-size: 1.25rem; font-weight: 700; text-decoration: none; color: var(--primary-dark); }
+.usa-nav__primary { display: flex; gap: 1rem; list-style: none; padding: 0; margin: 0; }
+.usa-nav__link { padding: 0.5rem 0.75rem; text-decoration: none; color: var(--base-darker); border-radius: 3px; }
+.usa-nav__link:hover { background: #e7f6f8; }
+.usa-nav__secondary { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+.usa-prose h1 { margin-top: 0; }
+.usa-intro { font-size: 1.1rem; color: var(--base-darker); }
+.usa-button { display: inline-block; padding: 0.5rem 1rem; background: var(--primary); color: #fff; border: none; border-radius: 3px; cursor: pointer; text-decoration: none; font-weight: 600; }
+.usa-button:hover { background: var(--primary-dark); }
+.usa-button--outline { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+.usa-button--small { padding: 0.25rem 0.6rem; font-size: 0.85rem; }
+.usa-button--base { background: var(--base-darker); }
+.usa-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+.usa-table th, .usa-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #dfe1e2; }
+.usa-table--striped tbody tr:nth-child(odd) { background: #f0f0f0; }
+.usa-input, .usa-textarea, .usa-select { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid var(--base); border-radius: 3px; font: inherit; }
+.usa-label { display: block; font-weight: 600; margin-top: 0.5rem; }
+.usa-alert { padding: 0.75rem 1rem; border-left: 4px solid var(--primary); background: #e7f6f8; margin: 0.5rem 0; }
+.usa-alert--info  { border-color: #00bde3; background: #e7f6f8; }
+.usa-alert--error { border-color: #b50909; background: #f4e3db; }
+.usa-alert__text { margin: 0; }
+.usa-card { background: #fff; padding: 1rem; border: 1px solid #c9c9c9; border-radius: 4px; }
+.usa-footer { padding: 1rem 0; background: #fff; border-top: 1px solid #dfe1e2; margin-top: 2rem; }
+.usa-checkbox__input { margin-right: 0.4rem; }
+.usa-file-input input { display: block; padding: 0.5rem; }
+.usa-sr-only { position: absolute; left: -10000px; }

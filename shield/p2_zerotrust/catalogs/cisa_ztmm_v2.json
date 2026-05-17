@@ -1,0 +1,228 @@
+{
+  "id": "cisa_ztmm_v2",
+  "name": "CISA Zero Trust Maturity Model 2.0",
+  "source": "https://www.cisa.gov/zero-trust-maturity-model",
+  "version": "2.0",
+  "pillars": [
+    "Identity",
+    "Devices",
+    "Networks",
+    "Applications & Workloads",
+    "Data",
+    "Visibility & Analytics",
+    "Automation & Orchestration",
+    "Governance"
+  ],
+  "controls": [
+    {
+      "id": "ZTMM.IDENT.AUTH",
+      "pillar": "Identity",
+      "title": "Authentication",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.IDENT.LIFEC",
+      "pillar": "Identity",
+      "title": "Identity Stores",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.IDENT.RISK",
+      "pillar": "Identity",
+      "title": "Risk Assessments",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.IDENT.ACCESS",
+      "pillar": "Identity",
+      "title": "Access Management",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.IDENT.VISIB",
+      "pillar": "Identity",
+      "title": "Visibility & Analytics Capability",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DEV.PCY",
+      "pillar": "Devices",
+      "title": "Policy Enforcement & Compliance Monitoring",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DEV.THREAT",
+      "pillar": "Devices",
+      "title": "Asset & Supply Chain Risk Management",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DEV.RES",
+      "pillar": "Devices",
+      "title": "Resource Access",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DEV.MGMT",
+      "pillar": "Devices",
+      "title": "Device Threat Protection",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DEV.VIS",
+      "pillar": "Devices",
+      "title": "Visibility & Analytics Capability",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.NET.SEG",
+      "pillar": "Networks",
+      "title": "Network Segmentation",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.NET.TRAFFIC",
+      "pillar": "Networks",
+      "title": "Network Traffic Management",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.NET.ENC",
+      "pillar": "Networks",
+      "title": "Traffic Encryption",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.NET.RESIL",
+      "pillar": "Networks",
+      "title": "Network Resilience",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.NET.VIS",
+      "pillar": "Networks",
+      "title": "Visibility & Analytics Capability",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.APP.ACCESS",
+      "pillar": "Applications & Workloads",
+      "title": "Application Access",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.APP.THREAT",
+      "pillar": "Applications & Workloads",
+      "title": "Application Threat Protections",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.APP.ACCESSIBLE",
+      "pillar": "Applications & Workloads",
+      "title": "Accessible Applications",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.APP.SEC",
+      "pillar": "Applications & Workloads",
+      "title": "Secure Application Development & Deployment Workflow",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.APP.VIS",
+      "pillar": "Applications & Workloads",
+      "title": "Application Security Testing",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DATA.INV",
+      "pillar": "Data",
+      "title": "Data Inventory Management",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DATA.CAT",
+      "pillar": "Data",
+      "title": "Data Categorization",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DATA.AVAIL",
+      "pillar": "Data",
+      "title": "Data Availability",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DATA.ACCESS",
+      "pillar": "Data",
+      "title": "Data Access",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.DATA.ENC",
+      "pillar": "Data",
+      "title": "Data Encryption",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.VIS.LOG",
+      "pillar": "Visibility & Analytics",
+      "title": "Log All Traffic (Network, Data, Apps, Users)",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.VIS.SIEM",
+      "pillar": "Visibility & Analytics",
+      "title": "Centralized Security & Information Management",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.VIS.UEBA",
+      "pillar": "Visibility & Analytics",
+      "title": "Common Security & Risk Analytics",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.AUTO.ORCH",
+      "pillar": "Automation & Orchestration",
+      "title": "Policy Decision Point & Policy Orchestration",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.AUTO.WORK",
+      "pillar": "Automation & Orchestration",
+      "title": "Critical Process Automation",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.AUTO.RESP",
+      "pillar": "Automation & Orchestration",
+      "title": "Machine Learning & Artificial Intelligence",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.AUTO.SEC",
+      "pillar": "Automation & Orchestration",
+      "title": "Security Incident Response",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.GOV.POL",
+      "pillar": "Governance",
+      "title": "Policy",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.GOV.RISK",
+      "pillar": "Governance",
+      "title": "Risk Management",
+      "description": ""
+    },
+    {
+      "id": "ZTMM.GOV.COMP",
+      "pillar": "Governance",
+      "title": "Compliance",
+      "description": ""
+    }
+  ]
+}

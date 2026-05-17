@@ -1,0 +1,27 @@
+{% extends "_layout/base.html" %}
+{% block title %}Clients · SHIELD{% endblock %}
+{% block content %}
+<h1>Clients</h1>
+<table class="usa-table usa-table--striped">
+  <thead>
+    <tr><th>Name</th><th>Industry</th><th>Latest capability list</th><th>Projects</th></tr>
+  </thead>
+  <tbody>
+  {% for c in clients %}
+    {% set cl = c.latest_capability_list() %}
+    <tr>
+      <td><a href="{{ url_for('clients.detail', client_id=c.id) }}">{{ c.name }}</a></td>
+      <td>{{ c.industry or '—' }}</td>
+      <td>
+        {% if cl %}
+          v{{ cl.version }} · {{ cl.created_at.strftime('%Y-%m-%d') }} ·
+          {% set origin = cl.origin.value %}{% set reuse = 'draft' %}
+          {% include "_components/origin_badge.html" %}
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ c.projects | length }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

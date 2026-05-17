@@ -1,0 +1,148 @@
+{% extends "_layout/base.html" %}
+{% block title %}Walkability · {{ project.name }} · SHIELD{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p2.workspace', project_id=project.id) }}">&larr; {{ project.name }}</a></p>
+<h1>Reviewer walkability — {{ project.name }}</h1>
+<p class="usa-prose">
+  For each control: framework definition &rarr; client&rsquo;s claim
+  &rarr; evidence provided &rarr; the automated assessment &rarr;
+  identified gap &rarr; proposed remediation. Each part is visibly
+  separable so a reviewer can walk the line without trusting any of
+  the others &mdash; this is the audit-reader view, not the
+  admin-flow view.
+</p>
+
+<dl class="shield-walkability__provenance">
+  <dt>Client</dt><dd>{{ project.client.name }}</dd>
+  <dt>Framework</dt><dd>{{ framework.name }}</dd>
+  <dt>Project stage</dt><dd>{{ project.stage }}</dd>
+  <dt>Current-state artifact</dt>
+  <dd>
+    {% if current_state %}
+      <a href="{{ url_for('repository.artifact_detail', artifact_id=current_state.id) }}">
+        {{ current_state.title }}
+      </a> &middot; {{ current_state.created_at.strftime('%Y-%m-%d %H:%M') }}
+      &middot; {% set origin = 'ai_generated' %}{% set reuse = current_state.reuse_status.value %}
+      {% include "_components/origin_badge.html" %}
+    {% else %}<em>not yet produced</em>{% endif %}
+  </dd>
+  <dt>Roadmap artifact</dt>
+  <dd>
+    {% if roadmap %}
+      <a href="{{ url_for('repository.artifact_detail', artifact_id=roadmap.id) }}">
+        {{ roadmap.title }}
+      </a> &middot; {{ roadmap.created_at.strftime('%Y-%m-%d %H:%M') }}
+    {% else %}<em>not yet produced</em>{% endif %}
+  </dd>
+  {% if project.capability_snapshot %}
+    <dt>Capability list snapshot</dt>
+    <dd>
+      <a href="{{ url_for('clients.capability_list_detail', client_id=project.client_id, list_id=project.capability_snapshot.id) }}">
+        v{{ project.capability_snapshot.version }}
+      </a>
+      &middot; {{ project.capability_snapshot.items | length }} items
+      &middot; {% set origin = project.capability_snapshot.origin.value %}{% set reuse = 'draft' %}
+      {% include "_components/origin_badge.html" %}
+    </dd>
+  {% endif %}
+</dl>
+
+{% for c in framework.controls %}
+  {% set r = responses_by_control.get(c.id) %}
+  {% set ai = ai_by_control.get(c.id, {}) %}
+  {% set rem = remediation_by_control.get(c.id, {}) %}
+  <section class="shield-walkability__control" id="c-{{ c.id }}" style="border:1px solid #dfe1e2; padding:1rem; margin:1rem 0;">
+    <h2><code>{{ c.id }}</code> &middot; {{ c.title }}</h2>
+    <p class="usa-hint">{{ c.pillar }}{% if c.description %} &middot; {{ c.description }}{% endif %}</p>
+
+    <div class="grid-row grid-gap">
+      {# ----- Client's claim ----- #}
+      <div class="tablet:grid-col-6">
+        <h3 class="shield-walk__step">① Client's claim</h3>
+        {% if r %}
+          <p>
+            Answer: <strong>{{ r.answer }}</strong>
+            &middot; trust tier: <code>{{ r.trust_tier.value }}</code>
+            {% if r.locked %}<span class="shield-locked-pill">locked</span>{% endif %}
+          </p>
+          {% if r.rationale %}<blockquote class="usa-prose">{{ r.rationale }}</blockquote>{% endif %}
+          {% if r.submitted_at %}
+            <p class="usa-hint">Submitted {{ r.submitted_at.strftime('%Y-%m-%d %H:%M') }}.</p>
+          {% endif %}
+        {% else %}
+          <p><em>No client claim recorded.</em></p>
+        {% endif %}
+      </div>
+
+      {# ----- Evidence ----- #}
+      <div class="tablet:grid-col-6">
+        <h3 class="shield-walk__step">② Evidence provided</h3>
+        {% if r and r.evidence_artifact %}
+          <p>
+            📎 <a href="{{ url_for('repository.artifact_detail', artifact_id=r.evidence_artifact.id) }}">
+              {{ r.evidence_artifact.filename or r.evidence_artifact.title }}
+            </a>
+            <br>
+            <small>
+              {{ r.evidence_artifact.size_bytes or 0 }} bytes ·
+              {{ r.evidence_artifact.mime_type or '—' }} ·
+              sha256: <code>{{ (r.evidence_artifact.lineage or {}).get('sha256', '—')[:16] }}…</code>
+            </small>
+          </p>
+        {% else %}
+          <p><em>No evidence attached.</em></p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid-row grid-gap">
+      {# ----- Automated assessment ----- #}
+      <div class="tablet:grid-col-6">
+        <h3 class="shield-walk__step">&#9314; Automated assessment</h3>
+        {% if ai %}
+          <p>
+            Assessment: <strong>{{ ai.get('ai_assessment', '&mdash;') }}</strong>
+            {% if ai.get('client_claim') and ai.get('client_claim') != ai.get('ai_assessment') %}
+              <span class="shield-diverge" title="The automated assessment disagrees with the client's claim">&#9888;&#65039; diverges from client claim ({{ ai.get('client_claim') }})</span>
+            {% endif %}
+          </p>
+          {% if ai.get('rationale') %}<blockquote class="usa-prose">{{ ai.get('rationale') }}</blockquote>{% endif %}
+        {% else %}
+          <p><em>No automated assessment for this control yet.</em></p>
+        {% endif %}
+      </div>
+
+      {# ----- Identified gap ----- #}
+      <div class="tablet:grid-col-6">
+        <h3 class="shield-walk__step">④ Identified gap</h3>
+        {% if ai.get('gap') %}
+          <p>{{ ai.get('gap') }}</p>
+        {% else %}
+          <p><em>None identified.</em></p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ----- Proposed remediation ----- #}
+    <h3 class="shield-walk__step">⑤ Proposed remediation</h3>
+    {% if rem %}
+      <p>{{ rem.get('recommended_action', '—') }}</p>
+      <p class="usa-hint">
+        Effort: <code>{{ rem.get('effort', '—') }}</code>
+        &middot; Timeline: <code>{{ rem.get('timeline', '—') }}</code>
+        {% if rem.get('leverages_capabilities') %}
+          &middot; Leverages:
+          {% for cap in rem.get('leverages_capabilities', []) %}
+            <code>{{ cap }}</code>{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        {% endif %}
+      </p>
+    {% elif ai.get('next_step') %}
+      <p>{{ ai.get('next_step') }}</p>
+      <p class="usa-hint">From current-state assessment; not yet refined into a roadmap.</p>
+    {% else %}
+      <p><em>No remediation recorded yet.</em></p>
+    {% endif %}
+  </section>
+{% endfor %}
+{% endblock %}

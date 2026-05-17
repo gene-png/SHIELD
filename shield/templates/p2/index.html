@@ -1,0 +1,25 @@
+{% extends "_layout/base.html" %}
+{% block title %}Zero Trust · SHIELD{% endblock %}
+{% block content %}
+<h1>Zero Trust</h1>
+<p>Assess compliance posture against one chosen framework. Establish desired state. Produce a roadmap.</p>
+
+<p>
+  <a class="usa-button" href="{{ url_for('p2.new_project') }}">+ New project</a>
+</p>
+
+<table class="usa-table usa-table--striped">
+  <thead><tr><th>Project</th><th>Client</th><th>Framework</th><th>Stage</th><th>Created</th></tr></thead>
+  <tbody>
+    {% for p in projects %}
+      <tr>
+        <td><a href="{{ url_for('p2.workspace', project_id=p.id) }}">{{ p.name }}</a></td>
+        <td>{{ p.client.name }}</td>
+        <td>{{ frameworks[p.framework].name if p.framework in frameworks else p.framework or '—' }}</td>
+        <td>{{ p.stage }}</td>
+        <td>{{ p.created_at.strftime('%Y-%m-%d') }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

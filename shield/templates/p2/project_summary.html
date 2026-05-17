@@ -1,0 +1,174 @@
+{% extends "_layout/base.html" %}
+{% block title %}Zero Trust summary · {{ project.name }}{% endblock %}
+{% block content %}
+<p>
+  <a href="{{ url_for('p2.workspace', project_id=project.id) }}">&larr; workspace</a>
+</p>
+
+{% if assessment is none %}
+  <section class="shield-exec">
+    <p class="shield-exec__eyebrow">Zero Trust summary &mdash; {{ project.client.name }}</p>
+    <h1 class="shield-exec__headline">Nothing to summarize yet.</h1>
+    <p class="usa-prose">
+      This page becomes the project's executive view once the
+      current-state assessment has run. From the workspace: answer the
+      questionnaire, attach evidence where you have it, then
+      <strong>Run current-state assessment</strong>.
+    </p>
+    <p><a class="usa-button" href="{{ url_for('p2.workspace', project_id=project.id) }}">Open workspace</a></p>
+  </section>
+{% else %}
+
+{# ============ EXECUTIVE READING PATH (mirror of P3 run_detail) ============ #}
+
+{%- set summary  = assessment.get('summary')  or {} -%}
+{%- set controls = assessment.get('controls') or [] -%}
+
+{# Top 3 gaps: controls whose AI assessment is anything other than
+   "implemented", with a non-empty gap statement. Stable order: walk
+   the controls list as returned by the analysis. #}
+{%- set gaps = [] -%}
+{%- for c in controls -%}
+  {%- if c.get('ai_assessment') and c.get('ai_assessment') != 'implemented' and (c.get('gap') or c.get('rationale')) -%}
+    {%- set _ = gaps.append(c) -%}
+  {%- endif -%}
+{%- endfor -%}
+
+<section class="shield-exec">
+  <p class="shield-exec__eyebrow">
+    Zero Trust posture &mdash; {{ project.client.name }}
+    {% if framework %} &middot; <small>{{ framework.name }}</small>{% endif %}
+  </p>
+  <h1 class="shield-exec__headline">
+    {{ summary.get('headline', 'Posture assessment complete.') }}
+  </h1>
+
+  <div class="grid-row grid-gap shield-exec__numbers">
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--good">
+        <h2>{{ summary.get('implemented', 0) }}</h2>
+        <p>controls implemented<br><small>client claim and evidence agree</small></p>
+      </div>
+    </div>
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--mid">
+        <h2>{{ summary.get('partial', 0) }}</h2>
+        <p>partially implemented<br><small>in place but with material gaps</small></p>
+      </div>
+    </div>
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--bad" style="border-left:6px solid #b50909">
+        <h2>{{ summary.get('not_implemented', 0) }}</h2>
+        <p><strong>not implemented</strong><br><small>known unmet controls in this framework</small></p>
+      </div>
+    </div>
+  </div>
+
+  <h2>The biggest gaps</h2>
+  <p class="usa-prose">
+    These are the controls the framework requires that the current
+    capability list does not satisfy &mdash; either no evidence was
+    provided, or the evidence indicates only partial coverage. Each is
+    a candidate for either remediation or a documented acceptance of
+    risk.
+  </p>
+
+  <div class="grid-row grid-gap shield-blindspots">
+    {% for c in gaps[:3] %}
+      {% set cat = control_lookup.get(c.get('control_id')) %}
+      <div class="tablet:grid-col-4">
+        <div class="usa-card shield-card--blindspot">
+          <p class="shield-card__tag">
+            <code>{{ c.get('control_id') }}</code>
+            {%- if cat %} &middot; <small>{{ cat.pillar }}</small>{%- endif -%}
+          </p>
+          <h3>{{ cat.title if cat else c.get('control_id') }}</h3>
+          {% if c.get('gap') %}
+            <p class="usa-prose">{{ c.get('gap') }}</p>
+          {% elif c.get('rationale') %}
+            <p class="usa-prose">{{ c.get('rationale') }}</p>
+          {% endif %}
+          {% if c.get('next_step') %}
+            <p class="usa-hint"><strong>Suggested next step:</strong> {{ c.get('next_step') }}</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if gaps | length > 3 %}
+    <p class="usa-hint"><em>&hellip; and {{ gaps | length - 3 }} more gaps in the per-pillar matrix below.</em></p>
+  {% endif %}
+
+  <h2>The recommendation</h2>
+  <p class="usa-prose">
+    Each gap is a candidate for either (a) a new or expanded
+    capability, (b) a documented acceptance of risk, or (c) a
+    correction to the questionnaire if the gap is actually a
+    measurement artifact. Use the per-pillar matrix below to prioritize
+    &mdash; clustered gaps in one pillar usually point at one root
+    cause.
+  </p>
+</section>
+
+{# ============ TECHNICAL SUBSTRATE (drill-down) ============ #}
+
+<details class="shield-substrate" style="margin-top:2rem;">
+  <summary>
+    <h2 style="display:inline">Per-pillar matrix</h2>
+    &nbsp;&mdash; every assessed control (substrate, not surface)
+  </summary>
+  <p class="usa-hint">
+    Latest current-state artifact:
+    <a href="{{ url_for('repository.artifact_detail', artifact_id=assessment_art.id) }}">{{ assessment_art.title }}</a>
+    &middot; {{ assessment_art.created_at.strftime('%Y-%m-%d %H:%M') }}
+  </p>
+
+  {# Group controls by pillar via the framework catalog so the table
+     reads in the order a reviewer expects. Unknown control_ids land
+     under "Other". #}
+  {%- set by_pillar = {} -%}
+  {%- for c in controls -%}
+    {%- set cat = control_lookup.get(c.get('control_id')) -%}
+    {%- set pillar = cat.pillar if cat else 'Other' -%}
+    {%- if pillar not in by_pillar -%}{%- set _ = by_pillar.update({pillar: []}) -%}{%- endif -%}
+    {%- set _ = by_pillar[pillar].append(c) -%}
+  {%- endfor -%}
+
+  {% for pillar, items in by_pillar.items() %}
+    <h3>{{ pillar }}</h3>
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr>
+          <th>Control</th><th>Client claim</th><th>Assessment</th><th>Gap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in items %}
+          {% set cat = control_lookup.get(c.get('control_id')) %}
+          <tr>
+            <td>
+              <code>{{ c.get('control_id') }}</code>
+              {% if cat %}<br><small>{{ cat.title }}</small>{% endif %}
+            </td>
+            <td>{{ c.get('client_claim', '') }}</td>
+            <td>
+              {%- set verdict = c.get('ai_assessment', '') -%}
+              {%- if verdict == 'implemented' -%}
+                <span class="shield-badge shield-badge--human_input">implemented</span>
+              {%- elif verdict == 'partial' -%}
+                <span class="shield-badge shield-badge--human_ai_informed">partial</span>
+              {%- else -%}
+                <span class="shield-badge shield-badge--ai_generated">{{ verdict or 'not implemented' }}</span>
+              {%- endif -%}
+            </td>
+            <td>{{ c.get('gap', '') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+</details>
+
+{% endif %}
+{% endblock %}

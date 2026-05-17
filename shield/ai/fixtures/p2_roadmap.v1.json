@@ -1,0 +1,29 @@
+{
+  "summary": "[fixture] Three controls show meaningful gaps from current to target. The MFA enforcement gap (ZTMM.IDENT.1) is the highest-leverage move and can land within Q2; macro-segmentation (ZTMM.NET.1) is a multi-quarter program. Existing CrowdStrike Falcon coverage gives device posture inputs that can shorten the device-posture-for-access work.",
+  "items": [
+    {
+      "control_id": "ZTMM.IDENT.1",
+      "gap": "MFA is partially implemented; admin/privileged paths still allow password-only fallback.",
+      "recommended_action": "Roll out hard-token MFA for privileged accounts; deprecate password-only login on admin tooling; align with Duo + Entra MFA already in inventory.",
+      "effort": "medium",
+      "timeline": "Q2 2026",
+      "leverages_capabilities": ["Duo", "Microsoft Entra MFA"]
+    },
+    {
+      "control_id": "ZTMM.NET.1",
+      "gap": "Network is flat north-south; macro-segmentation absent between production and corporate tiers.",
+      "recommended_action": "Stand up policy-based segmentation between prod and corporate VPCs; gate east-west by service identity.",
+      "effort": "large",
+      "timeline": "Q3-Q4 2026",
+      "leverages_capabilities": []
+    },
+    {
+      "control_id": "ZTMM.DATA.2",
+      "gap": "DLP not enforced on the two most sensitive categories.",
+      "recommended_action": "Configure Microsoft Purview DLP for PII and financial categories; tune false-positive rate before enforcement.",
+      "effort": "medium",
+      "timeline": "Q2 2026",
+      "leverages_capabilities": ["Microsoft Purview"]
+    }
+  ]
+}

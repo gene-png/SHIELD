@@ -1,0 +1,36 @@
+{
+  "name": "SHIELD",
+  "dockerComposeFile": [
+    "../compose/docker-compose.yml",
+    "../compose/docker-compose.dev.yml"
+  ],
+  "service": "app",
+  "workspaceFolder": "/app",
+  "shutdownAction": "none",
+  "forwardPorts": [8000, 8080, 5432],
+  "portsAttributes": {
+    "8000": { "label": "SHIELD app",  "onAutoForward": "openBrowser" },
+    "8080": { "label": "Keycloak"     },
+    "5432": { "label": "Postgres"     }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "samuelcolvin.jinjahtml",
+        "ms-azuretools.vscode-docker",
+        "humao.rest-client",
+        "EditorConfig.EditorConfig"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python3",
+        "files.eol": "\n",
+        "[python]": { "editor.formatOnSave": false },
+        "ruff.lint.run": "onSave"
+      }
+    }
+  },
+  "postCreateCommand": "python -m pip install --no-cache-dir -r requirements-dev.txt && pre-commit install || true"
+}

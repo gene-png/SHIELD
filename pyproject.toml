@@ -1,0 +1,29 @@
+[project]
+name = "shield"
+version = "0.1.0"
+description = "SHIELD — Unified Portal for Technical Debt, Zero Trust, and ATT&CK assessment platforms."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Gene Powell" }]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "C4"]
+ignore = ["S101"]  # allow asserts in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+"scripts/*" = ["S"]
+# Pure data-table files: pre-formatted columnar dict literals where
+# enforcing line length would just destroy the columnar alignment that
+# makes the data readable in the first place.
+"scripts/seed_catalog.py" = ["S", "E501"]
+"shield/p3_attack_surface/attack_data.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"

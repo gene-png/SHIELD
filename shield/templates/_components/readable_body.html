@@ -1,0 +1,128 @@
+{# Render an artifact body_text as readable content when we can recognize
+   its shape, falling back to pretty-printed JSON or a plain <pre>.
+
+   Inputs:
+     body_text   raw string from the artifact (usually JSON)
+     truncate    int, optional. Cap the body shown to N chars (default: full).
+
+   Recognized shapes (best-effort):
+     - {executive_summary: {...}, findings: [...]}   (P3 ATT&CK coverage)
+     - {answer, citations}                           (P1 chat)
+     - {gaps: [...], redundancies: [...]}            (P1 overlap)
+     - [array of objects with `name`]                (P1 extraction)
+     - {controls: [...]}                             (P2 posture/roadmap)
+     - other JSON                                    pretty-printed JSON
+     - non-JSON                                      plain <pre>
+
+   For unrecognized JSON we still show the structured fallback (the
+   pretty-printed tree in <details>), not just an opaque <pre> dump.
+#}
+{%- set raw = body_text or "" -%}
+{%- if truncate is not defined or not truncate -%}
+  {%- set _show = raw -%}
+{%- else -%}
+  {%- set _show = raw[:truncate] -%}
+{%- endif -%}
+
+{%- set parsed = none -%}
+{%- if _show.strip().startswith("{") or _show.strip().startswith("[") -%}
+  {# We can't try/except in Jinja, so route through a tiny helper filter.
+     `from_json` is registered in shield/__init__.py — it returns None
+     on parse failure rather than raising. #}
+  {%- set parsed = _show | from_json -%}
+{%- endif -%}
+
+{%- if parsed is mapping -%}
+  {# ---- Shape: P3 ATT&CK coverage ---- #}
+  {%- if parsed.get("executive_summary") or parsed.get("findings") -%}
+    {%- set summary = parsed.get("executive_summary") or {} -%}
+    {%- if summary.get("headline") -%}
+      <p class="usa-prose"><strong>{{ summary["headline"] }}</strong></p>
+    {%- endif -%}
+    {%- if summary.get("covered") is not none -%}
+      <ul class="usa-prose">
+        <li><strong>{{ summary.get("covered", 0) }}</strong> covered</li>
+        <li><strong>{{ summary.get("partial", 0) }}</strong> partial</li>
+        <li><strong>{{ summary.get("uncovered", 0) }}</strong> not covered</li>
+        <li>{{ summary.get("total_techniques", "") }} techniques evaluated</li>
+      </ul>
+    {%- endif -%}
+    {%- set findings = parsed.get("findings", []) -%}
+    {%- if findings -%}
+      <p class="usa-prose"><em>{{ findings | length }} findings &mdash; details below.</em></p>
+    {%- endif -%}
+
+  {# ---- Shape: P1 chat ---- #}
+  {%- elif parsed.get("answer") -%}
+    <p class="usa-prose">{{ parsed["answer"] }}</p>
+    {%- set cites = parsed.get("citations") or parsed.get("evidence") or [] -%}
+    {%- if cites -%}
+      <p class="usa-hint"><em>Cited:</em>
+        {%- for c in cites %}{{ c }}{%- if not loop.last %}; {% endif -%}{% endfor -%}
+      </p>
+    {%- endif -%}
+
+  {# ---- Shape: P1 overlap ---- #}
+  {%- elif parsed.get("redundancies") or parsed.get("gaps") -%}
+    {%- if parsed.get("redundancies") -%}
+      <h4>Redundancies</h4>
+      <ul class="usa-prose">
+        {%- for r in parsed["redundancies"] -%}
+          <li>
+            {%- if r is mapping -%}
+              <strong>{{ r.get("category", "(group)") }}</strong>
+              {%- if r.get("items") %}: {{ r.get("items") | join(", ") }}{% endif -%}
+              {%- if r.get("note") %} &mdash; {{ r["note"] }}{% endif -%}
+            {%- else -%}{{ r }}{%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+    {%- endif -%}
+    {%- if parsed.get("gaps") -%}
+      <h4>Gaps</h4>
+      <ul class="usa-prose">
+        {%- for g in parsed["gaps"] -%}
+          <li>{% if g is mapping %}{{ g.get("description", g) }}{% else %}{{ g }}{% endif %}</li>
+        {%- endfor -%}
+      </ul>
+    {%- endif -%}
+
+  {# ---- Shape: P2 posture / roadmap (controls list) ---- #}
+  {%- elif parsed.get("controls") -%}
+    <p class="usa-prose"><em>{{ parsed["controls"] | length }} controls assessed.</em></p>
+    {%- if parsed.get("summary") -%}
+      <p class="usa-prose">{{ parsed["summary"] }}</p>
+    {%- endif -%}
+
+  {%- else -%}
+    {# Recognized JSON shape we don't have a custom renderer for — let
+       the pretty-print fallback below carry the load. #}
+  {%- endif -%}
+
+{%- elif parsed is sequence and parsed is not string -%}
+  {# ---- Shape: P1 extraction (array of capability items) ---- #}
+  <p class="usa-prose"><em>{{ parsed | length }} items extracted.</em></p>
+  {%- if parsed and parsed[0] is mapping and parsed[0].get("name") -%}
+    <ul class="usa-prose">
+      {%- for item in parsed[:8] -%}
+        <li><strong>{{ item.get("name", "(unnamed)") }}</strong>
+          {%- if item.get("vendor") %} &middot; {{ item["vendor"] }}{% endif -%}
+          {%- if item.get("category") %} &middot; <em>{{ item["category"] }}</em>{% endif -%}
+        </li>
+      {%- endfor -%}
+      {%- if parsed | length > 8 -%}
+        <li><em>&hellip; and {{ parsed | length - 8 }} more (see full content below).</em></li>
+      {%- endif -%}
+    </ul>
+  {%- endif -%}
+{%- endif -%}
+
+{# ---- Full content, always available as the source of truth ---- #}
+<details class="shield-readable__details">
+  <summary>Full content</summary>
+  {%- if parsed is not none -%}
+    <pre class="shield-body-text">{{ parsed | tojson(indent=2) }}</pre>
+  {%- else -%}
+    <pre class="shield-body-text">{{ _show }}</pre>
+  {%- endif -%}
+</details>

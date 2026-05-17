@@ -1,0 +1,93 @@
+{% extends "_layout/base.html" %}
+{% block title %}Audit log · SHIELD{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<p class="usa-prose">
+  Append-only by design (Postgres trigger + no UPDATE routes). Every
+  artifact write, promotion, attribution change, link, login / logout,
+  and platform action lands here. Read access is admin + reviewer.
+</p>
+
+<form method="GET" class="usa-form usa-form--inline" style="margin-bottom:1rem;">
+  <label class="usa-label" for="action">Action</label>
+  <input class="usa-input" id="action" name="action" type="text"
+         value="{{ action_q }}" placeholder="e.g. artifact, promote, login">
+
+  <label class="usa-label" for="client_id">Client</label>
+  <select class="usa-select" id="client_id" name="client_id">
+    <option value="">— any —</option>
+    {% for c in clients %}
+      <option value="{{ c.id }}" {% if client_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+
+  <label class="usa-label" for="since">Since</label>
+  <select class="usa-select" id="since" name="since">
+    {% for s in since_presets %}
+      <option value="{{ s }}" {% if since == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+
+  <button class="usa-button" type="submit">Filter</button>
+  <a class="usa-button usa-button--outline" href="{{ url_for('audit.index') }}">Reset</a>
+</form>
+
+<p><small>Page {{ page }} &middot; {{ entries | length }} entries</small></p>
+
+<table class="usa-table usa-table--striped">
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>Actor</th>
+      <th>Action</th>
+      <th>Target</th>
+      <th>Client / Project</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+      <tr>
+        <td><code>{{ e.at.strftime('%Y-%m-%d %H:%M:%S') }}</code></td>
+        <td>{{ e.actor_email or '—' }}</td>
+        <td><code>{{ e.action }}</code></td>
+        <td>
+          {% if e.target_type %}
+            {{ e.target_type }}
+            {% if e.target_id %}<br><small><code>{{ e.target_id[:8] }}</code></small>{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if e.client_id %}<code>{{ e.client_id[:8] }}</code>{% endif %}
+          {% if e.project_id %}<br><small>proj <code>{{ e.project_id[:8] }}</code></small>{% endif %}
+        </td>
+        <td>
+          {% if e.details %}
+            <details>
+              <summary>{{ (e.details | tojson)[:60] }}…</summary>
+              <pre class="shield-body-text">{{ e.details | tojson(indent=2) }}</pre>
+            </details>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6"><em>No matching audit entries.</em></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<nav aria-label="Pagination" style="margin-top:1rem;">
+  {% if page > 1 %}
+    <a class="usa-button usa-button--outline"
+       href="{{ url_for('audit.index', action=action_q, client_id=client_id, since=since, page=page-1) }}">
+      ← Previous
+    </a>
+  {% endif %}
+  {% if has_next %}
+    <a class="usa-button"
+       href="{{ url_for('audit.index', action=action_q, client_id=client_id, since=since, page=page+1) }}">
+      Next →
+    </a>
+  {% endif %}
+</nav>
+{% endblock %}

@@ -1,0 +1,31 @@
+{# Attach-file component (spec §7.1).
+
+   One component used everywhere uploads happen. It states its destination
+   in plain words before the user drops a file. It can ONLY write to the
+   human lane — that is enforced server-side by RepositoryWriter.
+
+   Required context:
+     - upload_url     POST endpoint that consumes the upload
+     - project_name   shown in the inheritance line
+     - lane_label     "human-provided source documents" (default) etc.
+     - actor_role     "admin" | "client"
+#}
+{%- set lane_label = lane_label | default('human-provided source documents') -%}
+{%- set actor_role = actor_role | default(current_user.role.value if current_user.is_authenticated else 'user') -%}
+<form class="shield-attach"
+      method="POST"
+      action="{{ upload_url }}"
+      enctype="multipart/form-data"
+      aria-label="Attach a file">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="shield-attach__inheritance">
+    Files added here are recorded as <strong>{{ lane_label }}</strong>
+    for <strong>{{ project_name }}</strong>, by <strong>{{ actor_role }}</strong>.
+  </p>
+  <label class="shield-attach__drop usa-file-input">
+    <input type="file" name="file" required>
+  </label>
+  <label class="usa-label" for="attach-title">Title</label>
+  <input class="usa-input" id="attach-title" name="title" type="text" required>
+  <button type="submit" class="usa-button">Attach</button>
+</form>

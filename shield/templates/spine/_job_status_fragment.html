@@ -1,0 +1,34 @@
+{# Small HTMX-polled fragment. The wait page swaps this in every ~2 s
+   WHILE the job is queued or started. Once the job hits a terminal
+   state (failed; finished is handled by HX-Redirect upstream), the
+   server returns this fragment WITHOUT the hx-trigger — polling
+   stops so any <details> the user opened (e.g. the failed-job
+   traceback) stays open. #}
+<div id="job-status"
+     {% if status not in ('failed', 'finished') %}
+     hx-get="{{ url_for('jobs.status_fragment', job_id=job_id, next=next_url) }}"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     {% endif %}>
+  {# Friendlier status labels. The DB enum is `queued|started|finished|failed`;
+     the user sees plain English. Admins still see the raw value below
+     the wait-page's "Technical detail" disclosure. #}
+  {%- set friendly = {
+        'queued':   'Waiting in line …',
+        'started':  'Drafting your analysis …',
+        'finished': 'Done.',
+        'failed':   'Something went wrong.',
+     }.get(status, status) -%}
+  <p><strong>{{ friendly }}</strong></p>
+  {% if status == 'failed' %}
+    <div class="shield-banner shield-banner--locked">
+      <strong>The automated analysis didn't finish.</strong>
+      No draft was saved — you can try again, or contact an admin if it keeps failing.
+    </div>
+    <details>
+      <summary>Traceback</summary>
+      <pre class="shield-body-text">{{ error }}</pre>
+    </details>
+    <p><a class="usa-button" href="{{ next_url }}">Back to the workspace</a></p>
+  {% endif %}
+</div>

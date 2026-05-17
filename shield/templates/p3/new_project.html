@@ -1,0 +1,80 @@
+{% extends "_layout/base.html" %}
+{% block title %}New Attack Surface project · SHIELD{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p3.index') }}">&larr; Attack Surface</a></p>
+<h1>New Attack Surface project</h1>
+
+<p class="usa-prose">
+  Coverage analysis runs against the linked capability list — pick one
+  below or upload a fresh one in the project workspace.
+</p>
+
+<form method="POST" action="{{ url_for('p3.new_project') }}" class="usa-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label class="usa-label" for="client_id">Client</label>
+  <select id="client_id" name="client_id" class="usa-select" required>
+    <option value="">— pick a client —</option>
+    {% for c in clients %}
+      <option value="{{ c.id }}" {% if form.get('client_id') == c.id %}selected{% endif %}>
+        {{ c.name }}{% if c.industry %} · {{ c.industry }}{% endif %}
+      </option>
+    {% endfor %}
+  </select>
+
+  <label class="usa-label" for="name">Project name</label>
+  <input id="name" name="name" class="usa-input" type="text" required
+         placeholder="e.g. ATT&CK coverage Q2 2026"
+         value="{{ form.get('name', '') }}">
+
+  <fieldset class="usa-fieldset">
+    <legend class="usa-legend">Capability list (optional)</legend>
+    <p class="usa-hint">
+      Pick a version, or leave blank to link later from the workspace.
+      Picking an <strong>automated-analysis draft</strong> list requires
+      the acknowledgment below.
+    </p>
+    {% for c in clients %}
+      {% set client_lists = lists_by_client.get(c.id, []) %}
+      {% if client_lists %}
+        <div class="shield-picker__client">
+          <p class="usa-prose"><strong>{{ c.name }}:</strong></p>
+          {% for cl in client_lists %}
+            <div class="usa-radio">
+              <input class="usa-radio__input" type="radio"
+                     id="cl-{{ cl.id }}" name="capability_list_id" value="{{ cl.id }}"
+                     {% if form.get('capability_list_id') == cl.id %}checked{% endif %}>
+              <label class="usa-radio__label" for="cl-{{ cl.id }}">
+                v{{ cl.version }} — {{ cl.label }}
+                ({{ cl.items | length }} items, {{ cl.created_at.strftime('%Y-%m-%d') }})
+                {% set origin = cl.origin.value %}
+                {% set reuse = 'draft' %}
+                {% include "_components/origin_badge.html" %}
+              </label>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endfor %}
+  </fieldset>
+
+  <fieldset class="usa-fieldset shield-ai-ack">
+    <legend class="usa-legend">Automated-analysis reuse acknowledgment</legend>
+    <p class="usa-hint">Required only if you pick an automated-analysis draft above.</p>
+    <div class="usa-checkbox">
+      <input class="usa-checkbox__input" type="checkbox"
+             id="ack" name="acknowledged_ai_reuse" value="yes"
+             {% if form.get('ack') %}checked{% endif %}>
+      <label class="usa-checkbox__label" for="ack">
+        I understand this is an automated-analysis draft, not source data,
+        and I'm deliberately using it as the starting point for this project.
+      </label>
+    </div>
+  </fieldset>
+
+  <div class="usa-button-group">
+    <button class="usa-button" type="submit">Create project</button>
+    <a class="usa-button usa-button--outline" href="{{ url_for('p3.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

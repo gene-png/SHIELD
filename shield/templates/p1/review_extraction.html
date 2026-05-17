@@ -1,0 +1,13 @@
+{% extends "_layout/base.html" %}
+{% block title %}Review extraction · {{ project.name }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p1.workspace', project_id=project.id) }}">&larr; workspace</a></p>
+<h1>Review extraction</h1>
+<p>Edit the automatically-extracted JSON below. What you save here becomes <em>your reviewed version</em> and is what the overlap analysis runs on. Garbage in, garbage out &mdash; this checkpoint matters.</p>
+
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <textarea class="usa-textarea" name="confirmed_text" rows="24" style="font-family: ui-monospace, monospace;">{{ src.body_text }}</textarea>
+  <button class="usa-button">Save admin-confirmed extraction</button>
+</form>
+{% endblock %}

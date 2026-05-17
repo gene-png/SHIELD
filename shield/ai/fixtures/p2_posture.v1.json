@@ -1,0 +1,18 @@
+{
+  "controls": [
+    {"control_id": "ZTMM.IDENT.1", "client_claim": "implemented", "evidence_provided": [], "ai_assessment": "partial",         "rationale": "MFA enforced via Duo and Entra MFA, but both run side-by-side — exception lists are not centralized.", "gap": "Centralize MFA policy", "next_step": "Pick one MFA provider; migrate exception list."},
+    {"control_id": "ZTMM.IDENT.2", "client_claim": "implemented", "evidence_provided": [], "ai_assessment": "implemented",     "rationale": "CyberArk PAM covers privileged accounts.", "gap": "", "next_step": ""},
+    {"control_id": "ZTMM.DEVICE.1","client_claim": "partial",     "evidence_provided": [], "ai_assessment": "partial",         "rationale": "Intune covers Windows; Jamf covers Mac; Linux servers not inventoried.", "gap": "Linux fleet not in inventory", "next_step": "Onboard Linux to Tanium or Lansweeper."},
+    {"control_id": "ZTMM.NET.1",   "client_claim": "partial",     "evidence_provided": [], "ai_assessment": "not_implemented", "rationale": "Macro-segmentation between prod/dev not enforced at network layer.", "gap": "No macro-segmentation", "next_step": "Define VLAN/security-group separation; pilot on prod tier."},
+    {"control_id": "ZTMM.APP.1",   "client_claim": "implemented", "evidence_provided": [], "ai_assessment": "partial",         "rationale": "Application access governance via Okta + Entra; shadow IT (Slack, Notion) bypasses governance.", "gap": "Shadow apps bypass governance", "next_step": "Run CASB discovery; bring shadow apps into Okta SSO."},
+    {"control_id": "ZTMM.DATA.1",  "client_claim": "not_implemented","evidence_provided": [], "ai_assessment": "not_implemented", "rationale": "No formal data classification scheme.", "gap": "Data classification absent", "next_step": "Adopt Microsoft Purview labels; pilot on Finance share."},
+    {"control_id": "ZTMM.DATA.2",  "client_claim": "implemented", "evidence_provided": [], "ai_assessment": "partial",         "rationale": "Symantec DLP + Purview DLP run in parallel; rule sets diverge.", "gap": "Two DLP engines; gaps where neither covers", "next_step": "Pick one DLP; migrate rule set."}
+  ],
+  "summary": {
+    "controls_total": 7,
+    "implemented": 1,
+    "partial": 4,
+    "not_implemented": 2,
+    "headline": "Posture is mid-maturity; biggest gaps are data classification and macro-segmentation."
+  }
+}

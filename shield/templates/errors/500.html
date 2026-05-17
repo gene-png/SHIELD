@@ -1,0 +1,7 @@
+{% extends "_layout/base.html" %}
+{% block title %}Server error · SHIELD{% endblock %}
+{% block content %}
+<h1>Server error</h1>
+<p>Something went wrong on our side. The incident has been logged.</p>
+<p><a class="usa-button" href="{{ url_for('home') }}">Home</a></p>
+{% endblock %}

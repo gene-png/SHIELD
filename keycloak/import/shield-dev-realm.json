@@ -1,0 +1,79 @@
+{
+  "realm": "shield-dev",
+  "enabled": true,
+  "displayName": "SHIELD (dev)",
+  "loginTheme": "keycloak",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "sslRequired": "none",
+  "accessTokenLifespan": 1800,
+  "ssoSessionIdleTimeout": 7200,
+  "ssoSessionMaxLifespan": 28800,
+  "roles": {
+    "realm": [
+      { "name": "client",   "description": "Self-assessment user; client tenant" },
+      { "name": "admin",    "description": "Consultant / platform admin" },
+      { "name": "reviewer", "description": "Auditor / external reviewer; read-only across" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "shield-app",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "shield-app-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8000/*",
+        "http://app:8000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8000",
+        "http://app:8000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": ["openid", "profile", "email", "roles"]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@demo",
+      "email": "admin@demo",
+      "firstName": "Demo",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo", "temporary": false }],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "client@demo",
+      "email": "client@demo",
+      "firstName": "Demo",
+      "lastName": "Client",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo", "temporary": false }],
+      "realmRoles": ["client"]
+    },
+    {
+      "username": "reviewer@demo",
+      "email": "reviewer@demo",
+      "firstName": "Demo",
+      "lastName": "Reviewer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo", "temporary": false }],
+      "realmRoles": ["reviewer"]
+    }
+  ]
+}

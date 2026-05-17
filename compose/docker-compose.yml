@@ -1,0 +1,208 @@
+# =====================================================================
+# SHIELD compose stack.
+#
+# Bring everything up:    docker compose -f compose/docker-compose.yml up -d
+# Use the dev override:    add  -f compose/docker-compose.dev.yml
+# =====================================================================
+name: shield
+
+networks:
+  shield_public:
+    driver: bridge
+  shield_internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  pgdata:
+  keycloak_data:
+  artifacts:
+  agent_logs:
+  redis_data:
+
+services:
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-shield}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shield_dev_password}
+      POSTGRES_DB:       ${POSTGRES_DB:-shield}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [shield_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-shield} -d $${POSTGRES_DB:-shield}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      # Full URL for KC_HOSTNAME — sets scheme + host + port for the
+      # browser-facing front-channel (authorize endpoint, `iss` claim).
+      KC_HOSTNAME: "http://localhost:8080"
+      # With this enabled, back-channel discovery URLs (token_endpoint,
+      # jwks_uri, etc.) are derived from the request's Host header rather
+      # than the static KC_HOSTNAME. The Flask app fetches discovery via
+      # `http://keycloak:8080` (internal docker DNS), so it gets a token
+      # endpoint at `http://keycloak:8080/.../token` and can complete the
+      # OIDC code exchange. The `iss` claim and authorize URL still use
+      # KC_HOSTNAME (localhost:8080), reachable from the browser.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ../keycloak/import:/opt/keycloak/data/import:ro
+    ports:
+      - "8080:8080"
+    networks: [shield_internal, shield_public]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q 200 <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks: [shield_internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-development}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-dev-secret-change-me}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://shield:shield_dev_password@db:5432/shield}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL_APP: ${ANTHROPIC_MODEL_APP:-claude-opus-4-7}
+      ANTHROPIC_MAX_OUTPUT_TOKENS: ${ANTHROPIC_MAX_OUTPUT_TOKENS:-4096}
+      AI_MODE: ${AI_MODE:-real}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-shield-dev}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-shield-app}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-shield-app-dev-secret}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8000}
+    volumes:
+      - artifacts:/app/artifacts
+    ports:
+      - "8000:8000"
+    networks: [shield_internal, shield_public]
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    # Same image as the app — it just runs `rq worker` instead of gunicorn.
+    # AI calls happen here so the request thread never blocks on Anthropic.
+    build:
+      context: ..
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://shield:shield_dev_password@db:5432/shield}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL_APP: ${ANTHROPIC_MODEL_APP:-claude-opus-4-7}
+      ANTHROPIC_MAX_OUTPUT_TOKENS: ${ANTHROPIC_MAX_OUTPUT_TOKENS:-4096}
+      AI_MODE: ${AI_MODE:-real}
+    volumes:
+      - artifacts:/app/artifacts
+    command: ["rq", "worker", "shield-ai", "--url", "redis://redis:6379/0"]
+    # shield_internal so it can reach db + redis on the closed network.
+    # shield_public so it has egress to the Anthropic API — without it
+    # DNS resolution of `api.anthropic.com` fails ("Temporary failure
+    # in name resolution") and every AI job dies as APIConnectionError.
+    networks: [shield_internal, shield_public]
+    security_opt:
+      - no-new-privileges:true
+    # The worker reuses the app image, which has a curl /healthz HEALTHCHECK
+    # baked in. The worker doesn't serve HTTP — disable the inherited
+    # check so `up --wait` doesn't flag it.
+    healthcheck:
+      disable: true
+
+  zap:
+    image: zaproxy/zap-stable:latest
+    profiles: ["security"]
+    networks: [shield_internal]
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ../reports/zap:/zap/wrk:rw
+    command: >
+      zap-baseline.py
+      -t http://app:8000
+      -r baseline.html
+      -J baseline.json
+      -I
+    security_opt:
+      - no-new-privileges:true
+
+  dev-agent:
+    build:
+      context: ..
+      dockerfile: docker/dev-agent.Dockerfile
+    profiles: ["agent"]
+    env_file:
+      - ../.env
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL_AGENT: ${ANTHROPIC_MODEL_AGENT:-claude-sonnet-4-6}
+    volumes:
+      - ..:/workspace:rw
+      - agent_logs:/workspace/reports/agent-runs
+    # Mount the repo as the ONLY writable surface.
+    # No host paths, no Docker socket, no other volumes.
+    networks: [shield_internal]
+    # Hardening: minimal Linux caps, no new privs, read-only root + tmpfs.
+    # /workspace remains writable via the volume mount above.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=256m,mode=1777
+      - /home/agent/.claude:rw,size=128m,mode=0700
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    # No ports published. The agent has internet egress for the Anthropic
+    # API + package mirrors via the default Docker bridge of this network,
+    # but cannot be reached from outside.
+    stdin_open: true
+    tty: true

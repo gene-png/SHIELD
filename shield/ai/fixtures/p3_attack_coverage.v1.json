@@ -1,0 +1,21 @@
+{
+  "findings": [
+    {"technique_id": "T1566", "coverage": "partial",   "detection_tools": ["Proofpoint Email Protection", "Abnormal Security"], "prevention_tools": ["Proofpoint Email Protection"], "response_tools": ["Microsoft Sentinel"], "rationale": "Email gateway plus AI-based BEC tool give partial coverage; mobile/web phishing channels not covered."},
+    {"technique_id": "T1190", "coverage": "partial",   "detection_tools": ["Wiz Cloud Security Platform"],                       "prevention_tools": ["Cloudflare WAF"],            "response_tools": [],                       "rationale": "WAF + CSPM cover cloud-facing apps; on-prem public-facing apps not covered."},
+    {"technique_id": "T1133", "coverage": "covered",   "detection_tools": ["Tanium Endpoint"],                                   "prevention_tools": ["Microsoft Entra ID P2"],     "response_tools": ["CrowdStrike Falcon"],   "rationale": "Conditional access + EDR cover external remote services."},
+    {"technique_id": "T1195", "coverage": "uncovered", "detection_tools": [],                                                     "prevention_tools": [],                            "response_tools": [],                       "rationale": "No supply-chain compromise detection. Snyk covers OSS dependencies but not vendor binaries."},
+    {"technique_id": "T1078", "coverage": "covered",   "detection_tools": ["Microsoft Sentinel"],                                "prevention_tools": ["Microsoft Entra ID P2", "Duo Security"], "response_tools": ["CyberArk Privilege Cloud"], "rationale": "MFA + risk-based access + PAM cover valid-account abuse."},
+    {"technique_id": "T1059", "coverage": "partial",   "detection_tools": ["CrowdStrike Falcon", "Microsoft Defender for Endpoint"], "prevention_tools": ["Carbon Black App Control"], "response_tools": ["CrowdStrike Falcon"], "rationale": "EDR + app allow-listing partial; PowerShell logging not centralized."},
+    {"technique_id": "T1204", "coverage": "partial",   "detection_tools": ["KnowBe4 Security Awareness"],                        "prevention_tools": ["Proofpoint Email Protection"], "response_tools": ["CrowdStrike Falcon"], "rationale": "Awareness training + email gateway; user execution still depends on humans."},
+    {"technique_id": "T1486", "coverage": "partial",   "detection_tools": ["Rubrik Security Cloud"],                             "prevention_tools": [],                            "response_tools": ["Veeam Backup & Replication", "Rubrik Security Cloud"], "rationale": "Two backup products give response coverage; no prevention layer."},
+    {"technique_id": "T1490", "coverage": "uncovered", "detection_tools": [],                                                     "prevention_tools": [],                            "response_tools": [],                       "rationale": "Volume shadow copy + backup tampering not monitored."}
+  ],
+  "executive_summary": {
+    "total_techniques": 33,
+    "covered": 2,
+    "partial": 5,
+    "uncovered": 26,
+    "top_three_blind_spots": ["T1195", "T1490", "T1485"],
+    "headline": "You are blind to supply-chain compromise and backup tampering — two of the techniques most consistently used in ransomware to make recovery impossible."
+  }
+}

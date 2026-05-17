@@ -1,0 +1,31 @@
+{
+  "overlaps": [
+    {
+      "category": "SIEM",
+      "candidates": ["Splunk Enterprise", "Microsoft Sentinel"],
+      "estimated_overlap_cost_usd": 320000,
+      "recommendation": "Consolidate onto Microsoft Sentinel; deprecate Splunk over 12 months.",
+      "rationale": "Both perform log aggregation + correlation. Sentinel is bundled-adjacent in M365 E5 and integrates natively with Defender. Splunk's $480k/yr contract is the most expensive single line item."
+    },
+    {
+      "category": "EDR",
+      "candidates": ["CrowdStrike Falcon", "Microsoft Defender for Endpoint"],
+      "estimated_overlap_cost_usd": 220000,
+      "recommendation": "Pick one EDR; recommend retaining CrowdStrike for non-Windows fleet coverage if Macs/Linux are material.",
+      "rationale": "MDE is bundled in M365 E5 ($0 incremental). Running both creates alert duplication and conflicting quarantine actions."
+    },
+    {
+      "category": "Productivity",
+      "candidates": ["Slack Enterprise Grid", "Microsoft Teams"],
+      "estimated_overlap_cost_usd": 145000,
+      "recommendation": "Standardize on Teams; sunset Slack with a 6-month migration.",
+      "rationale": "Teams is bundled in M365 E5. Slack at $145k/yr is paying twice for chat."
+    }
+  ],
+  "shadow_it": [],
+  "summary": {
+    "total_annual_spend_usd": 1165000,
+    "consolidation_savings_estimate_usd": 685000,
+    "headline": "About $685k/year in consolidation savings across SIEM, EDR, and chat — redirectable to security gap closure."
+  }
+}
