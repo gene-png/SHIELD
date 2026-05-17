@@ -71,6 +71,10 @@ demo: env build ## first-run: bring everything up + seed
 vendor-assets: ## download USWDS + HTMX into shield/static/
 	$(COMPOSE) exec app python scripts/vendor_assets.py
 
+.PHONY: vendor-attack
+vendor-attack: ## fetch the full MITRE ATT&CK Enterprise catalog into mitre_techniques
+	$(COMPOSE) exec app flask --app wsgi:app vendor-attack
+
 .PHONY: agent
 agent: env ## run the headless dev-agent inside docker. Usage: make agent ARGS="your prompt"
 	@test -n "$(ARGS)" || (echo "Usage: make agent ARGS=\"your prompt\""; exit 2)

@@ -31,3 +31,17 @@ def register_cli(app: Flask) -> None:
         db.drop_all()
         db.create_all()
         click.echo("Database reset. Run `flask seed` next.")
+
+    @app.cli.command("vendor-attack")
+    @click.option("--file", "file_", default=None, help="Local STIX JSON path.")
+    @click.option("--url", default=None, help="Override STIX URL.")
+    @click.option("--dry-run", is_flag=True, help="Parse only; no DB writes.")
+    def vendor_attack_cmd(file_: str | None, url: str | None, dry_run: bool):
+        """Vendor full MITRE ATT&CK Enterprise technique catalog into DB."""
+        from scripts.vendor_attack import vendor_attack, STIX_URL
+        source = file_ or url or STIX_URL
+        result = vendor_attack(source, dry_run=dry_run)
+        click.echo(
+            f"vendor-attack: parsed={result['parsed']} "
+            f"inserted={result['inserted']} updated={result['updated']}"
+        )

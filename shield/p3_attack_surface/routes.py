@@ -7,7 +7,7 @@ from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from . import bp
-from .attack_data import TECHNIQUES
+from .attack_data import TECHNIQUES as STARTER_TECHNIQUES
 from ..ai.client import AIClient, AIError
 from ..extensions import db
 from ..models import (
@@ -26,6 +26,32 @@ from ..spine.picker import (
     link_capability_list_to_project,
 )
 from ..spine.repository import write_ai_artifact
+
+
+def _load_techniques() -> list[dict]:
+    """Return MITRE techniques as list-of-dicts.
+
+    Prefers the DB catalog (populated by `flask vendor-attack` or by the
+    seed script). Falls back to the in-memory starter set if the DB is
+    empty (e.g. test config with SQLite in-memory and no seed run).
+    Same dict shape in both cases.
+    """
+    rows = (
+        db.session.query(MitreTechnique)
+        .order_by(MitreTechnique.technique_id)
+        .all()
+    )
+    if rows:
+        return [
+            {
+                "technique_id": r.technique_id,
+                "name": r.name,
+                "tactic": r.tactic,
+                "description": r.description or "",
+            }
+            for r in rows
+        ]
+    return STARTER_TECHNIQUES
 
 
 def _get_project_or_404(project_id: str) -> Project:
@@ -139,7 +165,7 @@ def workspace(project_id: str):
     return render_template(
         "p3/workspace.html",
         project=project, artifacts=artifacts, runs=runs,
-        technique_count=len(TECHNIQUES),
+        technique_count=len(_load_techniques()),
     )
 
 
@@ -158,7 +184,7 @@ def analyze(project_id: str):
     ]
     payload = {
         "capabilities": capabilities,
-        "techniques": TECHNIQUES,
+        "techniques": _load_techniques(),
     }
 
     try:
@@ -223,7 +249,7 @@ def run_detail(project_id: str, run_id: str):
         db.session.query(CoverageFinding)
         .filter_by(coverage_run_id=run.id).all()
     )
-    techniques_by_id = {t["technique_id"]: t for t in TECHNIQUES}
+    techniques_by_id = {t["technique_id"]: t for t in _load_techniques()}
     return render_template(
         "p3/run_detail.html",
         project=project, run=run, findings=findings,
