@@ -1,0 +1,35 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ deliverable.title }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:56rem;margin:0 auto;">
+  <a href="{{ url_for('portal.deliverables_list') }}">&larr; Deliverables</a>
+</p>
+
+<section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">
+    {{ project.name if project else 'Project' }}
+    {% if project %} &middot; <small>finalized {{ deliverable.finalized_at.strftime('%Y-%m-%d %H:%M') }}</small>{% endif %}
+  </p>
+  <h1 class="shield-exec__headline">{{ deliverable.title }}</h1>
+
+  {% if deliverable.summary %}
+    <p class="usa-prose">{{ deliverable.summary }}</p>
+  {% endif %}
+
+  {% if artifact and artifact.body_text %}
+    {# Use the readable_body component so JSON deliverables render as
+       readable content, not opaque <pre> dumps. #}
+    {% set body_text = artifact.body_text %}
+    {% include "_components/readable_body.html" %}
+  {% elif artifact and artifact.storage_key %}
+    <p class="usa-prose">
+      <em>This is a binary deliverable. Ask your consultant for the
+      original file &mdash; in-portal download lands in the next update.</em>
+    </p>
+  {% else %}
+    <p class="usa-prose"><em>No body content recorded.</em></p>
+  {% endif %}
+</section>
+
+{% endblock %}

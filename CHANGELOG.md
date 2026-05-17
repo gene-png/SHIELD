@@ -21,6 +21,58 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.0-rc4] — 2026-05-17 — client portal: dashboard, messages, deliverables, invites (PR 4 of 6)
+
+### Added — returning-client surfaces
+
+- `/portal/` is now the **real dashboard**, not a placeholder.
+  Renders one service card per `client.service_interests` entry,
+  each in one of three states: `awaiting` (no Project yet),
+  `active` (Project exists, no Deliverable), `delivered`
+  (at least one Deliverable). Right-rail shows recent deliverables +
+  recent messages with unread counts.
+- `/portal/services` — manage service interests after initial intake.
+- `/portal/deliverables/` — finalized reports grouped by project.
+- `/portal/deliverables/<id>` — single deliverable with summary +
+  readable body (uses the v1.7 `readable_body` partial so JSON
+  bodies render as structured content, not raw `<pre>` dumps).
+- `/portal/messages/` — thread list. One general thread (project_id
+  NULL) plus one per non-archived project. Each row shows latest
+  message preview + unread count for the viewer.
+- `/portal/messages/<thread_key>` — single thread chronologically.
+  GET marks every message the viewer hadn't read; POST appends a
+  new message and writes a `message.posted` audit row.
+- `/portal/settings/` — profile (display name / title / phone) +
+  team listing + invite-a-colleague (primary-POC only).
+- `/portal/settings/invite` — creates a `ClientInvitation` row with
+  a SHA-256-hashed token; the plaintext token only ever exists
+  during the response and is shown to the inviter as a
+  copy-pasteable URL (per round-2 §10 answer — no SMTP).
+- `/portal/settings/invite/<id>/revoke` — primary-POC can revoke
+  a pending invite.
+- `/portal/invitations/accept/<token>` — invitee accepts. Validates
+  expiry + revocation + email-match (the logged-in user's email
+  must match the invited email; mismatch returns 403 — fail closed).
+
+### Added — audit events
+
+- `message.posted`
+- `client.invited_user`
+- `client.user_joined`
+- `client.invitation_revoked`
+
+### Tests
+
+- 92 → 109 passing. 17 new tests in
+  `tests/test_v18_portal_dashboard.py` covering: dashboard service
+  cards per interest, state transitions (awaiting/active/delivered),
+  services-page interest change, deliverables list grouping +
+  empty state + cross-client 404, messages list/thread/post + read-
+  tracking, settings profile update, invite-create writes hashed
+  token + returns the URL, member (non-PM) can't invite, accept
+  links membership and writes audit, mismatched email is 403,
+  expired/revoked tokens are 404.
+
 ## [1.8.0-rc3] — 2026-05-17 — client portal: welcome + intake wizard (PR 3 of 6)
 
 ### Added — `shield.spine.portal` blueprint

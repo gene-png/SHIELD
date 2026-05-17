@@ -2,33 +2,84 @@
 {% block title %}{{ client.name }} &mdash; SHIELD{% endblock %}
 {% block content %}
 
-{# Placeholder dashboard. PR 4 replaces this with the real
-   per-service card view, action queue, message threads, and
-   recent activity feed. For PR 3 we just show enough that the
-   wizard's "Go to my dashboard" link doesn't dead-end. #}
-
-<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+<section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
   <p class="shield-exec__eyebrow">{{ client.name }}</p>
   <h1 class="shield-exec__headline">Welcome back.</h1>
-  <p class="usa-prose">
-    Your consultant has what you've shared. The full dashboard with
-    per-service status, messages, and finalized deliverables lands in
-    the next update.
-  </p>
-
-  <ul class="usa-prose">
-    {% if client.service_interests %}
-      <li><strong>You said you're interested in:</strong>
-        {%- for s in client.service_interests %}
-          {{ {'tech_debt':'Tech Debt','zero_trust':'Zero Trust','attack_surface':'Attack Surface'}.get(s, s) }}
-          {%- if not loop.last %},{% endif -%}
-        {% endfor -%}.
-      </li>
-    {% endif %}
-    <li><a href="{{ url_for('portal.documents') }}">Upload more documents</a></li>
-    <li><a href="{{ url_for('portal.welcome') }}">Change which services you're interested in</a></li>
-    <li><a href="{{ url_for('portal.about') }}">Update your contact info</a></li>
-  </ul>
 </section>
+
+{# ============ Service cards ============ #}
+{% if cards %}
+  <h2 style="max-width:56rem;margin:0 auto 1rem;">Your services</h2>
+  <div class="grid-row grid-gap shield-portal-cards" style="max-width:56rem;margin:0 auto;">
+    {% for card in cards %}
+      <div class="tablet:grid-col-4">
+        <div class="usa-card shield-portal-service-card">
+          <h3>{{ card.label }}</h3>
+          {% if card.state == 'awaiting' %}
+            <p class="usa-prose"><em>We're reviewing what you've shared.</em></p>
+            <p class="usa-hint">Your consultant will reach out within one business day.</p>
+          {% elif card.state == 'active' %}
+            <p class="usa-prose"><strong>In progress.</strong></p>
+            <p class="usa-hint">
+              Project: {{ card.project.name }} &middot;
+              Stage: {{ card.project.stage }}.
+            </p>
+          {% elif card.state == 'delivered' %}
+            <p class="usa-prose"><strong>Deliverables ready.</strong></p>
+            <p class="usa-hint">
+              {{ card.deliverables_count }}
+              {{ 'finalized report' if card.deliverables_count == 1 else 'finalized reports' }}
+              &mdash; see Deliverables.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="usa-prose" style="max-width:56rem;margin:0 auto;">
+    You haven't picked any services yet.
+    <a href="{{ url_for('portal.services') }}">Tell us what you're interested in &rarr;</a>
+  </p>
+{% endif %}
+
+{# ============ Recent activity ============ #}
+<div class="grid-row grid-gap" style="max-width:56rem;margin:2rem auto;">
+  <div class="tablet:grid-col-6">
+    <h2>Recent deliverables</h2>
+    {% if recent_deliverables %}
+      <ul class="usa-prose">
+        {% for d in recent_deliverables %}
+          <li>
+            <a href="{{ url_for('portal.deliverable_detail', deliverable_id=d.id) }}">{{ d.title }}</a>
+            <br><small>{{ d.finalized_at.strftime('%Y-%m-%d %H:%M') }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+      <p><a href="{{ url_for('portal.deliverables_list') }}">All deliverables &rarr;</a></p>
+    {% else %}
+      <p class="usa-hint"><em>Nothing finalized yet.</em></p>
+    {% endif %}
+  </div>
+
+  <div class="tablet:grid-col-6">
+    <h2>Recent messages{% if unread_total %} ({{ unread_total }} unread){% endif %}</h2>
+    {% if recent_messages %}
+      <ul class="usa-prose">
+        {% for m in recent_messages %}
+          <li>
+            <small>{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</small> &mdash;
+            {{ m.body[:120] }}{% if m.body|length > 120 %}&hellip;{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+      <p><a href="{{ url_for('portal.messages_list') }}">All threads &rarr;</a></p>
+    {% else %}
+      <p class="usa-hint"><em>No messages yet.</em>
+        <a href="{{ url_for('portal.messages_thread', thread_key='general') }}">Start a thread &rarr;</a>
+      </p>
+    {% endif %}
+  </div>
+</div>
 
 {% endblock %}

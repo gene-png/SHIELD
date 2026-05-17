@@ -1,0 +1,47 @@
+{% extends "_layout/base.html" %}
+{% block title %}Deliverables &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <h1 class="shield-exec__headline">Deliverables</h1>
+  <p class="usa-prose">
+    Finalized, clearance-ready reports from your consultant. Each
+    deliverable is the latest version &mdash; superseded versions are
+    kept in the audit trail but hidden here.
+  </p>
+</section>
+
+<div style="max-width:56rem;margin:0 auto;">
+  {% if grouped %}
+    {% for project_id, items in grouped.items() %}
+      {% set project = projects_by_id.get(project_id) %}
+      <h2>{{ project.name if project else 'Project ' ~ project_id[:8] }}</h2>
+      <table class="usa-table usa-table--striped">
+        <thead>
+          <tr><th>Title</th><th>Finalized</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for d in items %}
+            <tr>
+              <td>
+                <strong>{{ d.title }}</strong>
+                {% if d.summary %}<br><small>{{ d.summary }}</small>{% endif %}
+              </td>
+              <td>{{ d.finalized_at.strftime('%Y-%m-%d') }}</td>
+              <td>
+                <a class="usa-button usa-button--small"
+                   href="{{ url_for('portal.deliverable_detail', deliverable_id=d.id) }}">Open</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+  {% else %}
+    <p class="usa-prose"><em>Nothing finalized yet. As your consultant
+    completes the work, finalized reports appear here.</em></p>
+  {% endif %}
+</div>
+
+{% endblock %}

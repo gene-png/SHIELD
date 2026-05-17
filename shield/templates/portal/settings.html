@@ -1,0 +1,96 @@
+{% extends "_layout/base.html" %}
+{% block title %}Settings &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <h1 class="shield-exec__headline">Your settings.</h1>
+
+  {# ============ Profile ============ #}
+  <h2>Your profile</h2>
+  <form method="POST" action="{{ url_for('portal.settings') }}" class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="usa-label" for="display_name">Display name</label>
+    <input class="usa-input" id="display_name" name="display_name" type="text"
+           value="{{ me.display_name or '' }}">
+    <label class="usa-label" for="title">Title</label>
+    <input class="usa-input" id="title" name="title" type="text"
+           value="{{ me.title or '' }}">
+    <label class="usa-label" for="phone">Phone</label>
+    <input class="usa-input" id="phone" name="phone" type="tel"
+           value="{{ me.phone or '' }}">
+    <p class="usa-hint">
+      Email and password are managed by your identity provider, not
+      SHIELD. Ask your consultant to update them upstream.
+    </p>
+    <button class="usa-button" type="submit" style="margin-top:.5rem;">Save</button>
+  </form>
+
+  {# ============ Members + invites (primary POC only) ============ #}
+  <h2 style="margin-top:2rem;">Your team</h2>
+  <table class="usa-table usa-table--striped">
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for m, u in members %}
+        <tr>
+          <td>{{ u.display_name }}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ m.membership_role }}</td>
+          <td>{% if m.accepted_at %}joined {{ m.accepted_at.strftime('%Y-%m-%d') }}{% else %}<em>pending</em>{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_primary_poc %}
+    <h2 style="margin-top:1.5rem;">Invite a colleague</h2>
+    <form method="POST" action="{{ url_for('portal.settings_invite') }}" class="usa-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="usa-label" for="invite-email">Their email</label>
+      <input class="usa-input" id="invite-email" name="email" type="email" required>
+      <button class="usa-button" type="submit" style="margin-top:.5rem;">Create invite</button>
+    </form>
+
+    {% if new_invite_url %}
+      <div class="usa-alert usa-alert--info usa-alert--slim" style="margin-top:1rem;">
+        <div class="usa-alert__body">
+          <p class="usa-alert__text">
+            <strong>Invite created.</strong> Copy this link and send it
+            to the invitee through whatever channel works for you
+            (email, Slack, etc.). It's good for 7 days.
+          </p>
+          <pre style="white-space:pre-wrap;word-break:break-all;background:#f5f5f5;padding:.5rem;">{{ new_invite_url }}</pre>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if invites %}
+      <h3 style="margin-top:1.5rem;">Pending invitations</h3>
+      <table class="usa-table usa-table--striped">
+        <thead>
+          <tr><th>Email</th><th>Expires</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for inv in invites %}
+            <tr>
+              <td>{{ inv.email }}</td>
+              <td>{{ inv.expires_at.strftime('%Y-%m-%d') }}</td>
+              <td>
+                <form method="POST"
+                      action="{{ url_for('portal.settings_invite_revoke', invite_id=inv.id) }}"
+                      style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="usa-button usa-button--secondary usa-button--small" type="submit">Revoke</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% endif %}
+</section>
+
+{% endblock %}

@@ -31,7 +31,10 @@ sees" flow). The user-to-client resolution comes from ClientMembership
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import secrets
+from datetime import datetime, timedelta
 
 from flask import (
     Blueprint,
@@ -49,11 +52,15 @@ from ..extensions import db
 from ..models import (
     Artifact,
     Client,
+    ClientInvitation,
     ClientMembership,
+    Deliverable,
+    Message,
     Origin,
     PlatformType,
     Project,
     Role,
+    User,
 )
 from .audit import log_audit
 from .repository import write_human_artifact
@@ -363,7 +370,6 @@ def confirm():
     client = _require_client(_current_client())
 
     if request.method == "POST":
-        from datetime import datetime
         if client.intake_completed_at is None:
             client.intake_completed_at = datetime.utcnow()
             db.session.commit()
@@ -383,24 +389,537 @@ def confirm():
 
 
 # ====================================================================
-# Placeholder dashboard (PR 4 replaces this with the real one)
+# Returning-client dashboard
 # ====================================================================
+
+SERVICE_LABELS = {
+    "tech_debt":      "Tech Debt",
+    "zero_trust":     "Zero Trust",
+    "attack_surface": "Attack Surface",
+}
+# Maps a service_interest key to the platform enum used to find an
+# existing project for the client. Drives the per-service card status.
+_SERVICE_TO_PLATFORM = {
+    "tech_debt":      PlatformType.TECH_DEBT,
+    "zero_trust":     PlatformType.ZERO_TRUST,
+    "attack_surface": PlatformType.ATTACK_SURFACE,
+}
+
+
+def _service_card_state(client: Client, service_key: str) -> dict:
+    """Resolve the state to render in one service card on the dashboard.
+
+    Three states:
+      - `awaiting`: client expressed interest, no Project yet
+                    (admin needs to create one).
+      - `active`:   at least one non-archived, non-repository Project
+                    exists for that platform.
+      - `delivered`: at least one Deliverable exists for that platform.
+    """
+    platform = _SERVICE_TO_PLATFORM.get(service_key)
+    if platform is None:
+        return {"key": service_key, "label": service_key, "state": "awaiting"}
+
+    project = (
+        db.session.query(Project)
+        .filter_by(client_id=client.id, platform=platform,
+                   archived=False, is_client_repository=False)
+        .order_by(Project.created_at.desc())
+        .first()
+    )
+    deliverables_count = 0
+    if project is not None:
+        deliverables_count = (
+            db.session.query(Deliverable)
+            .filter_by(client_id=client.id, project_id=project.id,
+                       superseded_at=None)
+            .count()
+        )
+
+    if deliverables_count > 0:
+        state = "delivered"
+    elif project is not None:
+        state = "active"
+    else:
+        state = "awaiting"
+
+    return {
+        "key": service_key,
+        "label": SERVICE_LABELS.get(service_key, service_key),
+        "state": state,
+        "project": project,
+        "deliverables_count": deliverables_count,
+    }
+
+
+def _unread_count(client: Client, user) -> int:
+    """How many messages in any of the client's threads this user
+    hasn't read yet. Drives the "Messages (N)" badge in the nav."""
+    user_id = user.id
+    rows = (
+        db.session.query(Message)
+        .filter(Message.client_id == client.id)
+        .all()
+    )
+    n = 0
+    for m in rows:
+        # The author always counts the message as read.
+        if m.author_id == user_id:
+            continue
+        if not (m.read_at_map or {}).get(user_id):
+            n += 1
+    return n
+
 
 @bp.route("/", methods=["GET"])
 @login_required
 def index():
-    """Returning-client dashboard placeholder.
+    """Returning-client dashboard.
 
-    PR 4 builds the real dashboard (service cards, action queue,
-    activity feed, message threads). This stub exists so the
-    home redirect target (`/portal/`) doesn't 404 between PR 3 and
-    PR 4 lands.
+    Service cards driven by client.service_interests. Each card shows
+    one of three states (awaiting / active / delivered). Plus a
+    "recent activity" rail with the latest deliverables and messages.
     """
     client = _require_client(_current_client())
+
+    cards = [_service_card_state(client, k) for k in (client.service_interests or [])]
+
+    recent_deliverables = (
+        db.session.query(Deliverable)
+        .filter_by(client_id=client.id, superseded_at=None)
+        .order_by(Deliverable.finalized_at.desc())
+        .limit(5)
+        .all()
+    )
+    recent_messages = (
+        db.session.query(Message)
+        .filter_by(client_id=client.id)
+        .order_by(Message.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    unread_total = _unread_count(client, current_user)
+
     return render_template(
         "portal/dashboard.html",
         client=client,
         service_keys=SERVICE_KEYS,
+        cards=cards,
+        recent_deliverables=recent_deliverables,
+        recent_messages=recent_messages,
+        unread_total=unread_total,
+    )
+
+
+# ====================================================================
+# Services — change which platforms the client is engaging on
+# ====================================================================
+# /portal/services is conceptually the same form as /portal/welcome
+# but framed as a settings change. POST handler is shared with the
+# welcome route so the audit-write path is identical.
+
+@bp.route("/services", methods=["GET", "POST"])
+@login_required
+def services():
+    client = _require_client(_current_client())
+    if request.method == "POST":
+        # Reuse the welcome handler's exact write logic by delegating.
+        return welcome()
+    return render_template(
+        "portal/services.html",
+        client=client,
+        service_keys=SERVICE_KEYS,
+        current_selection=set(client.service_interests or []),
+        consult_requested=bool(client.consult_requested),
+    )
+
+
+# ====================================================================
+# Deliverables — read-only, finalized snapshots
+# ====================================================================
+
+@bp.route("/deliverables/", methods=["GET"])
+@login_required
+def deliverables_list():
+    client = _require_client(_current_client())
+    rows = (
+        db.session.query(Deliverable)
+        .filter_by(client_id=client.id, superseded_at=None)
+        .order_by(Deliverable.finalized_at.desc())
+        .all()
+    )
+    # Group by project for readable rendering. Dict insertion order is
+    # by the finalized_at ordering already, which matches "most recent
+    # project first."
+    grouped: dict[str, list[Deliverable]] = {}
+    for d in rows:
+        grouped.setdefault(d.project_id, []).append(d)
+
+    return render_template(
+        "portal/deliverables_list.html",
+        client=client, grouped=grouped,
+        projects_by_id={p.id: p for p in
+                        db.session.query(Project)
+                        .filter(Project.id.in_(grouped.keys())).all()},
+    )
+
+
+@bp.route("/deliverables/<deliverable_id>", methods=["GET"])
+@login_required
+def deliverable_detail(deliverable_id: str):
+    client = _require_client(_current_client())
+    d = db.session.get(Deliverable, deliverable_id)
+    if d is None or d.client_id != client.id:
+        abort(404)
+    art = db.session.get(Artifact, d.artifact_id)
+    project = db.session.get(Project, d.project_id)
+    return render_template(
+        "portal/deliverable_detail.html",
+        client=client, deliverable=d, artifact=art, project=project,
+    )
+
+
+# ====================================================================
+# Messages
+# ====================================================================
+# Two thread kinds:
+#   - "general"       → project_id NULL, client-level conversation
+#   - "<project_id>"  → per-project conversation
+# The thread_key in the URL is the same as the routing key here.
+
+GENERAL_THREAD = "general"
+
+
+def _project_or_none(thread_key: str) -> Project | None:
+    """Resolve a thread key to a Project, or None for the general thread."""
+    if thread_key == GENERAL_THREAD:
+        return None
+    p = db.session.get(Project, thread_key)
+    return p
+
+
+def _mark_thread_read(client: Client, thread_key: str, user) -> None:
+    """Stamp `user`'s first-read timestamp on every message they hadn't
+    read yet. Idempotent — a second visit doesn't overwrite the timestamp.
+    """
+    project_id_filter = None if thread_key == GENERAL_THREAD else thread_key
+    q = (
+        db.session.query(Message)
+        .filter(Message.client_id == client.id)
+        .filter(Message.project_id == project_id_filter)
+    )
+    now = datetime.utcnow().isoformat() + "Z"
+    changed = False
+    for m in q.all():
+        if m.author_id == user.id:
+            continue
+        rmap = dict(m.read_at_map or {})
+        if user.id not in rmap:
+            rmap[user.id] = now
+            m.read_at_map = rmap
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+@bp.route("/messages/", methods=["GET"])
+@login_required
+def messages_list():
+    """Thread overview: the general thread + one per project."""
+    client = _require_client(_current_client())
+
+    # Build the project list and merge in the "general" virtual thread.
+    project_rows = (
+        db.session.query(Project)
+        .filter_by(client_id=client.id, archived=False,
+                   is_client_repository=False)
+        .order_by(Project.created_at.desc())
+        .all()
+    )
+    threads = [{"key": GENERAL_THREAD, "label": "General",
+                "project": None}]
+    for p in project_rows:
+        threads.append({"key": p.id, "label": p.name, "project": p})
+
+    # Per-thread latest + unread count.
+    for t in threads:
+        pid = None if t["key"] == GENERAL_THREAD else t["key"]
+        msgs = (
+            db.session.query(Message)
+            .filter(Message.client_id == client.id,
+                    Message.project_id == pid)
+            .order_by(Message.created_at.desc())
+            .all()
+        )
+        t["latest"] = msgs[0] if msgs else None
+        t["unread"] = sum(
+            1 for m in msgs
+            if m.author_id != current_user.id
+            and not (m.read_at_map or {}).get(current_user.id)
+        )
+
+    return render_template(
+        "portal/messages_list.html", client=client, threads=threads,
+    )
+
+
+@bp.route("/messages/<thread_key>", methods=["GET", "POST"])
+@login_required
+def messages_thread(thread_key: str):
+    client = _require_client(_current_client())
+    project = _project_or_none(thread_key)
+    if thread_key != GENERAL_THREAD:
+        if project is None or project.client_id != client.id:
+            abort(404)
+
+    if request.method == "POST":
+        body = (request.form.get("body") or "").strip()
+        if not body:
+            flash("Type a message first.", "error")
+            return redirect(url_for("portal.messages_thread",
+                                    thread_key=thread_key))
+        m = Message(
+            client_id=client.id,
+            project_id=(project.id if project else None),
+            author_id=current_user.id,
+            body=body,
+        )
+        db.session.add(m)
+        db.session.commit()
+        log_audit(
+            "message.posted",
+            actor=current_user,
+            target_type="message", target_id=m.id,
+            project_id=(project.id if project else None),
+            client_id=client.id,
+            details={"length": len(body),
+                     "thread": "general" if project is None else "project"},
+        )
+        return redirect(url_for("portal.messages_thread",
+                                thread_key=thread_key))
+
+    # GET — render thread, mark read, fetch author display names.
+    _mark_thread_read(client, thread_key, current_user)
+    pid = None if thread_key == GENERAL_THREAD else thread_key
+    msgs = (
+        db.session.query(Message)
+        .filter(Message.client_id == client.id,
+                Message.project_id == pid)
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    authors = {
+        u.id: u for u in (
+            db.session.query(User)
+            .filter(User.id.in_({m.author_id for m in msgs} | {current_user.id}))
+            .all()
+        )
+    }
+    return render_template(
+        "portal/messages_thread.html",
+        client=client, project=project, thread_key=thread_key,
+        messages=msgs, authors=authors,
+    )
+
+
+# ====================================================================
+# Settings + invite-a-colleague
+# ====================================================================
+
+INVITE_EXPIRY_DAYS = 7
+
+
+def _hash_token(plaintext: str) -> str:
+    return hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
+
+
+def _is_primary_poc(user, client) -> bool:
+    m = (
+        db.session.query(ClientMembership)
+        .filter_by(client_id=client.id, user_id=user.id)
+        .first()
+    )
+    return m is not None and m.membership_role == "primary_poc"
+
+
+@bp.route("/settings/", methods=["GET", "POST"])
+@login_required
+def settings():
+    client = _require_client(_current_client())
+    if request.method == "POST":
+        # Allow the user to update their own User fields here. This is
+        # narrower than /portal/about (which writes to Client) — these
+        # land on the User row.
+        user = db.session.get(User, current_user.id)
+        for col in ("display_name", "title", "phone"):
+            val = (request.form.get(col) or "").strip() or None
+            setattr(user, col, val)
+        db.session.commit()
+        flash("Saved.", "info")
+        return redirect(url_for("portal.settings"))
+
+    # List existing accepted members + pending invites for the
+    # primary-POC's invite UI.
+    members = (
+        db.session.query(ClientMembership, User)
+        .join(User, User.id == ClientMembership.user_id)
+        .filter(ClientMembership.client_id == client.id)
+        .order_by(ClientMembership.invited_at.asc())
+        .all()
+    )
+    invites = (
+        db.session.query(ClientInvitation)
+        .filter_by(client_id=client.id, accepted_at=None, revoked_at=None)
+        .order_by(ClientInvitation.expires_at.desc())
+        .all()
+    )
+    return render_template(
+        "portal/settings.html",
+        client=client,
+        me=db.session.get(User, current_user.id),
+        members=members,
+        invites=invites,
+        is_primary_poc=_is_primary_poc(current_user, client),
+        new_invite_url=request.args.get("invite_url"),
+    )
+
+
+@bp.route("/settings/invite", methods=["POST"])
+@login_required
+def settings_invite():
+    """Create a tokenized invite. Per round-2 §10 answer: no email is
+    sent; we redirect back to /portal/settings with the invite URL in
+    the query string so the inviter can copy and forward it.
+    """
+    client = _require_client(_current_client())
+    if not _is_primary_poc(current_user, client):
+        abort(403)
+
+    email = (request.form.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        flash("Enter a valid email address.", "error")
+        return redirect(url_for("portal.settings"))
+
+    plaintext = secrets.token_urlsafe(32)
+    inv = ClientInvitation(
+        client_id=client.id,
+        invited_by=current_user.id,
+        email=email,
+        token_hash=_hash_token(plaintext),
+        expires_at=datetime.utcnow() + timedelta(days=INVITE_EXPIRY_DAYS),
+    )
+    db.session.add(inv)
+    db.session.commit()
+    log_audit(
+        "client.invited_user",
+        actor=current_user,
+        target_type="client_invitation", target_id=inv.id,
+        client_id=client.id,
+        details={"email": email,
+                 "expires_at": inv.expires_at.isoformat() + "Z"},
+    )
+
+    invite_url = url_for("portal.invitation_accept",
+                         token=plaintext, _external=True)
+    flash("Invite created. Share the link below.", "info")
+    return redirect(url_for("portal.settings", invite_url=invite_url))
+
+
+@bp.route("/settings/invite/<invite_id>/revoke", methods=["POST"])
+@login_required
+def settings_invite_revoke(invite_id: str):
+    client = _require_client(_current_client())
+    if not _is_primary_poc(current_user, client):
+        abort(403)
+    inv = db.session.get(ClientInvitation, invite_id)
+    if inv is None or inv.client_id != client.id:
+        abort(404)
+    if inv.revoked_at is None and inv.accepted_at is None:
+        inv.revoked_at = datetime.utcnow()
+        db.session.commit()
+        log_audit(
+            "client.invitation_revoked",
+            actor=current_user,
+            target_type="client_invitation", target_id=inv.id,
+            client_id=client.id,
+            details={"email": inv.email},
+        )
+    return redirect(url_for("portal.settings"))
+
+
+@bp.route("/invitations/accept/<token>", methods=["GET", "POST"])
+@login_required
+def invitation_accept(token: str):
+    """Accept an invite. The invitee must already be logged in via
+    Keycloak's existing OIDC flow (per round-2 §10 answer). The
+    invite token only links email → membership; it doesn't create
+    the auth account.
+
+    Email-mismatch protection: the inviter typed an email when
+    creating the invite. The invitee's logged-in email must match
+    (case-insensitive) or we refuse — that way a forwarded link
+    used by the wrong person doesn't grant them membership.
+    """
+    digest = _hash_token(token)
+    inv = (
+        db.session.query(ClientInvitation)
+        .filter_by(token_hash=digest)
+        .first()
+    )
+    now = datetime.utcnow()
+    if inv is None:
+        abort(404)
+    if inv.revoked_at is not None:
+        abort(404)
+    if inv.accepted_at is not None:
+        abort(404)
+    if inv.expires_at < now:
+        abort(404)
+    if (current_user.email or "").lower() != inv.email.lower():
+        flash(
+            "This invitation was sent to a different email address. "
+            "Log out and back in with that account, or ask the inviter "
+            "to send a new invite to your email.",
+            "error",
+        )
+        # 403 not 404 here because the link is real — we want to be
+        # explicit that the auth is wrong.
+        abort(403)
+
+    if request.method == "POST":
+        # Idempotent: if there's already a row, accept it; otherwise
+        # create one.
+        existing = (
+            db.session.query(ClientMembership)
+            .filter_by(client_id=inv.client_id, user_id=current_user.id)
+            .first()
+        )
+        if existing is None:
+            db.session.add(ClientMembership(
+                client_id=inv.client_id,
+                user_id=current_user.id,
+                membership_role="member",
+                invited_by_id=inv.invited_by,
+                invited_at=inv.expires_at - timedelta(days=INVITE_EXPIRY_DAYS),
+                accepted_at=now,
+            ))
+        elif existing.accepted_at is None:
+            existing.accepted_at = now
+        inv.accepted_at = now
+        db.session.commit()
+        log_audit(
+            "client.user_joined",
+            actor=current_user,
+            target_type="client", target_id=inv.client_id,
+            client_id=inv.client_id,
+            details={"via_invitation_id": inv.id, "email": inv.email},
+        )
+        return redirect(url_for("portal.index"))
+
+    client = db.session.get(Client, inv.client_id)
+    return render_template(
+        "portal/invitation_accept.html",
+        client=client, inv=inv,
     )
 
 
