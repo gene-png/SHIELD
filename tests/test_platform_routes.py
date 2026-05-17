@@ -159,7 +159,12 @@ def test_attribution_can_only_be_downgraded(admin_client, admin, p2_project):
 # --------------------------------------------------------------------
 
 def test_client_role_redirected_from_platform_routes(client_role_client):
-    """Any non-intake/auth URL must redirect a CLIENT-role user to /intake."""
+    """Any non-portal/auth URL must redirect a CLIENT-role user to /portal/.
+
+    v1.8: target changed from /intake/ to /portal/ as the portal blueprint
+    replaces the thin intake surface. /intake/ is still allowed for
+    backward compatibility but the redirect target is the new portal.
+    """
     for path in (
         "/platform/tech-debt/",
         "/platform/zero-trust/",
@@ -169,8 +174,8 @@ def test_client_role_redirected_from_platform_routes(client_role_client):
     ):
         r = client_role_client.get(path, follow_redirects=False)
         assert r.status_code == 302, f"{path!r} did not redirect"
-        assert r.headers["Location"].endswith("/intake/"), (
-            f"{path!r} redirected to {r.headers['Location']!r}, not /intake/"
+        assert r.headers["Location"].endswith("/portal/"), (
+            f"{path!r} redirected to {r.headers['Location']!r}, not /portal/"
         )
 
 
@@ -306,10 +311,13 @@ def test_capability_list_xlsx_export(admin_client, acme):
 
 
 def test_client_blocked_from_audit_log(client_role_client):
-    """CLIENT role should never see the audit log."""
+    """CLIENT role should never see the audit log.
+
+    v1.8: CLIENT users are redirected to /portal/ (was /intake/).
+    """
     r = client_role_client.get("/audit/", follow_redirects=False)
     assert r.status_code == 302
-    assert r.headers["Location"].endswith("/intake/")
+    assert r.headers["Location"].endswith("/portal/")
 
 
 def test_reviewer_can_promote_ai_artifacts(reviewer_client, admin, p2_project):

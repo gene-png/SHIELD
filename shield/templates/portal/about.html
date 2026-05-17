@@ -1,0 +1,105 @@
+{% extends "_layout/base.html" %}
+{% block title %}Tell us about your organization &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">Step 2 of 4 &mdash; {{ client.name }}</p>
+  <h1 class="shield-exec__headline">Tell us about your organization.</h1>
+  <p class="usa-prose">
+    Each field saves as you tab away &mdash; closing this page and
+    coming back later picks up where you left off. The only field we
+    really need is a contact email so we know who to reach.
+  </p>
+
+  {# Per-field HTMX endpoint hits /portal/about/field with
+     name=<column>, value=<text>. On blur. Server returns a small
+     "saved" pip we drop next to the field. #}
+  {% macro field(name, label, type="text", placeholder="") %}
+    <label class="usa-label" for="f-{{ name }}">{{ label }}</label>
+    <div class="shield-portal-field">
+      <input class="usa-input" id="f-{{ name }}" type="{{ type }}"
+             name="value"
+             value="{{ (client[name] if client[name] is not none else '') }}"
+             placeholder="{{ placeholder }}"
+             hx-post="{{ url_for('portal.about_field') }}"
+             hx-trigger="blur changed"
+             hx-vals='{"name": "{{ name }}"}'
+             hx-target="next .shield-portal-saved-host"
+             hx-swap="innerHTML">
+      <span class="shield-portal-saved-host" aria-live="polite"></span>
+    </div>
+  {% endmacro %}
+
+  <form method="POST" action="{{ url_for('portal.about_submit') }}" class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <fieldset class="usa-fieldset">
+      <legend class="usa-legend">Organization</legend>
+      {{ field("legal_name", "Legal name") }}
+      {{ field("dba_name",   "Doing business as (if different)") }}
+      {{ field("website",    "Website", placeholder="https://...") }}
+      <label class="usa-label" for="f-size_band">Approximate size</label>
+      <select class="usa-select" id="f-size_band"
+              name="value"
+              hx-post="{{ url_for('portal.about_field') }}"
+              hx-trigger="change"
+              hx-vals='{"name": "size_band"}'
+              hx-target="next .shield-portal-saved-host"
+              hx-swap="innerHTML">
+        <option value="">&mdash; pick one &mdash;</option>
+        {% for band in size_bands %}
+          <option value="{{ band }}" {% if client.size_band == band %}selected{% endif %}>
+            {{ band }} employees
+          </option>
+        {% endfor %}
+      </select>
+      <span class="shield-portal-saved-host" aria-live="polite"></span>
+    </fieldset>
+
+    <fieldset class="usa-fieldset" style="margin-top:1.5rem;">
+      <legend class="usa-legend">Primary point of contact</legend>
+      {{ field("primary_poc_name",  "Name") }}
+      {{ field("primary_poc_title", "Title") }}
+      {{ field("primary_poc_email", "Email *", type="email") }}
+      {{ field("primary_poc_phone", "Phone") }}
+    </fieldset>
+
+    <fieldset class="usa-fieldset" style="margin-top:1.5rem;">
+      <legend class="usa-legend">Address</legend>
+      {{ field("address_line1", "Street") }}
+      {{ field("address_line2", "Unit / suite (optional)") }}
+      <div class="grid-row grid-gap">
+        <div class="tablet:grid-col-6">{{ field("city",        "City") }}</div>
+        <div class="tablet:grid-col-3">{{ field("state",       "State") }}</div>
+        <div class="tablet:grid-col-3">{{ field("postal_code", "ZIP") }}</div>
+      </div>
+      {{ field("country", "Country") }}
+    </fieldset>
+
+    <fieldset class="usa-fieldset" style="margin-top:1.5rem;">
+      <legend class="usa-legend">What's prompting this</legend>
+      <label class="usa-label" for="f-prompting_context">
+        A sentence or two on why you're engaging with us now &mdash; an
+        audit deadline, a board ask, a recent incident, anything that
+        helps the team prep before the kickoff.
+      </label>
+      <div class="shield-portal-field">
+        <textarea class="usa-textarea" id="f-prompting_context"
+                  name="value" rows="4"
+                  hx-post="{{ url_for('portal.about_field') }}"
+                  hx-trigger="blur changed"
+                  hx-vals='{"name": "prompting_context"}'
+                  hx-target="next .shield-portal-saved-host"
+                  hx-swap="innerHTML">{{ client.prompting_context or "" }}</textarea>
+        <span class="shield-portal-saved-host" aria-live="polite"></span>
+      </div>
+    </fieldset>
+
+    <div class="usa-button-group" style="margin-top:2rem;">
+      <button class="usa-button" type="submit">Continue to documents &rarr;</button>
+      <a class="usa-button usa-button--outline" href="{{ url_for('portal.welcome') }}">&larr; Back</a>
+    </div>
+  </form>
+</section>
+
+{% endblock %}

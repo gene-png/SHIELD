@@ -1,0 +1,34 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ client.name }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+{# Placeholder dashboard. PR 4 replaces this with the real
+   per-service card view, action queue, message threads, and
+   recent activity feed. For PR 3 we just show enough that the
+   wizard's "Go to my dashboard" link doesn't dead-end. #}
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <h1 class="shield-exec__headline">Welcome back.</h1>
+  <p class="usa-prose">
+    Your consultant has what you've shared. The full dashboard with
+    per-service status, messages, and finalized deliverables lands in
+    the next update.
+  </p>
+
+  <ul class="usa-prose">
+    {% if client.service_interests %}
+      <li><strong>You said you're interested in:</strong>
+        {%- for s in client.service_interests %}
+          {{ {'tech_debt':'Tech Debt','zero_trust':'Zero Trust','attack_surface':'Attack Surface'}.get(s, s) }}
+          {%- if not loop.last %},{% endif -%}
+        {% endfor -%}.
+      </li>
+    {% endif %}
+    <li><a href="{{ url_for('portal.documents') }}">Upload more documents</a></li>
+    <li><a href="{{ url_for('portal.welcome') }}">Change which services you're interested in</a></li>
+    <li><a href="{{ url_for('portal.about') }}">Update your contact info</a></li>
+  </ul>
+</section>
+
+{% endblock %}

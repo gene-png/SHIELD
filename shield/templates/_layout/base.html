@@ -26,8 +26,20 @@
            see the full nav. #}
         <ul class="usa-nav__primary usa-accordion">
           {% if current_user.is_authenticated and current_user.role.value == 'client' %}
+            {# v1.8 portal nav for CLIENT users. PR 4 fleshes out
+               My documents / Messages / Deliverables / Settings —
+               for now they all live under /portal/. #}
             <li class="usa-nav__primary-item">
-              <a href="{{ url_for('intake.index') }}" class="usa-nav__link"><span>Submit documents</span></a>
+              <a href="{{ url_for('portal.index') }}" class="usa-nav__link"><span>Home</span></a>
+            </li>
+            <li class="usa-nav__primary-item">
+              <a href="{{ url_for('portal.documents') }}" class="usa-nav__link"><span>My documents</span></a>
+            </li>
+            <li class="usa-nav__primary-item">
+              <a href="{{ url_for('portal.welcome') }}" class="usa-nav__link"><span>My services</span></a>
+            </li>
+            <li class="usa-nav__primary-item">
+              <a href="{{ url_for('portal.about') }}" class="usa-nav__link"><span>Settings</span></a>
             </li>
           {% else %}
             <li class="usa-nav__primary-item">

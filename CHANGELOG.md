@@ -21,6 +21,59 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.0-rc3] — 2026-05-17 — client portal: welcome + intake wizard (PR 3 of 6)
+
+### Added — `shield.spine.portal` blueprint
+
+- `/portal/welcome` — service-selection. Three big cards (Tech Debt /
+  Zero Trust / Attack Surface) plus an "I'm not sure" option that
+  co-exists (per round-2 §8.1 answer) with the service checkboxes
+  rather than being mutually exclusive.
+- `/portal/about` — org/POC/address/compliance/prompt form with
+  per-field HTMX auto-save. Each input wires `hx-post=/portal/about/field`
+  on blur; the endpoint accepts only a whitelist of column names so
+  it can't be used as a write-anything Client.update.
+- `/portal/documents` — drag-and-drop upload to the synthetic
+  per-client repository project (Option B for storage paths). Files
+  land with `origin=human_input`, `stage='client_repository'`, and
+  the existing redaction-on-AI-egress chain stays intact.
+- `/portal/confirm` — final step; sets `intake_completed_at` and
+  writes a `client.intake_completed` audit row.
+- `/portal/` — placeholder dashboard (PR 4 replaces this with the
+  real per-service card view + message threads + activity feed).
+
+### Changed — entry points
+
+- `/` (home) redirects CLIENT users to `/portal/welcome` if their
+  client's `intake_completed_at` is NULL, otherwise to `/portal/`.
+- The role gate `_restrict_client_to_portal` (renamed from
+  `_restrict_client_to_intake`) now allows `/portal/*` for CLIENT
+  users. `/intake/*` stays accessible for backward compatibility
+  but the redirect target for everything else is `/portal/`.
+- CLIENT nav rebuilt: Home / My documents / My services / Settings,
+  all pointing into `/portal/*`.
+
+### Added — audit event types (writes only; PR 6 wires the viewer filter)
+
+- `client.service_interest_changed` — welcome form save with diff.
+- `client.about_saved` — `/portal/about/submit` checkpoint.
+- `client.intake_completed` — `/portal/confirm` finalize.
+- `file_uploaded_to_repository` — every client-tier upload.
+- `project.create_client_repository` — on-demand backfill of the
+  synthetic project (rare; the migration creates it for existing
+  clients, but a future client created outside the seed path hits
+  this code path on first portal visit).
+
+### Tests
+
+- 78 → 92 passing. 14 new tests in `tests/test_v18_portal_wizard.py`:
+  home redirects (welcome vs dashboard), welcome form save +
+  service-interest audit, service-key whitelist filter,
+  about-field per-column save, about-field rejects unknown columns,
+  about-submit requires POC email, documents upload lands in the
+  synthetic project + writes audit, confirm sets `intake_completed_at`,
+  CLIENT users still 302 from non-portal URLs.
+
 ## [1.8.0-rc2] — 2026-05-17 — client portal: access control (PR 2 of 6)
 
 ### Added — `shield.spine.access`

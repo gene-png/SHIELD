@@ -1,0 +1,48 @@
+{% extends "_layout/base.html" %}
+{% block title %}Got it &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">All set &mdash; {{ client.name }}</p>
+  <h1 class="shield-exec__headline">Got it. Your consultant will be in touch.</h1>
+  <p class="usa-prose">
+    Within one business day, the consulting team will review what
+    you've shared and reach out to schedule the kickoff. You can come
+    back here any time to upload more documents, send a message, or
+    track progress.
+  </p>
+
+  <h2>What we have so far</h2>
+  <ul class="usa-prose">
+    {% if client.service_interests %}
+      <li><strong>Interested in:</strong>
+        {%- for s in client.service_interests %}
+          {{ {'tech_debt':'Tech Debt','zero_trust':'Zero Trust','attack_surface':'Attack Surface'}.get(s, s) }}
+          {%- if not loop.last %},{% endif -%}
+        {% endfor -%}
+        {% if client.consult_requested %} (also requested a consult call){% endif %}.
+      </li>
+    {% elif client.consult_requested %}
+      <li>You requested a <strong>consult call</strong> &mdash; a consultant will help you scope the engagement.</li>
+    {% else %}
+      <li>We don't have service preferences yet &mdash; <a href="{{ url_for('portal.welcome') }}">tell us more</a>.</li>
+    {% endif %}
+    {% if client.primary_poc_email %}
+      <li><strong>Contact:</strong> {{ client.primary_poc_name or '(name not set)' }}
+        &middot; {{ client.primary_poc_email }}.</li>
+    {% else %}
+      <li><a href="{{ url_for('portal.about') }}">Add a contact</a> so we know who to reach.</li>
+    {% endif %}
+  </ul>
+
+  {% if client.intake_completed_at is none %}
+    <form method="POST" action="{{ url_for('portal.confirm') }}" class="usa-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="usa-button" type="submit">Finish setup</button>
+    </form>
+  {% else %}
+    <p><a class="usa-button" href="{{ url_for('portal.index') }}">Go to my dashboard &rarr;</a></p>
+  {% endif %}
+</section>
+
+{% endblock %}

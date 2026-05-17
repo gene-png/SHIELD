@@ -62,12 +62,14 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     from .spine.identity import bp as identity_bp
     from .spine.intake import bp as intake_bp
     from .spine.jobs import bp as jobs_bp
+    from .spine.portal import bp as portal_bp
     from .spine.projects import bp as projects_bp
     from .spine.repository_views import bp as repo_bp
     app.register_blueprint(identity_bp, url_prefix="/auth")
     app.register_blueprint(repo_bp, url_prefix="/repository")
     app.register_blueprint(clients_bp, url_prefix="/clients")
     app.register_blueprint(intake_bp, url_prefix="/intake")
+    app.register_blueprint(portal_bp, url_prefix="/portal")
     app.register_blueprint(projects_bp, url_prefix="/projects")
     app.register_blueprint(jobs_bp, url_prefix="/jobs")
     app.register_blueprint(audit_bp, url_prefix="/audit")
@@ -80,41 +82,47 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     app.register_blueprint(p2_bp, url_prefix="/platform/zero-trust")
     app.register_blueprint(p3_bp, url_prefix="/platform/attack-surface")
 
-    # --- Role gate (spec §6.6) -----------------------------------------
-    # CLIENT-role users see ONLY the intake surface — no repository
-    # browsing, no picker, no AI-lane visibility, no platform workflows.
-    # The nav already hides those links; this server-side gate makes
-    # sure URL-typing doesn't bypass it.
+    # --- Role gate (spec §6.6 + v1.8 portal) ---------------------------
+    # CLIENT-role users see ONLY the portal surface (and the legacy
+    # /intake/ blueprint for backward compatibility). Every other URL
+    # 302s them to the portal. The nav already hides those links; this
+    # server-side gate makes sure URL-typing doesn't bypass it.
     from .models import Role as _Role
     @app.before_request
-    def _restrict_client_to_intake():
+    def _restrict_client_to_portal():
         if not current_user.is_authenticated:
             return None
         if current_user.role != _Role.CLIENT:
             return None
         path = request.path
         if (
-            path.startswith("/intake")
+            path.startswith("/portal")
+            or path.startswith("/intake")     # legacy alias
             or path.startswith("/auth")
             or path.startswith("/static")
             or path == "/"
             or path == "/healthz"
         ):
             return None
-        return redirect(url_for("intake.index"))
+        return redirect(url_for("portal.index"))
 
     # --- Top-level routes ---
     @app.route("/")
     def home():
         if not current_user.is_authenticated:
             return redirect(url_for("identity.login"))
-        # Per spec §6.6, the client intake surface is stripped — no
-        # repository browsing, no picker, no AI-lane visibility. Routing
-        # CLIENT-role users straight to /intake keeps them out of the
-        # admin-flow surface entirely.
+        # CLIENT users: first-time → /portal/welcome to walk the wizard;
+        # returning → /portal/ for the dashboard. The portal blueprint
+        # picks the right page via landing_url_for().
         from .models import Role
         if current_user.role == Role.CLIENT:
-            return redirect(url_for("intake.index"))
+            from .spine.portal import _current_client, landing_url_for
+            client = _current_client()
+            if client is not None:
+                return redirect(landing_url_for(client))
+            # No accepted membership yet — fall through to a generic
+            # confirm page that says "we'll set you up" rather than a 404.
+            return redirect(url_for("portal.confirm"))
         return render_template("home.html")
 
     @app.route("/healthz")
