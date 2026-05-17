@@ -32,6 +32,7 @@ def _sync_rq(monkeypatch):
     """
     from fakeredis import FakeStrictRedis
     from rq import Queue
+
     from shield import tasks
     conn = FakeStrictRedis()
     q = Queue(tasks.QUEUE_NAME, connection=conn, is_async=False)
