@@ -56,10 +56,12 @@ from ..models import (
     ClientMembership,
     Deliverable,
     Message,
+    Notification,
     Origin,
     PlatformType,
     Project,
     Role,
+    ServiceRequest,
     User,
 )
 from .audit import log_audit
@@ -406,50 +408,153 @@ _SERVICE_TO_PLATFORM = {
 }
 
 
-def _service_card_state(client: Client, service_key: str) -> dict:
-    """Resolve the state to render in one service card on the dashboard.
+# State machine per round-3 §5. A card resolves to exactly one of
+# these states. The dashboard's `_resolve_service_cards` walks the
+# client's `service_interests` and any open/declined `ServiceRequest`
+# rows, then evaluates per the precedence below:
+#
+#   project state > request state
+#
+# That precedence is the round-3 rule: "A service that has both an open
+# request and an active project renders the project state, not the
+# request state."
+_CARD_STATES = (
+    "requested",
+    "declined",
+    "setup",
+    "awaiting_docs",
+    "in_review",
+    "ready_to_view",
+    "complete",
+)
 
-    Three states:
-      - `awaiting`: client expressed interest, no Project yet
-                    (admin needs to create one).
-      - `active`:   at least one non-archived, non-repository Project
-                    exists for that platform.
-      - `delivered`: at least one Deliverable exists for that platform.
+# Project.stage → card state. Stages not in this map fall back to
+# "in_review" (a project that's been started and isn't done is, from
+# the client's POV, in review by their consultant).
+_STAGE_TO_CARD = {
+    "intake":            "awaiting_docs",
+    "raw_intake":        "awaiting_docs",
+    "client_repository": "awaiting_docs",
+    "extraction_review":          "in_review",
+    "overlap_analysis":           "in_review",
+    "conversational_interrogation": "in_review",
+    "current_state_assessment":   "in_review",
+    "transition_roadmap":         "in_review",
+    "attack_coverage":            "in_review",
+    "admin_final":                "in_review",
+    "archived": "complete",
+    "complete": "complete",
+}
+
+
+def _service_card_state(client: Client, service_key: str) -> dict | None:
+    """Resolve one card's state, or None if the service should produce
+    no card at all.
+
+    "Not interested" rule (round-3 §5): if the service is NOT in
+    `client.service_interests` AND no `ServiceRequest` row exists,
+    return None — render nothing.
+
+    Returns a dict with at least `state`, `key`, `label`, and the
+    relevant context for the card (project, request, deliverable as
+    applicable).
     """
     platform = _SERVICE_TO_PLATFORM.get(service_key)
-    if platform is None:
-        return {"key": service_key, "label": service_key, "state": "awaiting"}
+    label = SERVICE_LABELS.get(service_key, service_key)
 
-    project = (
-        db.session.query(Project)
-        .filter_by(client_id=client.id, platform=platform,
-                   archived=False, is_client_repository=False)
-        .order_by(Project.created_at.desc())
+    # Most-recent open request (if any) and most-recent declined.
+    open_request = (
+        db.session.query(ServiceRequest)
+        .filter(
+            ServiceRequest.client_id == client.id,
+            ServiceRequest.service == service_key,
+            ServiceRequest.fulfilled_project_id.is_(None),
+            ServiceRequest.declined_at.is_(None),
+        )
+        .order_by(ServiceRequest.requested_at.desc())
         .first()
     )
-    deliverables_count = 0
+    declined_request = (
+        db.session.query(ServiceRequest)
+        .filter(
+            ServiceRequest.client_id == client.id,
+            ServiceRequest.service == service_key,
+            ServiceRequest.declined_at.is_not(None),
+        )
+        .order_by(ServiceRequest.declined_at.desc())
+        .first()
+    )
+
+    # Active project for this platform (most recent, non-archived,
+    # non-repository).
+    project = None
+    if platform is not None:
+        project = (
+            db.session.query(Project)
+            .filter_by(client_id=client.id, platform=platform,
+                       archived=False, is_client_repository=False)
+            .order_by(Project.created_at.desc())
+            .first()
+        )
+
+    # Project state takes precedence over request state per round-3 §5.
     if project is not None:
-        deliverables_count = (
+        deliverable = (
             db.session.query(Deliverable)
             .filter_by(client_id=client.id, project_id=project.id,
                        superseded_at=None)
-            .count()
+            .order_by(Deliverable.finalized_at.desc())
+            .first()
         )
+        if deliverable is not None:
+            state = "ready_to_view"
+        else:
+            state = _STAGE_TO_CARD.get(project.stage, "in_review")
+        return {
+            "key": service_key,
+            "label": label,
+            "state": state,
+            "project": project,
+            "deliverable": deliverable,
+            "request": open_request,   # purely informational for the template
+        }
 
-    if deliverables_count > 0:
-        state = "delivered"
-    elif project is not None:
-        state = "active"
-    else:
-        state = "awaiting"
+    # No project. Check for an open request.
+    if open_request is not None:
+        return {
+            "key": service_key,
+            "label": label,
+            "state": "requested",
+            "project": None,
+            "deliverable": None,
+            "request": open_request,
+        }
 
-    return {
-        "key": service_key,
-        "label": SERVICE_LABELS.get(service_key, service_key),
-        "state": state,
-        "project": project,
-        "deliverables_count": deliverables_count,
-    }
+    # No project, no open request. If there's a declined request, that
+    # surfaces as a "Declined" card with the reason and a re-request CTA.
+    if declined_request is not None:
+        return {
+            "key": service_key,
+            "label": label,
+            "state": "declined",
+            "project": None,
+            "deliverable": None,
+            "request": declined_request,
+        }
+
+    # No project, no request — only render a card if the service is
+    # actively in service_interests (i.e. the client picked it on
+    # welcome). Otherwise: no card (round-3 §5 "Not interested").
+    if service_key in (client.service_interests or []):
+        return {
+            "key": service_key,
+            "label": label,
+            "state": "setup",   # picked but nothing started yet
+            "project": None,
+            "deliverable": None,
+            "request": None,
+        }
+    return None
 
 
 def _unread_count(client: Client, user) -> int:
@@ -482,7 +587,29 @@ def index():
     """
     client = _require_client(_current_client())
 
-    cards = [_service_card_state(client, k) for k in (client.service_interests or [])]
+    # Build the universe of services to consider: anything in
+    # service_interests, plus any service the client has open/declined
+    # requests for, plus any service with an active project. The
+    # resolver returns None for services with no card-worthy state.
+    keys = set(client.service_interests or [])
+    keys.update(
+        r[0] for r in
+        db.session.query(ServiceRequest.service)
+        .filter_by(client_id=client.id).all()
+    )
+    # Also any platform we have a non-repo project for.
+    for p in db.session.query(Project).filter_by(
+        client_id=client.id, archived=False, is_client_repository=False,
+    ).all():
+        keys.add(p.platform.value)
+    # Preserve a stable display order (the three real services first,
+    # then anything else like 'unsure' which produces no card anyway).
+    ordered_keys = [k for k in SERVICE_KEYS if k in keys] + [
+        k for k in sorted(keys) if k not in SERVICE_KEYS
+    ]
+
+    cards = [c for c in (_service_card_state(client, k) for k in ordered_keys)
+             if c is not None]
 
     recent_deliverables = (
         db.session.query(Deliverable)
@@ -531,6 +658,97 @@ def services():
         service_keys=SERVICE_KEYS,
         current_selection=set(client.service_interests or []),
         consult_requested=bool(client.consult_requested),
+    )
+
+
+# ====================================================================
+# Request a service — round-3 §4
+# ====================================================================
+# A CLIENT clicks "Add another service" on the dashboard → opens this
+# form → submits → writes a ServiceRequest row and bumps
+# service_interests. Admin sees the request on /clients/queue and
+# either fulfills it (creates a Project) or declines it with a reason.
+# The dashboard card transitions from "Requested" to whatever the
+# project's stage is once admin acts.
+
+_VALID_REQUEST_SERVICES = frozenset({*SERVICE_KEYS, "unsure"})
+
+
+@bp.route("/services/request", methods=["GET", "POST"])
+@login_required
+def services_request():
+    client = _require_client(_current_client())
+
+    if request.method == "POST":
+        service = (request.form.get("service") or "").strip()
+        notes = (request.form.get("notes") or "").strip() or None
+        deadline_raw = (request.form.get("deadline") or "").strip()
+        if service not in _VALID_REQUEST_SERVICES:
+            flash("Pick which service you'd like help with.", "error")
+            return redirect(url_for("portal.services_request"))
+
+        deadline = None
+        if deadline_raw:
+            try:
+                deadline = datetime.strptime(deadline_raw, "%Y-%m-%d").date()
+            except ValueError:
+                flash("Deadline didn't look like a date — leaving it blank.", "info")
+
+        sr = ServiceRequest(
+            client_id=client.id, requested_by=current_user.id,
+            service=service, notes=notes, deadline=deadline,
+        )
+        db.session.add(sr)
+
+        # Round-3 §4.3 "Optional but recommended" — also append to
+        # service_interests so the dashboard card-resolver picks it up
+        # regardless of whether the request stays open or gets fulfilled.
+        # 'unsure' is a request flavor, not a real platform key, so we
+        # skip it here (the dashboard renders nothing for unsure-only).
+        if service in SERVICE_KEYS:
+            interests = list(client.service_interests or [])
+            if service not in interests:
+                interests.append(service)
+                client.service_interests = interests
+        db.session.commit()
+
+        log_audit(
+            "client.service_requested",
+            actor=current_user,
+            target_type="service_request", target_id=sr.id,
+            client_id=client.id,
+            details={
+                "service": service,
+                "has_notes": bool(notes),
+                "deadline": deadline.isoformat() if deadline else None,
+            },
+        )
+
+        # Notify every ADMIN of the request (round-3 §6.2). Reviewers
+        # don't get notified — the queue isn't theirs to action.
+        admins = (
+            db.session.query(User)
+            .filter(User.role == Role.ADMIN, User.is_active_flag.is_(True))
+            .all()
+        )
+        for u in admins:
+            db.session.add(Notification(
+                user_id=u.id, client_id=client.id,
+                event_type="client.service_requested",
+                title=f"New service request from {client.legal_name or client.name}",
+                body=(notes[:200] if notes else None),
+                link=url_for("clients.intake_view", client_id=client.id),
+            ))
+        if admins:
+            db.session.commit()
+
+        flash("Request submitted. Your consultant will reach out within one business day.", "info")
+        return redirect(url_for("portal.index"))
+
+    return render_template(
+        "portal/services_request.html",
+        client=client,
+        service_keys=SERVICE_KEYS,
     )
 
 

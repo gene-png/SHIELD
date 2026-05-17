@@ -87,7 +87,8 @@ def test_dashboard_card_state_active_when_project_exists(
     db.session.commit()
     r = client.get("/portal/")
     assert r.status_code == 200
-    assert b"In progress" in r.data
+    # round-3 §5: project stage 'overlap_analysis' maps to "In review".
+    assert b"In review" in r.data
 
 
 def test_dashboard_card_state_delivered_when_deliverable_exists(
@@ -107,7 +108,8 @@ def test_dashboard_card_state_delivered_when_deliverable_exists(
     ))
     db.session.commit()
     r = client.get("/portal/")
-    assert b"Deliverables ready" in r.data
+    # round-3 §5: at least one non-superseded deliverable → "Ready to view".
+    assert b"Ready to view" in r.data
 
 
 # --------------------------------------------------------------------

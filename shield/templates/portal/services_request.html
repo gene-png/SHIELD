@@ -1,0 +1,59 @@
+{% extends "_layout/base.html" %}
+{% block title %}Request a service &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:40rem;margin:0 auto;">
+  <a href="{{ url_for('portal.index') }}">&larr; Back to dashboard</a>
+</p>
+
+<section class="shield-exec" style="max-width:40rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
+  <h1 class="shield-exec__headline">Tell us what else you need.</h1>
+  <p class="usa-prose">
+    Submitting this lets your consultant know what you're after. They'll
+    create the project and reach out about scope and kickoff &mdash;
+    you don't need to set anything else up yourself.
+  </p>
+
+  <form method="POST" action="{{ url_for('portal.services_request') }}"
+        class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <fieldset class="usa-fieldset">
+      <legend class="usa-legend">What can we help with?</legend>
+      {% set options = [
+        ('tech_debt',     'Tech Debt',
+         "Find software you're paying for twice."),
+        ('zero_trust',    'Zero Trust',
+         "Measure where you stand against a framework and plan forward."),
+        ('attack_surface','Attack Surface',
+         "Map your tools against MITRE ATT&amp;CK; find your blind spots."),
+        ('unsure',        "I'm not sure",
+         "Talk to a consultant first."),
+      ] %}
+      {% for key, title, desc in options %}
+        <div class="usa-radio">
+          <input class="usa-radio__input" type="radio"
+                 id="svc-{{ key }}" name="service" value="{{ key }}" required>
+          <label class="usa-radio__label" for="svc-{{ key }}">
+            <strong>{{ title }}</strong> &mdash; <span class="usa-hint">{{ desc | safe }}</span>
+          </label>
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    <label class="usa-label" for="notes">Anything to tell your consultant up front?</label>
+    <textarea class="usa-textarea" id="notes" name="notes" rows="4"
+              placeholder="Audit deadline, board ask, recent incident, anything..."></textarea>
+
+    <label class="usa-label" for="deadline">Any deadline driving this? (optional)</label>
+    <input class="usa-input" id="deadline" name="deadline" type="date">
+
+    <div class="usa-button-group" style="margin-top:1.25rem;">
+      <button class="usa-button" type="submit">Submit request</button>
+      <a class="usa-button usa-button--outline" href="{{ url_for('portal.index') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+
+{% endblock %}

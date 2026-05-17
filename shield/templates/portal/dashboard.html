@@ -7,29 +7,91 @@
   <h1 class="shield-exec__headline">Welcome back.</h1>
 </section>
 
-{# ============ Service cards ============ #}
+{# ============ Service cards — round-3 §5 state machine ============
+   States rendered here:
+     requested      — open ServiceRequest, no project yet
+     declined       — declined ServiceRequest, no replacement project
+     setup          — picked on welcome, no request, no project yet
+     awaiting_docs  — project exists, stage is intake-ish, awaiting upload
+     in_review      — project exists, work in progress, no deliverable
+     ready_to_view  — at least one non-superseded Deliverable
+     complete       — project archived/complete
+   A service produces no card if it's not in service_interests AND
+   has no request AND has no project.
+#}
 {% if cards %}
   <h2 style="max-width:56rem;margin:0 auto 1rem;">Your services</h2>
-  <div class="grid-row grid-gap shield-portal-cards" style="max-width:56rem;margin:0 auto;">
+  <div class="grid-row grid-gap" style="max-width:56rem;margin:0 auto;">
     {% for card in cards %}
       <div class="tablet:grid-col-4">
         <div class="usa-card shield-portal-service-card">
-          <h3>{{ card.label }}</h3>
-          {% if card.state == 'awaiting' %}
-            <p class="usa-prose"><em>We're reviewing what you've shared.</em></p>
-            <p class="usa-hint">Your consultant will reach out within one business day.</p>
-          {% elif card.state == 'active' %}
-            <p class="usa-prose"><strong>In progress.</strong></p>
+          <h3>
+            {% if card.project and card.project.client_display_name %}
+              {{ card.project.client_display_name }}
+            {% else %}
+              {{ card.label }}
+            {% endif %}
+          </h3>
+
+          {% if card.state == 'requested' %}
+            <p class="usa-prose"><strong>Requested.</strong></p>
             <p class="usa-hint">
-              Project: {{ card.project.name }} &middot;
-              Stage: {{ card.project.stage }}.
+              Waiting on your consultant &mdash; we'll reach out within
+              one business day.
+              {% if card.request.requested_at %}
+                <br><small>Requested {{ card.request.requested_at.strftime('%Y-%m-%d') }}.</small>
+              {% endif %}
             </p>
-          {% elif card.state == 'delivered' %}
-            <p class="usa-prose"><strong>Deliverables ready.</strong></p>
-            <p class="usa-hint">
-              {{ card.deliverables_count }}
-              {{ 'finalized report' if card.deliverables_count == 1 else 'finalized reports' }}
-              &mdash; see Deliverables.
+
+          {% elif card.state == 'declined' %}
+            <p class="usa-prose"><strong>Not a fit right now.</strong></p>
+            {% if card.request.declined_reason %}
+              <blockquote class="usa-prose"><em>{{ card.request.declined_reason }}</em></blockquote>
+            {% endif %}
+            <form method="POST" action="{{ url_for('portal.services_request') }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="service" value="{{ card.key }}">
+              <button class="usa-button usa-button--small" type="submit">Re-request</button>
+            </form>
+
+          {% elif card.state == 'setup' %}
+            <p class="usa-prose"><strong>Getting set up.</strong></p>
+            <p class="usa-hint">Your consultant will be in touch about kickoff.</p>
+
+          {% elif card.state == 'awaiting_docs' %}
+            <p class="usa-prose"><strong>Waiting on your documents.</strong></p>
+            <p class="usa-hint">Upload what's relevant so your consultant can get started.</p>
+            <p>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('portal.documents') }}">Upload documents</a>
+            </p>
+
+          {% elif card.state == 'in_review' %}
+            <p class="usa-prose"><strong>In review.</strong></p>
+            <p class="usa-hint">Your consultant is working through what you sent.</p>
+
+          {% elif card.state == 'ready_to_view' %}
+            <p class="usa-prose"><strong>Ready to view.</strong></p>
+            {% if card.deliverable %}
+              <p>
+                <a class="usa-button usa-button--small"
+                   href="{{ url_for('portal.deliverable_detail', deliverable_id=card.deliverable.id) }}">
+                  View {{ card.deliverable.title }}
+                </a>
+              </p>
+            {% else %}
+              <p>
+                <a class="usa-button usa-button--small"
+                   href="{{ url_for('portal.deliverables_list') }}">View deliverables</a>
+              </p>
+            {% endif %}
+
+          {% elif card.state == 'complete' %}
+            <p class="usa-prose"><strong>Complete.</strong></p>
+            <p class="usa-hint">Deliverables remain available.</p>
+            <p>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('portal.deliverables_list') }}">View deliverables</a>
             </p>
           {% endif %}
         </div>
@@ -38,10 +100,15 @@
   </div>
 {% else %}
   <p class="usa-prose" style="max-width:56rem;margin:0 auto;">
-    You haven't picked any services yet.
-    <a href="{{ url_for('portal.services') }}">Tell us what you're interested in &rarr;</a>
+    You haven't requested any services yet.
+    <a href="{{ url_for('portal.services_request') }}">Tell us what you need &rarr;</a>
   </p>
 {% endif %}
+
+<p style="max-width:56rem;margin:1rem auto;">
+  <a class="usa-button usa-button--outline"
+     href="{{ url_for('portal.services_request') }}">+ Add another service</a>
+</p>
 
 {# ============ Recent activity ============ #}
 <div class="grid-row grid-gap" style="max-width:56rem;margin:2rem auto;">

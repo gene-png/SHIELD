@@ -21,6 +21,60 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.1-rc2] — 2026-05-17 — round-3 PR 3B: dashboard state machine + request-a-service
+
+Second of three round-3 sub-PRs. Replaces the round-2 dashboard's
+three-state cards (`awaiting`/`active`/`delivered`) with the round-3
+§5 seven-state machine, and adds the `/portal/services/request` form
+that creates a `ServiceRequest` row admins can act on.
+
+### Changed — dashboard card resolver
+
+Round-3 §5 state machine, in precedence order:
+
+  `ready_to_view` — at least one non-superseded Deliverable
+  `complete`      — Project.stage in (archived, complete)
+  `awaiting_docs` — Project.stage in (intake, raw_intake)
+  `in_review`     — any other not-yet-delivered Project.stage
+  `requested`     — open ServiceRequest, no Project
+  `declined`      — declined ServiceRequest, no Project
+  `setup`         — service in client.service_interests, no Project, no request
+  (no card)       — none of the above
+
+The round-3 rule "project state takes precedence over request state"
+is enforced: if a fulfilled Project exists, the open request is shown
+only as informational context, not as the card's state.
+
+Cards use `Project.client_display_name` when set, otherwise the
+service label (`Tech Debt` / `Zero Trust` / `Attack Surface`). The
+admin's internal Project.name never leaks to the client surface.
+
+### Added — `/portal/services/request`
+
+- GET renders the round-3 §4.2 form (one required service radio,
+  optional notes textarea, optional deadline date).
+- POST writes a `ServiceRequest` row, appends the service to
+  `client.service_interests` (skipping `unsure`), writes a
+  `client.service_requested` audit row, and creates a
+  `Notification` for every active ADMIN.
+- The dashboard's empty-state CTA and the new "+ Add another service"
+  button both point here.
+- Re-request button on a `declined` card POSTs to this endpoint with
+  the service prefilled.
+
+### Tests
+
+- 139 → 157 passing. 18 new tests in
+  `tests/test_v18_round3_state_machine.py` covering every card state
+  (no-card / requested / declined / setup / awaiting_docs / in_review
+  / ready_to_view / complete), project-precedence-over-request, the
+  `client_display_name` substitution, and the request POST flow:
+  audit-row, service-interests append, `unsure` doesn't append,
+  admin notification, bogus-service rejection, bad-deadline graceful
+  handling, deadline capture.
+- 2 existing PR 4 tests updated for the new state copy
+  ("In progress"→"In review", "Deliverables ready"→"Ready to view").
+
 ## [1.8.1-rc1] — 2026-05-17 — round-3 PR 3A: ServiceRequest schema + leak fix
 
 Round-3 of the UX work, split into three sub-PRs stacked on
