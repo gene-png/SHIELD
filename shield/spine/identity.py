@@ -27,7 +27,14 @@ def _oauth_client():
             ),
             client_id=current_app.config["KEYCLOAK_CLIENT_ID"],
             client_secret=current_app.config["KEYCLOAK_CLIENT_SECRET"],
-            client_kwargs={"scope": "openid profile email"},
+            client_kwargs={
+                "scope": "openid profile email",
+                # Keycloak 25's `shield-app` client requires PKCE; without
+                # this, /auth/callback fails with "Missing parameter:
+                # code_challenge_method". Authlib will auto-generate the
+                # verifier and challenge when this kwarg is present.
+                "code_challenge_method": "S256",
+            },
         )
     return _oauth.keycloak  # type: ignore[attr-defined]
 
