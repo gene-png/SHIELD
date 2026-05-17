@@ -179,10 +179,17 @@ def test_client_role_redirected_from_platform_routes(client_role_client):
         )
 
 
-def test_client_role_can_reach_intake(client_role_client):
-    """The intake surface itself is allowed for CLIENT-role users."""
-    r = client_role_client.get("/intake/")
-    assert r.status_code == 200
+def test_client_role_redirected_off_legacy_intake(client_role_client):
+    """v1.8 round-3 closes the /intake/ backward-compat loophole.
+
+    Before: /intake/ was allowed for CLIENT users so the v1.0 surface
+    kept working. Round-3 §2.3 calls out that the legacy template
+    leaks the seed-assigned name ("Acme Co") and tightens the role
+    gate to redirect CLIENT off /intake/ entirely.
+    """
+    r = client_role_client.get("/intake/", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["Location"].endswith("/portal/")
 
 
 # --------------------------------------------------------------------

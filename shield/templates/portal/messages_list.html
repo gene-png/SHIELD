@@ -3,7 +3,7 @@
 {% block content %}
 
 <section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
-  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
   <h1 class="shield-exec__headline">Messages</h1>
   <p class="usa-prose">
     One general thread plus a thread per project. Click any thread to

@@ -267,8 +267,15 @@ def test_client_cannot_reach_audit_after_v18(client, acme_member):
     assert r.headers["Location"].endswith("/portal/")
 
 
-def test_client_can_reach_legacy_intake_for_backcompat(client, acme_member):
-    """/intake/ stays accessible to CLIENT users for backward compat."""
+def test_client_is_redirected_off_legacy_intake(client, acme_member):
+    """Round-3 closes the /intake/ loophole.
+
+    The v1.8 PR 3 role gate kept /intake/ accessible to CLIENT users
+    for backward compatibility. Round-3 §2.3 calls this out as a
+    leak path (the legacy template renders `project.client.name` =
+    "Acme Co") and tightens the gate so CLIENT users are redirected
+    to /portal/ regardless of URL.
+    """
     r = client.get("/intake/", follow_redirects=False)
-    # 200 OK (page renders) — not redirected away.
-    assert r.status_code == 200
+    assert r.status_code == 302
+    assert r.headers["Location"].endswith("/portal/")

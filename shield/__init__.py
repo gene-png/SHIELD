@@ -48,6 +48,18 @@ def create_app(config_object: type[Config] = Config) -> Flask:
             return None
     app.jinja_env.filters["from_json"] = _from_json
 
+    # `client_label`: render a Client's display label, preferring what
+    # the client typed during /portal/about over the system-assigned
+    # name. The round-3 UX doc is explicit: every header / banner /
+    # flash that says "who you are" must NOT show the seed name
+    # ("Acme Co") unless the user actually typed it. Used as
+    # `{{ client | client_label }}` in templates.
+    def _client_label(client):
+        if client is None:
+            return ""
+        return (client.legal_name or "").strip() or client.name or ""
+    app.jinja_env.filters["client_label"] = _client_label
+
     # --- Models must be imported before migrations ---
     from . import models  # noqa: F401
 
@@ -99,13 +111,16 @@ def create_app(config_object: type[Config] = Config) -> Flask:
         path = request.path
         if (
             path.startswith("/portal")
-            or path.startswith("/intake")     # legacy alias
             or path.startswith("/auth")
             or path.startswith("/static")
             or path == "/"
             or path == "/healthz"
         ):
             return None
+        # /intake/ used to be the v1.0 client surface; v1.8 retired it
+        # in favor of /portal/ and round-3 closes the loophole (round-3
+        # §2.3 — clients should never see "Acme Co" on a project page
+        # by side-channelling through the legacy URL).
         return redirect(url_for("portal.index"))
 
     # --- Top-level routes ---

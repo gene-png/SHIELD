@@ -3,7 +3,7 @@
 {% block content %}
 
 <section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
-  <p class="shield-exec__eyebrow">All set &mdash; {{ client.name }}</p>
+  <p class="shield-exec__eyebrow">All set &mdash; {{ client | client_label }}</p>
   <h1 class="shield-exec__headline">Got it. Your consultant will be in touch.</h1>
   <p class="usa-prose">
     Within one business day, the consulting team will review what

@@ -21,6 +21,59 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.1-rc1] — 2026-05-17 — round-3 PR 3A: ServiceRequest schema + leak fix
+
+Round-3 of the UX work, split into three sub-PRs stacked on
+`feat/v1.8-portal`. This is sub-PR 3A — schema and leak fix only;
+the dashboard state machine + request-a-service flow land in 3B,
+admin fulfill/decline in 3C.
+
+### Added — `ServiceRequest` model + `Project.client_display_name`
+
+- `service_requests` table. The "client REQUESTS a service" pattern
+  the doc replaces a "Start a new Project" button with. Three
+  derivable states: `is_open`, `is_fulfilled`, `is_declined`.
+- `projects.client_display_name` — optional friendly label. When set,
+  the portal renders this; admin screens always render `name`.
+- Migration `0003_v18r3_service_requests` round-trips cleanly. The
+  backfill creates one fulfilled ServiceRequest per existing
+  non-repository project on every Client — Acme's three demo projects
+  become "legitimate" cards in the round-3 state machine (PR 3B)
+  instead of mystery cards.
+
+### Fixed — "Acme Co" leak across portal templates
+
+- New `client_label` Jinja filter: returns
+  `client.legal_name or client.name`, falling back through
+  whitespace-only values.
+- Every `{{ client.name }}` in `shield/templates/portal/*.html`
+  switched to `{{ client | client_label }}` so a client who typed
+  "My Real Org" during /portal/about sees their typed name, not the
+  seed-assigned "Acme Co". Legacy `intake/index.html` template also
+  patched.
+- Flash on the legacy intake upload no longer names the project's
+  client.
+
+### Changed — role gate retires /intake/ for CLIENT
+
+- The v1.8 PR 3 role gate kept `/intake/` accessible to CLIENT users
+  for backward compatibility. Round-3 §2.3 calls this out as a leak
+  path; the gate now redirects CLIENT off `/intake/` to `/portal/`
+  regardless of URL. The legacy blueprint stays mounted for
+  ADMIN/REVIEWER who may still use it for testing.
+
+### Tests
+
+- 120 → 139 passing. 19 new tests in
+  `tests/test_v18_round3_schema_and_leak.py`:
+  ServiceRequest open/fulfilled/declined branches, optional metadata,
+  Project.client_display_name nullability, `client_label` filter
+  precedence (legal_name → name → empty), parametrized portal-page
+  legal-name renders (no "Acme Co" leak across 9 portal URLs), legacy
+  `/intake/` redirect.
+- Updated 2 existing tests that asserted `/intake/` was reachable for
+  CLIENT.
+
 ## [1.8.0] — 2026-05-17 — client-portal redesign complete (PR 6 of 6)
 
 PR 6 is the wrap-up: documentation, threat-model rows, and a small

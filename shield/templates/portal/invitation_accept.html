@@ -4,9 +4,9 @@
 
 <section class="shield-exec" style="max-width:40rem;margin:1rem auto;">
   <p class="shield-exec__eyebrow">Invitation</p>
-  <h1 class="shield-exec__headline">Join {{ client.name }} on SHIELD.</h1>
+  <h1 class="shield-exec__headline">Join {{ client | client_label }} on SHIELD.</h1>
   <p class="usa-prose">
-    You've been invited to join <strong>{{ client.name }}</strong> as a
+    You've been invited to join <strong>{{ client | client_label }}</strong> as a
     colleague. Accepting gives you access to the same documents,
     deliverables, and conversations the rest of your team sees.
   </p>

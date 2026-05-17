@@ -1,9 +1,9 @@
 {% extends "_layout/base.html" %}
-{% block title %}{{ client.name }} &mdash; SHIELD{% endblock %}
+{% block title %}{{ client | client_label }} &mdash; SHIELD{% endblock %}
 {% block content %}
 
 <section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
-  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
   <h1 class="shield-exec__headline">Welcome back.</h1>
 </section>
 

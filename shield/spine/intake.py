@@ -103,5 +103,7 @@ def upload(project_id: str):
             "actor_role": current_user.role.value,
         },
     )
-    flash(f"Uploaded {f.filename} for {project.client.name} / {project.name}.", "info")
+    # Don't bake the project's seed-client name into the flash —
+    # speaks past the user about their own org. Per round-3 §2.3 Change 2.
+    flash(f"Uploaded {f.filename}.", "info")
     return redirect(url_for("intake.index"))

@@ -247,6 +247,11 @@ class Project(db.Model):
     # indexes and the workspace browser; only the client portal's
     # repository view and the admin's intake-view surface it.
     is_client_repository = Column(Boolean, default=False, nullable=False)
+    # Optional client-facing label (v1.8 round-3 §4.4). When set, the
+    # portal renders this instead of `name` so admins can name the
+    # project "Acme Co — Zero Trust Q2 2026 (CISA)" while the client
+    # sees "My Zero Trust review". Admin screens always render `name`.
+    client_display_name = Column(String(255))
 
     client = relationship("Client", back_populates="projects")
     artifacts = relationship("Artifact", back_populates="project", cascade="all,delete-orphan")
@@ -554,6 +559,56 @@ class Deliverable(db.Model):
     finalized_by = Column(String(36), ForeignKey("users.id"), nullable=False)
     superseded_at = Column(DateTime)
     superseded_by = Column(String(36), ForeignKey("deliverables.id"))
+
+
+class ServiceRequest(db.Model):
+    """Client-initiated request for a new service / engagement.
+
+    The round-3 UX doc replaces a "client clicks Start a Project" button
+    with a "client REQUESTS a service" pattern: the request is a row
+    here, the admin still owns Project creation, and the client's
+    dashboard reflects the request state immediately so the action
+    feels self-served.
+
+    State derived from columns (no enum — three nullable fields):
+
+      - open     : fulfilled_project_id IS NULL AND declined_at IS NULL
+      - fulfilled: fulfilled_project_id IS NOT NULL
+      - declined : declined_at IS NOT NULL  (decline + reason recorded)
+
+    `service` is one of the three platform-key strings ('tech_debt',
+    'zero_trust', 'attack_surface') OR 'unsure' for "I'm not sure,
+    talk to a consultant first."
+    """
+    __tablename__ = "service_requests"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    client_id = Column(String(36), ForeignKey("clients.id"),
+                       nullable=False, index=True)
+    requested_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    service = Column(String(32), nullable=False)   # tech_debt|zero_trust|attack_surface|unsure
+    notes = Column(Text)
+    deadline = Column(Date)
+    requested_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    fulfilled_project_id = Column(String(36), ForeignKey("projects.id"))
+    declined_at = Column(DateTime)
+    declined_reason = Column(Text)
+
+    client = relationship("Client", foreign_keys=[client_id])
+    requester = relationship("User", foreign_keys=[requested_by])
+    fulfilled_project = relationship("Project", foreign_keys=[fulfilled_project_id])
+
+    @property
+    def is_open(self) -> bool:
+        return self.fulfilled_project_id is None and self.declined_at is None
+
+    @property
+    def is_fulfilled(self) -> bool:
+        return self.fulfilled_project_id is not None
+
+    @property
+    def is_declined(self) -> bool:
+        return self.declined_at is not None
 
 
 class ReviewerAssignment(db.Model):

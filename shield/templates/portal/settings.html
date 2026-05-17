@@ -3,7 +3,7 @@
 {% block content %}
 
 <section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
-  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
   <h1 class="shield-exec__headline">Your settings.</h1>
 
   {# ============ Profile ============ #}

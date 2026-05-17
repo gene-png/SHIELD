@@ -3,7 +3,7 @@
 {% block content %}
 
 <section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
-  <p class="shield-exec__eyebrow">Welcome &mdash; {{ client.name }}</p>
+  <p class="shield-exec__eyebrow">Welcome &mdash; {{ client | client_label }}</p>
   <h1 class="shield-exec__headline">Tell us what you're here for.</h1>
   <p class="usa-prose">
     Pick the services you're most interested in. You can pick more

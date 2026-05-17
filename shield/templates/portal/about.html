@@ -3,7 +3,7 @@
 {% block content %}
 
 <section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
-  <p class="shield-exec__eyebrow">Step 2 of 4 &mdash; {{ client.name }}</p>
+  <p class="shield-exec__eyebrow">Step 2 of 4 &mdash; {{ client | client_label }}</p>
   <h1 class="shield-exec__headline">Tell us about your organization.</h1>
   <p class="usa-prose">
     Each field saves as you tab away &mdash; closing this page and
