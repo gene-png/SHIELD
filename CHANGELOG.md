@@ -21,6 +21,48 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.0-rc2] — 2026-05-17 — client portal: access control (PR 2 of 6)
+
+### Added — `shield.spine.access`
+
+- `client_ids_for_user(user)` resolves which client_ids a given user
+  may read. Sentinel `None` for unrestricted (admin and un-assigned
+  reviewer per round-2 §10 answer); list for finite scope (CLIENT's
+  accepted memberships, REVIEWER's non-revoked assignments).
+- `require_client_access(client_id)` aborts 404 (not 403) and writes
+  an `access_denied` audit row on failure — existence of another
+  client's resource never leaks through the error code.
+- `@require_client_for_param("client_id")` decorator for routes
+  whose URL parameter is the client id.
+- `scope_query(stmt, model)` adds the client-scope WHERE to a Select.
+- `user_clients()` returns the resolved Client rows for nav/dashboard.
+
+### Changed — every cross-client-readable route is now scoped
+
+- `/repository/` and `/repository/artifact/<id>` filter by access;
+  synthetic client_repository projects are excluded from the global
+  browse (they'll surface on the portal in PR 3).
+- `/clients/`, `/clients/<id>`, `/clients/<id>/capability-list/*`
+  apply `@require_client_for_param`.
+- `/platform/{tech-debt,zero-trust,attack-surface}/` index pages
+  scope-filter the project list.
+- The shared `_get_project_or_404` in each platform now calls
+  `require_client_access(project.client_id)` so every project-scoped
+  route inherits the check (workspaces, all POST actions,
+  project_summary, finalize, walkability, run_detail).
+- `/projects/<id>/relink-capability-list` adds the same check.
+- `/audit/` scopes its query and the client filter to the user's
+  resolved clients.
+
+### Tests
+
+- 66 → 78 passing. 12 new tests in `tests/test_v18_access.py`
+  covering: admin unrestricted, unauthenticated empty, CLIENT
+  resolves to accepted memberships only (pending invitations don't
+  grant access), REVIEWER with zero assignments preserves
+  see-everything, revoked assignments don't count, cross-client
+  reads return 404, access_denied audit row is written.
+
 ## [1.8.0-rc1] — 2026-05-17 — client portal: schema only (PR 1 of 6)
 
 This release is the first of six PRs implementing the v1.8 client

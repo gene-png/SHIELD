@@ -6,6 +6,7 @@ from flask_login import login_required
 
 from ..extensions import db
 from ..models import CapabilityList, Client
+from .access import require_client_for_param, user_clients
 from .exporters import capability_list_to_xlsx
 
 bp = Blueprint("clients", __name__, template_folder="../templates/clients")
@@ -14,12 +15,15 @@ bp = Blueprint("clients", __name__, template_folder="../templates/clients")
 @bp.route("/")
 @login_required
 def index():
-    clients = db.session.query(Client).order_by(Client.name).all()
+    # Scoped: admins see every client; reviewers see assigned (or all
+    # if un-assigned); clients see only their own organization.
+    clients = user_clients()
     return render_template("clients/list.html", clients=clients)
 
 
 @bp.route("/<client_id>")
 @login_required
+@require_client_for_param("client_id")
 def detail(client_id: str):
     client = db.session.get(Client, client_id)
     if client is None:
@@ -35,6 +39,7 @@ def detail(client_id: str):
 
 @bp.route("/<client_id>/capability-list/<list_id>")
 @login_required
+@require_client_for_param("client_id")
 def capability_list_detail(client_id: str, list_id: str):
     cl = db.session.get(CapabilityList, list_id)
     if cl is None or cl.client_id != client_id:
@@ -44,12 +49,14 @@ def capability_list_detail(client_id: str, list_id: str):
 
 @bp.route("/<client_id>/capability-list/<list_id>/export.xlsx")
 @login_required
+@require_client_for_param("client_id")
 def capability_list_export(client_id: str, list_id: str):
     """Polished XLSX download. Auditable provenance on sheet 1, items on sheet 2.
 
-    No role decorator: any authenticated user with platform access
-    (admin / reviewer) can download. CLIENT-role users are blocked
-    upstream by _restrict_client_to_intake before they reach this URL.
+    The route-level @require_client_for_param replaces the v1.7
+    _restrict_client_to_intake gate for fine-grained cross-client
+    protection — a reviewer with assignments to client A still gets
+    a 404 trying to export client B's list.
     """
     cl = db.session.get(CapabilityList, list_id)
     if cl is None or cl.client_id != client_id:

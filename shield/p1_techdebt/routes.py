@@ -42,12 +42,18 @@ from . import bp
 @bp.route("/")
 @login_required
 def index():
-    projects = (
-        db.session.query(Project)
-        .filter_by(platform=PlatformType.TECH_DEBT, archived=False)
+    from sqlalchemy import select
+
+    from ..spine.access import scope_query
+    stmt = (
+        select(Project)
+        .where(Project.platform == PlatformType.TECH_DEBT,
+               Project.archived.is_(False),
+               Project.is_client_repository.is_(False))
         .order_by(Project.created_at.desc())
-        .all()
     )
+    stmt = scope_query(stmt, Project)
+    projects = list(db.session.scalars(stmt))
     return render_template("p1/index.html", projects=projects)
 
 
@@ -148,6 +154,10 @@ def _get_project_or_404(project_id: str) -> Project:
     p = db.session.get(Project, project_id)
     if p is None or p.platform != PlatformType.TECH_DEBT:
         abort(404)
+    # v1.8: cross-client read protection. 404 (not 403) for callers
+    # without access — see shield.spine.access.require_client_access.
+    from ..spine.access import require_client_access
+    require_client_access(p.client_id)
     return p
 
 

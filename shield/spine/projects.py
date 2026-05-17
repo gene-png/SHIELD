@@ -52,6 +52,11 @@ def relink_capability_list(project_id: str):
     project = db.session.get(Project, project_id)
     if project is None or project.archived:
         abort(404)
+    # v1.8: 404 (not 403) when an admin-or-reviewer reaches a project
+    # outside their assigned-client scope. The decorator above already
+    # enforces the role; this enforces the client.
+    from .access import require_client_access
+    require_client_access(project.client_id)
 
     available = list_capability_lists_for_client(project.client_id)
 

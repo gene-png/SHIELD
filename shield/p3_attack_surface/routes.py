@@ -55,18 +55,26 @@ def _get_project_or_404(project_id: str) -> Project:
     p = db.session.get(Project, project_id)
     if p is None or p.platform != PlatformType.ATTACK_SURFACE:
         abort(404)
+    from ..spine.access import require_client_access
+    require_client_access(p.client_id)
     return p
 
 
 @bp.route("/")
 @login_required
 def index():
-    projects = (
-        db.session.query(Project)
-        .filter_by(platform=PlatformType.ATTACK_SURFACE, archived=False)
+    from sqlalchemy import select
+
+    from ..spine.access import scope_query
+    stmt = (
+        select(Project)
+        .where(Project.platform == PlatformType.ATTACK_SURFACE,
+               Project.archived.is_(False),
+               Project.is_client_repository.is_(False))
         .order_by(Project.created_at.desc())
-        .all()
     )
+    stmt = scope_query(stmt, Project)
+    projects = list(db.session.scalars(stmt))
     return render_template("p3/index.html", projects=projects)
 
 
