@@ -7,6 +7,9 @@
   Client: <a href="{{ url_for('clients.detail', client_id=project.client_id) }}">{{ project.client.name }}</a>
   &middot; Framework: <strong>{{ framework.name if framework else project.framework or '—' }}</strong>
   &middot; Stage: <strong>{{ project.stage }}</strong>
+  {% if current_user.role.value in ('admin', 'reviewer') %}
+    &middot; <a href="{{ url_for('p2.walkability', project_id=project.id) }}">Reviewer walkability →</a>
+  {% endif %}
 </p>
 
 {# ============ Questionnaire ============ #}
@@ -26,6 +29,7 @@
         <tr>
           <th>Control</th><th>Pillar</th><th>Title</th>
           <th>Your answer</th><th>Trust tier</th>
+          <th>Evidence</th>
           {% if current_user.role.value == 'admin' %}<th>Attribution</th>{% endif %}
         </tr>
       </thead>
@@ -59,6 +63,25 @@
             </td>
             <td>
               {% if r %}<code>{{ r.trust_tier.value }}</code>{% else %}—{% endif %}
+            </td>
+            <td>
+              {% if r and r.evidence_artifact %}
+                <a href="{{ url_for('repository.artifact_detail', artifact_id=r.evidence_artifact.id) }}"
+                   title="View evidence">
+                  📎 {{ r.evidence_artifact.filename or r.evidence_artifact.title }}
+                </a>
+              {% elif r and not locked and not is_submitted %}
+                <form method="POST"
+                      action="{{ url_for('p2.upload_evidence', project_id=project.id, control_id=c.id) }}"
+                      enctype="multipart/form-data"
+                      class="usa-form usa-form--inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="file" name="evidence_file" class="usa-file-input usa-file-input--small" required>
+                  <button class="usa-button usa-button--small usa-button--outline">Attach</button>
+                </form>
+              {% else %}
+                <em>—</em>
+              {% endif %}
             </td>
             {% if current_user.role.value == 'admin' %}
             <td>

@@ -443,6 +443,68 @@ def generate_roadmap(project_id: str):
     return redirect(url_for("p2.workspace", project_id=project.id))
 
 
+# ----- Evidence upload tied to a control (spec §8.2) -----
+#
+# Spec rule: "Evidence attaches inline at the question it supports, never
+# to a separate pile." The file is written to the human lane with
+# trust_tier=CLIENT_PROVIDED_EVIDENCE and the QuestionnaireResponse's
+# evidence_artifact_id is updated to point at the artifact.
+
+@bp.route("/project/<project_id>/evidence/<control_id>", methods=["POST"])
+@login_required
+def upload_evidence(project_id: str, control_id: str):
+    project = _get_project_or_404(project_id)
+    if project.stage == "submitted":
+        flash("Project is submitted; evidence is locked.", "error")
+        return redirect(url_for("p2.workspace", project_id=project.id))
+
+    response = (
+        db.session.query(QuestionnaireResponse)
+        .filter_by(project_id=project.id, control_id=control_id)
+        .one_or_none()
+    )
+    if response is None:
+        flash(
+            f"Answer the control {control_id} first; evidence attaches "
+            f"to a saved answer.",
+            "error",
+        )
+        return redirect(url_for("p2.workspace", project_id=project.id))
+    if response.locked:
+        flash("Response is locked; evidence cannot be changed.", "error")
+        return redirect(url_for("p2.workspace", project_id=project.id))
+
+    f = request.files.get("evidence_file")
+    if not f or not f.filename:
+        flash("Pick a file to upload as evidence.", "error")
+        return redirect(url_for("p2.workspace", project_id=project.id) + f"#c-{control_id}")
+
+    art = write_human_artifact(
+        project=project,
+        stage="evidence",
+        title=f"Evidence for {control_id}: {f.filename}",
+        file_stream=f.stream,
+        filename=f.filename,
+        mime_type=f.mimetype,
+        actor=current_user,
+        trust_tier=TrustTier.CLIENT_PROVIDED_EVIDENCE,
+    )
+    response.evidence_artifact_id = art.id
+    db.session.commit()
+    log_audit(
+        "p2.evidence.upload",
+        actor=current_user,
+        target_type="questionnaire_response", target_id=response.id,
+        project_id=project.id, client_id=project.client_id,
+        details={"control_id": control_id, "artifact_id": art.id, "filename": f.filename},
+    )
+    flash(
+        f"Evidence attached to {control_id}: {f.filename}.",
+        "info",
+    )
+    return redirect(url_for("p2.workspace", project_id=project.id) + f"#c-{control_id}")
+
+
 # ----- Submit / lock (spec §10 decision #3 — immutable once submitted) -----
 
 @bp.route("/project/<project_id>/submit", methods=["POST"])
@@ -559,6 +621,84 @@ def downgrade_attribution(project_id: str, control_id: str):
         "info",
     )
     return redirect(url_for("p2.workspace", project_id=project.id) + f"#c-{control_id}")
+
+
+# ----- Reviewer audit-walkability (spec §8.2) -----
+#
+# The auditor / reviewer is a different reader than the admin or client.
+# They need traceability over polish: for every control they want to walk
+# the line `framework control → client's claim → evidence → AI's
+# assessment → gap → proposed remediation`, with each part visibly
+# separable, "without trusting the tool".
+
+@bp.route("/project/<project_id>/walkability")
+@login_required
+def walkability(project_id: str):
+    project = _get_project_or_404(project_id)
+    if current_user.role not in (Role.ADMIN, Role.REVIEWER):
+        flash("Walkability view is for reviewers and admins.", "error")
+        return redirect(url_for("p2.workspace", project_id=project.id))
+
+    framework = FRAMEWORKS.get(project.framework or "")
+    if framework is None:
+        flash("No framework set on this project.", "error")
+        return redirect(url_for("p2.workspace", project_id=project.id))
+
+    responses = (
+        db.session.query(QuestionnaireResponse)
+        .filter_by(project_id=project.id)
+        .all()
+    )
+    responses_by_control = {r.control_id: r for r in responses}
+
+    current_state = (
+        db.session.query(Artifact)
+        .filter_by(
+            project_id=project.id, origin=Origin.AI_GENERATED,
+            stage="current_state_assessment",
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+    ai_by_control: dict[str, dict] = {}
+    if current_state and current_state.body_text:
+        try:
+            data = json.loads(current_state.body_text)
+            for finding in data.get("controls", []):
+                cid = finding.get("control_id")
+                if cid:
+                    ai_by_control[cid] = finding
+        except json.JSONDecodeError:
+            pass
+
+    roadmap = (
+        db.session.query(Artifact)
+        .filter_by(
+            project_id=project.id, origin=Origin.AI_GENERATED,
+            stage="transition_roadmap",
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+    remediation_by_control: dict[str, dict] = {}
+    if roadmap and roadmap.body_text:
+        try:
+            data = json.loads(roadmap.body_text)
+            for item in data.get("items", []):
+                cid = item.get("control_id")
+                if cid:
+                    remediation_by_control[cid] = item
+        except json.JSONDecodeError:
+            pass
+
+    return render_template(
+        "p2/walkability.html",
+        project=project, framework=framework,
+        responses_by_control=responses_by_control,
+        ai_by_control=ai_by_control,
+        remediation_by_control=remediation_by_control,
+        current_state=current_state, roadmap=roadmap,
+    )
 
 
 def _load_prompt(filename: str) -> str:

@@ -284,6 +284,9 @@ class QuestionnaireResponse(db.Model):
     submitted_at = Column(DateTime)
     locked = Column(Boolean, default=False, nullable=False)
 
+    # Convenience relationship for templates: r.evidence_artifact -> Artifact | None.
+    evidence_artifact = relationship("Artifact", foreign_keys=[evidence_artifact_id])
+
 
 # ============================================================
 # Platform 3 — MITRE ATT&CK
