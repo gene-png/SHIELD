@@ -33,6 +33,7 @@ from ..models import (
     TrustTier,
     User,
 )
+from ..services.text_extraction import extract_text
 from .audit import log_audit
 
 
@@ -46,20 +47,25 @@ def _storage_root() -> Path:
     return root
 
 
-def _save_blob(stream: BinaryIO, project_id: str, lane: str, filename: str) -> tuple[str, int, str]:
-    """Persist a binary stream. Returns (storage_key, size_bytes, sha256_hex)."""
+def _save_bytes_to_lane(
+    data: bytes, project_id: str, lane: str, filename: str,
+) -> tuple[str, int, str]:
+    """Persist already-read bytes to a project lane.
+
+    Returns (storage_key, size_bytes, sha256_hex). We take bytes rather
+    than a stream so the caller can read once and pass the same buffer
+    to both save and text-extraction without seeking.
+    """
     base = _storage_root() / project_id / lane
     base.mkdir(parents=True, exist_ok=True)
     safe_name = secrets.token_hex(8) + "_" + os.path.basename(filename)
     target = base / safe_name
-    h = hashlib.sha256()
-    size = 0
-    with open(target, "wb") as f:
-        for chunk in iter(lambda: stream.read(64 * 1024), b""):
-            f.write(chunk)
-            h.update(chunk)
-            size += len(chunk)
-    return str(target.relative_to(_storage_root())), size, h.hexdigest()
+    target.write_bytes(data)
+    return (
+        str(target.relative_to(_storage_root())),
+        len(data),
+        hashlib.sha256(data).hexdigest(),
+    )
 
 
 # --------------------------------------------------------------------
@@ -87,8 +93,30 @@ def write_human_artifact(
     storage_key: str | None = None
     size_bytes: int | None = None
     sha256_hex: str | None = None
+    extracted_body_text = body_text  # explicit caller value wins over auto-extraction
+
     if file_stream is not None and filename is not None:
-        storage_key, size_bytes, sha256_hex = _save_blob(file_stream, project.id, "human", filename)
+        # Read once into memory. MAX_CONTENT_LENGTH (64MB) caps this so we
+        # don't have to worry about huge files here.
+        data = file_stream.read()
+        storage_key, size_bytes, sha256_hex = _save_bytes_to_lane(
+            data, project.id, "human", filename,
+        )
+        if extracted_body_text is None:
+            # Best-effort text extraction so downstream AI processing has
+            # text to work with. Failure is non-fatal: body_text stays None
+            # and the AI route degrades to "(binary content)".
+            extracted_body_text = extract_text(
+                io.BytesIO(data), mime_type=mime_type, filename=filename,
+            )
+
+    lineage: dict[str, Any] = {}
+    if sha256_hex:
+        lineage["sha256"] = sha256_hex
+    if extracted_body_text is not None and (
+        file_stream is not None and filename is not None
+    ):
+        lineage["extracted_text_length"] = len(extracted_body_text)
 
     art = Artifact(
         project_id=project.id,
@@ -101,8 +129,8 @@ def write_human_artifact(
         mime_type=mime_type,
         size_bytes=size_bytes,
         storage_key=storage_key,
-        body_text=body_text,
-        lineage={"sha256": sha256_hex} if sha256_hex else {},
+        body_text=extracted_body_text,
+        lineage=lineage,
         actor_id=actor.id,
         actor_role=actor.role,
         capability_list_version_id=capability_list_version_id,
