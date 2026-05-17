@@ -18,6 +18,7 @@ volumes:
   keycloak_data:
   artifacts:
   agent_logs:
+  redis_data:
 
 services:
 
@@ -71,6 +72,19 @@ services:
       retries: 20
       start_period: 30s
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks: [shield_internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: ..
@@ -83,10 +97,13 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       FLASK_ENV: ${FLASK_ENV:-development}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-dev-secret-change-me}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://shield:shield_dev_password@db:5432/shield}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL_APP: ${ANTHROPIC_MODEL_APP:-claude-opus-4-7}
       ANTHROPIC_MAX_OUTPUT_TOKENS: ${ANTHROPIC_MAX_OUTPUT_TOKENS:-4096}
@@ -103,6 +120,39 @@ services:
     networks: [shield_internal, shield_public]
     security_opt:
       - no-new-privileges:true
+
+  worker:
+    # Same image as the app — it just runs `rq worker` instead of gunicorn.
+    # AI calls happen here so the request thread never blocks on Anthropic.
+    build:
+      context: ..
+      dockerfile: docker/app.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://shield:shield_dev_password@db:5432/shield}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL_APP: ${ANTHROPIC_MODEL_APP:-claude-opus-4-7}
+      ANTHROPIC_MAX_OUTPUT_TOKENS: ${ANTHROPIC_MAX_OUTPUT_TOKENS:-4096}
+      AI_MODE: ${AI_MODE:-real}
+    volumes:
+      - artifacts:/app/artifacts
+    command: ["rq", "worker", "shield-ai", "--url", "redis://redis:6379/0"]
+    networks: [shield_internal]
+    security_opt:
+      - no-new-privileges:true
+    # The worker reuses the app image, which has a curl /healthz HEALTHCHECK
+    # baked in. The worker doesn't serve HTTP — disable the inherited
+    # check so `up --wait` doesn't flag it.
+    healthcheck:
+      disable: true
 
   zap:
     image: zaproxy/zap-stable:latest

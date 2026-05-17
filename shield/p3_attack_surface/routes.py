@@ -178,64 +178,13 @@ def analyze(project_id: str):
         flash("Link a capability list to this project first.", "error")
         return redirect(url_for("p3.workspace", project_id=project.id))
 
-    capabilities = [
-        {"name": i.name, "vendor": i.vendor, "category": i.category, "function": i.function}
-        for i in cl.items
-    ]
-    payload = {
-        "capabilities": capabilities,
-        "techniques": _load_techniques(),
-    }
-
-    try:
-        ai = AIClient()
-        text, lineage = ai.complete(
-            system=_load_prompt("p3_attack_coverage.md"),
-            user=json.dumps(payload),
-            prompt_version="p3_attack_coverage.v1",
-            json_response=True,
-        )
-    except AIError as e:
-        flash(f"Coverage analysis failed: {e}", "error")
-        return redirect(url_for("p3.workspace", project_id=project.id))
-
-    art = write_ai_artifact(
-        project=project, stage="attack_coverage",
-        title="AI ATT&CK coverage analysis",
-        body_text=text,
-        input_artifact_ids=[],
-        prompt_version=lineage["prompt_version"],
-        model=lineage["model"],
-        capability_list_version_id=cl.id,
-        additional_lineage=lineage,
-    )
-
-    # Materialize the run so the executive view has structured data
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        parsed = {"findings": [], "executive_summary": {}}
-    run = CoverageRun(
-        project_id=project.id,
-        capability_list_version_id=cl.id,
-        artifact_id=art.id,
-        summary=parsed.get("executive_summary", {}),
-    )
-    db.session.add(run)
-    db.session.flush()
-    for finding in parsed.get("findings", []):
-        db.session.add(CoverageFinding(
-            coverage_run_id=run.id,
-            technique_id=finding.get("technique_id", ""),
-            coverage=finding.get("coverage", "uncovered"),
-            detection_tools=finding.get("detection_tools", []),
-            prevention_tools=finding.get("prevention_tools", []),
-            response_tools=finding.get("response_tools", []),
-            rationale=finding.get("rationale", ""),
-        ))
-    db.session.commit()
-    flash("Coverage analysis complete.", "info")
-    return redirect(url_for("p3.run_detail", project_id=project.id, run_id=run.id))
+    from ..tasks import enqueue_ai, p3_coverage_job
+    job = enqueue_ai(p3_coverage_job, project.id)
+    flash("ATT&CK coverage analysis queued. Refreshing as it runs …", "info")
+    return redirect(url_for(
+        "jobs.wait", job_id=job.id,
+        next=url_for("p3.workspace", project_id=project.id),
+    ))
 
 
 @bp.route("/project/<project_id>/run/<run_id>")

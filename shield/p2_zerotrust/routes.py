@@ -236,51 +236,13 @@ def analyze(project_id: str):
         flash("Unknown framework.", "error")
         return redirect(url_for("p2.workspace", project_id=project.id))
 
-    capabilities = []
-    cl = project.capability_snapshot
-    if cl is not None:
-        capabilities = [
-            {"name": i.name, "vendor": i.vendor, "category": i.category, "function": i.function}
-            for i in cl.items
-        ]
-    responses = (
-        db.session.query(QuestionnaireResponse).filter_by(project_id=project.id).all()
-    )
-    payload = {
-        "framework": framework.id,
-        "controls": [{"id": c.id, "title": c.title, "pillar": c.pillar} for c in framework.controls],
-        "responses": [
-            {"control_id": r.control_id, "answer": r.answer, "rationale": r.rationale,
-             "trust_tier": r.trust_tier.value}
-            for r in responses
-        ],
-        "capabilities": capabilities,
-    }
-
-    try:
-        ai = AIClient()
-        text, lineage = ai.complete(
-            system=_load_prompt("p2_posture.md"),
-            user=json.dumps(payload, indent=2),
-            prompt_version="p2_posture.v1",
-            json_response=True,
-        )
-    except AIError as e:
-        flash(f"Posture analysis failed: {e}", "error")
-        return redirect(url_for("p2.workspace", project_id=project.id))
-
-    write_ai_artifact(
-        project=project, stage="current_state_assessment",
-        title="AI posture analysis — current state",
-        body_text=text,
-        input_artifact_ids=[],
-        prompt_version=lineage["prompt_version"],
-        model=lineage["model"],
-        capability_list_version_id=cl.id if cl else None,
-        additional_lineage=lineage,
-    )
-    flash("Current-state assessment landed in the AI lane.", "info")
-    return redirect(url_for("p2.workspace", project_id=project.id))
+    from ..tasks import enqueue_ai, p2_analyze_job
+    job = enqueue_ai(p2_analyze_job, project.id)
+    flash("Current-state assessment queued. Refreshing as it runs …", "info")
+    return redirect(url_for(
+        "jobs.wait", job_id=job.id,
+        next=url_for("p2.workspace", project_id=project.id),
+    ))
 
 
 # ----- Desired future state (spec §8.2 artifact #2) -----
@@ -387,60 +349,13 @@ def generate_roadmap(project_id: str):
         )
         return redirect(url_for("p2.workspace", project_id=project.id))
 
-    capabilities = []
-    cl = project.capability_snapshot
-    if cl is not None:
-        capabilities = [
-            {"name": i.name, "vendor": i.vendor, "category": i.category, "function": i.function}
-            for i in cl.items
-        ]
-
-    try:
-        current_payload = json.loads(current.body_text or "{}")
-    except json.JSONDecodeError:
-        current_payload = current.body_text
-    try:
-        desired_payload = json.loads(desired.body_text or "{}")
-    except json.JSONDecodeError:
-        desired_payload = desired.body_text
-
-    payload = {
-        "framework": framework.id,
-        "controls": [{"id": c.id, "title": c.title, "pillar": c.pillar} for c in framework.controls],
-        "current_state": current_payload,
-        "desired_future_state": desired_payload,
-        "capabilities": capabilities,
-    }
-
-    try:
-        ai = AIClient()
-        text, lineage = ai.complete(
-            system=_load_prompt("p2_roadmap.md"),
-            user=json.dumps(payload, indent=2),
-            prompt_version="p2_roadmap.v1",
-            json_response=True,
-        )
-    except AIError as e:
-        flash(f"Roadmap generation failed: {e}", "error")
-        return redirect(url_for("p2.workspace", project_id=project.id))
-
-    write_ai_artifact(
-        project=project,
-        stage="transition_roadmap",
-        title="AI transition roadmap (draft — for admin validation)",
-        body_text=text,
-        input_artifact_ids=[current.id, desired.id],
-        prompt_version=lineage["prompt_version"],
-        model=lineage["model"],
-        capability_list_version_id=cl.id if cl else None,
-        additional_lineage=lineage,
-    )
-    flash(
-        "Transition roadmap drafted in the AI lane. Per the spec it is "
-        "a living plan — review and validate before sharing externally.",
-        "info",
-    )
-    return redirect(url_for("p2.workspace", project_id=project.id))
+    from ..tasks import enqueue_ai, p2_roadmap_job
+    job = enqueue_ai(p2_roadmap_job, project.id)
+    flash("Transition roadmap queued. Refreshing as it runs …", "info")
+    return redirect(url_for(
+        "jobs.wait", job_id=job.id,
+        next=url_for("p2.workspace", project_id=project.id),
+    ))
 
 
 # ----- Evidence upload tied to a control (spec §8.2) -----

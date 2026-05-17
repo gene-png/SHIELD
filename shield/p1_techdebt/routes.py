@@ -202,33 +202,13 @@ def extract(project_id: str):
         flash("Pick a human-source artifact to extract from.", "error")
         return redirect(url_for("p1.workspace", project_id=project.id))
 
-    # Read source content. For binary, body_text may be empty — we degrade
-    # gracefully by saying "no readable text" so this stays functional in v0.1.
-    source_text = src.body_text or "(binary content; extraction stub returned)"
-
-    try:
-        ai = AIClient()
-        text, lineage = ai.complete(
-            system=_load_prompt("p1_extraction.md"),
-            user=source_text[:200_000],
-            prompt_version="p1_extraction.v1",
-            json_response=True,
-        )
-    except AIError as e:
-        flash(f"AI extraction failed: {e}", "error")
-        return redirect(url_for("p1.workspace", project_id=project.id))
-
-    art = write_ai_artifact(
-        project=project, stage="ai_extraction",
-        title=f"AI extraction of {src.title}",
-        body_text=text,
-        input_artifact_ids=[src.id],
-        prompt_version=lineage["prompt_version"],
-        model=lineage["model"],
-        additional_lineage=lineage,
-    )
-    flash("AI extraction landed in the AI lane.", "info")
-    return redirect(url_for("p1.workspace", project_id=project.id) + f"#a-{art.id}")
+    from ..tasks import enqueue_ai, p1_extract_job
+    job = enqueue_ai(p1_extract_job, project.id, src.id)
+    flash("AI extraction queued. Refreshing as it runs …", "info")
+    return redirect(url_for(
+        "jobs.wait", job_id=job.id,
+        next=url_for("p1.workspace", project_id=project.id),
+    ))
 
 
 # ----- Extraction review (the named human-authored-AI-informed artifact) -----
@@ -266,29 +246,13 @@ def overlap(project_id: str):
         flash("Run overlap on the admin-confirmed extraction, not the raw AI output.", "error")
         return redirect(url_for("p1.workspace", project_id=project.id))
 
-    try:
-        ai = AIClient()
-        text, lineage = ai.complete(
-            system=_load_prompt("p1_overlap.md"),
-            user=confirmed.body_text or "[]",
-            prompt_version="p1_overlap.v1",
-            json_response=True,
-        )
-    except AIError as e:
-        flash(f"AI overlap analysis failed: {e}", "error")
-        return redirect(url_for("p1.workspace", project_id=project.id))
-
-    write_ai_artifact(
-        project=project, stage="overlap_analysis",
-        title="AI overlap analysis",
-        body_text=text,
-        input_artifact_ids=[confirmed.id],
-        prompt_version=lineage["prompt_version"],
-        model=lineage["model"],
-        additional_lineage=lineage,
-    )
-    flash("Overlap analysis landed in the AI lane.", "info")
-    return redirect(url_for("p1.workspace", project_id=project.id))
+    from ..tasks import enqueue_ai, p1_overlap_job
+    job = enqueue_ai(p1_overlap_job, project.id, confirmed.id)
+    flash("Overlap analysis queued. Refreshing as it runs …", "info")
+    return redirect(url_for(
+        "jobs.wait", job_id=job.id,
+        next=url_for("p1.workspace", project_id=project.id),
+    ))
 
 
 # ----- Conversational interrogation (spec §8.1 stage 5) -----
@@ -327,44 +291,13 @@ def chat(project_id: str):
         )
         return redirect(url_for("p1.workspace", project_id=project.id))
 
-    try:
-        capability_payload = json.loads(confirmed.body_text or "[]")
-    except json.JSONDecodeError:
-        capability_payload = confirmed.body_text
-    try:
-        overlap_payload = json.loads(overlap_art.body_text or "{}")
-    except json.JSONDecodeError:
-        overlap_payload = overlap_art.body_text
-
-    payload = {
-        "capability_list": capability_payload,
-        "overlap_analysis": overlap_payload,
-        "question": question,
-    }
-    try:
-        ai = AIClient()
-        text, lineage = ai.complete(
-            system=_load_prompt("p1_chat.md"),
-            user=json.dumps(payload),
-            prompt_version="p1_chat.v1",
-            json_response=True,
-        )
-    except AIError as e:
-        flash(f"Chat call failed: {e}", "error")
-        return redirect(url_for("p1.workspace", project_id=project.id))
-
-    write_ai_artifact(
-        project=project,
-        stage="conversational_interrogation",
-        title=f"Q: {question[:80]}{'…' if len(question) > 80 else ''}",
-        body_text=text,
-        input_artifact_ids=[confirmed.id, overlap_art.id],
-        prompt_version=lineage["prompt_version"],
-        model=lineage["model"],
-        additional_lineage={**lineage, "question": question},
-    )
-    flash("AI response landed in the AI lane (scratch).", "info")
-    return redirect(url_for("p1.workspace", project_id=project.id) + "#chat")
+    from ..tasks import enqueue_ai, p1_chat_job
+    job = enqueue_ai(p1_chat_job, project.id, question)
+    flash("Question queued. Refreshing as the AI thinks …", "info")
+    return redirect(url_for(
+        "jobs.wait", job_id=job.id,
+        next=url_for("p1.workspace", project_id=project.id) + "#chat",
+    ))
 
 
 @bp.route("/project/<project_id>/chat/<chat_artifact_id>/commit", methods=["POST"])

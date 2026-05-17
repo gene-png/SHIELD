@@ -1,0 +1,45 @@
+{% extends "_layout/base.html" %}
+{% block title %}AI is working — SHIELD{% endblock %}
+{% block content %}
+{# Auto-refresh every 2 seconds. When the job's status becomes
+   `finished`, the server-side route returns a 302 to `next_url`
+   instead of rendering this page. Failed jobs surface the error
+   inline rather than redirecting. #}
+{% if status not in ('finished', 'failed') %}
+  <meta http-equiv="refresh" content="2">
+{% endif %}
+
+<section class="shield-exec" style="max-width:38rem;margin:2rem auto;">
+  <p class="shield-exec__eyebrow">Background job</p>
+  <h1 class="shield-exec__headline">
+    {% if status == 'failed' %}AI call failed{% else %}AI is working …{% endif %}
+  </h1>
+
+  <p>
+    Status: <code>{{ status }}</code>
+    &middot; Job id: <code>{{ job_id }}</code>
+  </p>
+
+  {% if status == 'failed' %}
+    <div class="shield-banner shield-banner--locked">
+      <strong>The job raised an exception.</strong>
+      The artifact was not written. Check the worker logs.
+    </div>
+    <details><summary>Traceback</summary><pre class="shield-body-text">{{ error }}</pre></details>
+    <p><a class="usa-button" href="{{ next_url }}">Back to the workspace</a></p>
+  {% else %}
+    <p class="usa-prose">
+      This page refreshes every 2 seconds. The Anthropic call typically
+      takes 10–30 seconds. You may also
+      <a href="{{ url_for('jobs.wait', job_id=job_id, next=next_url) }}">refresh now</a>
+      or
+      <a href="{{ next_url }}">return to the workspace</a> and come back
+      later — the worker keeps running.
+    </p>
+    <p><small>
+      Prompt caching is enabled — the second call against the same
+      system prompt within ~5 minutes is ~10× cheaper on input tokens.
+    </small></p>
+  {% endif %}
+</section>
+{% endblock %}
