@@ -58,11 +58,23 @@ def _upsert_user_from_claims(claims: dict) -> User:
     elif "reviewer" in realm_roles:
         role = Role.REVIEWER
 
-    user = db.session.query(User).filter_by(sub=sub).one_or_none()
+    # Match by sub OR email. The seeded demo users have placeholder
+    # subs like `seed-admin@demo`; their real Keycloak UUIDs only appear
+    # at first login. Without the email fallback the upsert would try to
+    # INSERT a new row with the same unique email and fail.
+    from sqlalchemy import or_
+    user = (
+        db.session.query(User)
+        .filter(or_(User.sub == sub, User.email == email))
+        .first()
+    )
     if user is None:
         user = User(sub=sub, email=email, display_name=name, role=role)
         db.session.add(user)
     else:
+        # Existing row (seeded placeholder OR prior real login).
+        # The Keycloak `sub` is now the authoritative identifier.
+        user.sub = sub
         user.email = email
         user.display_name = name
         user.role = role
@@ -79,10 +91,20 @@ def login():
 @bp.route("/callback")
 def callback():
     token = _oauth_client().authorize_access_token()
-    claims = token.get("userinfo") or _oauth_client().parse_id_token(token, None)
+    # Keycloak's userinfo endpoint does not return realm_access by default,
+    # so role mapping relies on the id_token. Parse both and merge with
+    # id_token claims winning — they're the signed assertion the client
+    # is supposed to trust for identity.
+    id_token_claims: dict = {}
+    try:
+        id_token_claims = _oauth_client().parse_id_token(token, None) or {}
+    except Exception:
+        id_token_claims = {}
+    userinfo = token.get("userinfo") or {}
+    claims = {**userinfo, **id_token_claims}
     user = _upsert_user_from_claims(dict(claims))
     login_user(user, remember=False)
-    log_audit("auth.login", actor=user, details={"sub": user.sub})
+    log_audit("auth.login", actor=user, details={"sub": user.sub, "role": user.role.value})
     next_url = session.pop("post_login_redirect", url_for("home"))
     return redirect(next_url)
 
