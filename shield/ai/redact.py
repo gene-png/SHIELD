@@ -153,7 +153,10 @@ def _get_presidio_analyzer():
     """Return a presidio AnalyzerEngine, or None if unavailable.
 
     Cached after the first call (success or failure). Worker processes
-    pay the spaCy load cost once.
+    pay the spaCy load cost once. We explicitly point Presidio at the
+    `en_core_web_sm` model that the Dockerfile installs — the library
+    defaults to `_lg` (~750 MB), which is unnecessary image bloat for
+    PERSON/LOCATION/ORG NER on the kind of text SHIELD sends.
     """
     global _PRESIDIO_ANALYZER, _PRESIDIO_TRIED
     if _PRESIDIO_TRIED:
@@ -161,10 +164,15 @@ def _get_presidio_analyzer():
     _PRESIDIO_TRIED = True
     try:
         from presidio_analyzer import AnalyzerEngine
+        from presidio_analyzer.nlp_engine import NlpEngineProvider
     except ImportError:
         return None
     try:
-        _PRESIDIO_ANALYZER = AnalyzerEngine()
+        provider = NlpEngineProvider(nlp_configuration={
+            "nlp_engine_name": "spacy",
+            "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+        })
+        _PRESIDIO_ANALYZER = AnalyzerEngine(nlp_engine=provider.create_engine())
     except Exception:
         # spaCy model missing, OS-level issue, etc. We refuse to crash
         # the AI pipeline over a missing optional redactor — the regex
