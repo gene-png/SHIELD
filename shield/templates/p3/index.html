@@ -3,6 +3,11 @@
 {% block content %}
 <h1>Attack Surface</h1>
 <p>Map your capabilities to MITRE ATT&amp;CK. Identify the techniques you cannot detect, prevent, or respond to.</p>
+
+<p>
+  <a class="usa-button" href="{{ url_for('p3.new_project') }}">+ New project</a>
+</p>
+
 <table class="usa-table usa-table--striped">
   <thead><tr><th>Project</th><th>Client</th><th>Stage</th><th>Created</th></tr></thead>
   <tbody>

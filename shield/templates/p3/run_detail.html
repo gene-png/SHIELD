@@ -2,41 +2,117 @@
 {% block title %}Coverage run · {{ project.name }}{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('p3.workspace', project_id=project.id) }}">&larr; workspace</a></p>
-<h1>Attack-surface coverage</h1>
-<p>{{ run.summary.get('headline','') }}</p>
 
-<section class="grid-row grid-gap">
-  <div class="tablet:grid-col-4"><div class="usa-card"><h2>{{ run.summary.get('covered',0) }}</h2><p>covered</p></div></div>
-  <div class="tablet:grid-col-4"><div class="usa-card"><h2>{{ run.summary.get('partial',0) }}</h2><p>partial</p></div></div>
-  <div class="tablet:grid-col-4"><div class="usa-card" style="border-left:6px solid #b50909"><h2>{{ run.summary.get('uncovered',0) }}</h2><p>uncovered</p></div></div>
+{# ============ EXECUTIVE READING PATH (spec §8.3) ============
+   Per the spec: "Executive reading path first; the ATT&CK matrix is the
+   substrate, not the surface." Everything in this block is for the CISO
+   / CFO / CEO. The technical matrix lives below the fold, behind a
+   <details>. #}
+
+<section class="shield-exec">
+  <p class="shield-exec__eyebrow">Attack-surface coverage — {{ project.client.name }}</p>
+  <h1 class="shield-exec__headline">
+    {{ run.summary.get('headline', 'Coverage analysis complete.') }}
+  </h1>
+
+  <div class="grid-row grid-gap shield-exec__numbers">
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--good">
+        <h2>{{ run.summary.get('covered', 0) }}</h2>
+        <p>techniques fully covered<br><small>across detection, prevention, response</small></p>
+      </div>
+    </div>
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--mid">
+        <h2>{{ run.summary.get('partial', 0) }}</h2>
+        <p>partially covered<br><small>one or two layers, not all three</small></p>
+      </div>
+    </div>
+    <div class="tablet:grid-col-4">
+      <div class="usa-card shield-card--bad" style="border-left:6px solid #b50909">
+        <h2>{{ run.summary.get('uncovered', 0) }}</h2>
+        <p><strong>uncovered</strong><br><small>the attack surface you cannot see</small></p>
+      </div>
+    </div>
+  </div>
+
+  <h2>What you are blind to</h2>
+  <p class="usa-prose">
+    The techniques below are the ones your current capabilities cannot
+    detect, prevent, or respond to. Each is a documented attacker move
+    from the MITRE ATT&amp;CK matrix — these aren't theoretical;
+    they're what real adversaries use against organizations like yours.
+  </p>
+
+  <div class="grid-row grid-gap shield-blindspots">
+    {% for tid in run.summary.get('top_three_blind_spots', []) %}
+      {% set t = techniques_by_id.get(tid) %}
+      {% set finding = (findings | selectattr('technique_id', 'equalto', tid) | list | first) %}
+      <div class="tablet:grid-col-4">
+        <div class="usa-card shield-card--blindspot">
+          <p class="shield-card__tag"><code>{{ tid }}</code> &middot; <small>{{ t.tactic if t else '' }}</small></p>
+          <h3>{{ t.name if t else 'Unknown technique' }}</h3>
+          {% if t %}<p class="usa-prose">{{ t.description }}</p>{% endif %}
+          {% if finding and finding.rationale %}
+            <p class="usa-hint"><strong>Why it's a gap here:</strong> {{ finding.rationale }}</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h2>The recommendation</h2>
+  <p class="usa-prose">
+    Each uncovered technique is a candidate for either (a) a new
+    detection / prevention / response capability, or (b) an explicit,
+    documented acceptance of risk. The funding for these can often come
+    from the redundant or shadow-IT spend identified in a parallel
+    Technical Debt review — that is the cross-platform loop the unified
+    portal is designed to enable. See <a
+    href="{{ url_for('clients.detail', client_id=project.client_id) }}">{{ project.client.name }}'s
+    profile</a> for any active Tech Debt projects that could redirect spend here.
+  </p>
 </section>
 
-<h2>Top three blind spots</h2>
-<ul>
-  {% for tid in run.summary.get('top_three_blind_spots', []) %}
-    {% set t = techniques_by_id.get(tid) %}
-    <li><code>{{ tid }}</code> — {{ t.name if t else 'unknown' }} ({{ t.tactic if t else '' }})</li>
-  {% endfor %}
-</ul>
+{# ============ TECHNICAL SUBSTRATE (drill-down) ============ #}
 
-<details>
-  <summary><h2 style="display:inline">Technical matrix</h2> — drill-down (substrate, not surface)</summary>
+<details class="shield-substrate" style="margin-top:2rem;">
+  <summary>
+    <h2 style="display:inline">Technical matrix</h2>
+    &nbsp;— full ATT&amp;CK technique drill-down (substrate, not surface)
+  </summary>
+  <p class="usa-hint">
+    The matrix is the <em>analysis substrate</em>: detailed inputs the
+    analyst can use to verify the executive view above. It is not the
+    primary deliverable.
+  </p>
   <table class="usa-table usa-table--striped">
-    <thead><tr><th>Technique</th><th>Tactic</th><th>Coverage</th><th>Detection</th><th>Prevention</th><th>Response</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Technique</th><th>Tactic</th><th>Coverage</th>
+        <th>Detection</th><th>Prevention</th><th>Response</th>
+        <th>Rationale</th>
+      </tr>
+    </thead>
     <tbody>
       {% for f in findings %}
         {% set t = techniques_by_id.get(f.technique_id) %}
         <tr>
-          <td><code>{{ f.technique_id }}</code> {{ t.name if t else '' }}</td>
+          <td><code>{{ f.technique_id }}</code><br>{{ t.name if t else '' }}</td>
           <td>{{ t.tactic if t else '' }}</td>
           <td>
-            {% if f.coverage == 'covered' %}<span class="shield-badge shield-badge--human_input">covered</span>{% endif %}
-            {% if f.coverage == 'partial'  %}<span class="shield-badge shield-badge--human_ai_informed">partial</span>{% endif %}
-            {% if f.coverage == 'uncovered' %}<span class="shield-badge shield-badge--ai_generated">uncovered</span>{% endif %}
+            {% if f.coverage == 'covered' %}
+              <span class="shield-badge shield-badge--human_input">covered</span>
+            {% elif f.coverage == 'partial' %}
+              <span class="shield-badge shield-badge--human_ai_informed">partial</span>
+            {% else %}
+              <span class="shield-badge shield-badge--ai_generated">uncovered</span>
+            {% endif %}
           </td>
           <td>{{ f.detection_tools | join(', ') }}</td>
           <td>{{ f.prevention_tools | join(', ') }}</td>
           <td>{{ f.response_tools | join(', ') }}</td>
+          <td class="shield-rationale">{{ f.rationale }}</td>
         </tr>
       {% endfor %}
     </tbody>

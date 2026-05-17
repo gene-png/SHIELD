@@ -12,12 +12,18 @@ from ..ai.client import AIClient, AIError
 from ..extensions import db
 from ..models import (
     Artifact,
+    Client,
     CoverageFinding,
     CoverageRun,
     MitreTechnique,
     Origin,
     PlatformType,
     Project,
+)
+from ..spine.audit import log_audit
+from ..spine.picker import (
+    list_capability_lists_for_client,
+    link_capability_list_to_project,
 )
 from ..spine.repository import write_ai_artifact
 
@@ -39,6 +45,83 @@ def index():
         .all()
     )
     return render_template("p3/index.html", projects=projects)
+
+
+# ----- project creation -----
+
+@bp.route("/new", methods=["GET", "POST"])
+@login_required
+def new_project():
+    """Create a new Attack Surface project."""
+    from flask_login import current_user
+    clients = db.session.query(Client).order_by(Client.name).all()
+    lists_by_client = {c.id: list_capability_lists_for_client(c.id) for c in clients}
+
+    if request.method == "POST":
+        client_id = (request.form.get("client_id") or "").strip()
+        name = (request.form.get("name") or "").strip()
+        cl_version_id = (request.form.get("capability_list_id") or "").strip() or None
+        ack = request.form.get("acknowledged_ai_reuse") == "yes"
+        form = {
+            "client_id": client_id, "name": name,
+            "capability_list_id": cl_version_id or "", "ack": ack,
+        }
+
+        if not client_id or not name:
+            flash("Client and project name are required.", "error")
+            return render_template(
+                "p3/new_project.html",
+                clients=clients, lists_by_client=lists_by_client, form=form,
+            )
+        client = db.session.get(Client, client_id)
+        if client is None:
+            flash("Invalid client.", "error")
+            return redirect(url_for("p3.new_project"))
+
+        project = Project(
+            client_id=client.id,
+            platform=PlatformType.ATTACK_SURFACE,
+            name=name,
+            stage="intake",
+            created_by_id=current_user.id,
+        )
+        db.session.add(project)
+        db.session.commit()
+        log_audit(
+            "project.create", actor=current_user,
+            target_type="project", target_id=project.id,
+            project_id=project.id, client_id=client.id,
+            details={"platform": "attack_surface", "name": name},
+        )
+
+        if cl_version_id:
+            try:
+                link_capability_list_to_project(
+                    project=project,
+                    capability_list_version_id=cl_version_id,
+                    actor=current_user,
+                    acknowledged_ai_reuse=ack,
+                )
+            except PermissionError as e:
+                if "AI_REUSE_ACK_REQUIRED" in str(e):
+                    flash(
+                        "That capability list is AI-generated. "
+                        "Tick the acknowledgment to reuse it.",
+                        "error",
+                    )
+                    return redirect(url_for("p3.workspace", project_id=project.id))
+                raise
+            except ValueError as e:
+                flash(f"Could not link capability list: {e}", "error")
+                return redirect(url_for("p3.workspace", project_id=project.id))
+
+        flash(f"Created project '{name}'.", "info")
+        return redirect(url_for("p3.workspace", project_id=project.id))
+
+    return render_template(
+        "p3/new_project.html",
+        clients=clients, lists_by_client=lists_by_client, form={},
+    )
 
 
 @bp.route("/project/<project_id>")
