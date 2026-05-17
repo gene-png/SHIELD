@@ -445,11 +445,20 @@ def _p3_coverage(project_id: str) -> str:
 
     # DB-backed with fallback (mirrors the route logic).
     rows = db.session.query(MitreTechnique).order_by(MitreTechnique.technique_id).all()
+    # Send id + name + tactic only. Claude knows the ATT&CK matrix
+    # natively; including 1-4 KB descriptions per technique pushed the
+    # input payload to ~118K tokens, made the API call take >120s, and
+    # the SDK's retry loop blew through the 600s RQ timeout. id+name+tactic
+    # is ~3K input tokens for the whole 222-technique catalog.
     techniques = [
-        {"technique_id": r.technique_id, "name": r.name, "tactic": r.tactic,
-         "description": r.description or ""}
+        {"technique_id": r.technique_id, "name": r.name, "tactic": r.tactic}
         for r in rows
-    ] or STARTER
+    ] or [
+        # In-memory fallback for tests: strip description from the
+        # starter set too, so the payload shape is identical.
+        {"technique_id": t["technique_id"], "name": t["name"], "tactic": t["tactic"]}
+        for t in STARTER
+    ]
 
     capabilities = [
         {"name": i.name, "vendor": i.vendor, "category": i.category, "function": i.function}
