@@ -1,0 +1,57 @@
+{% extends "_layout/base.html" %}
+{% block title %}Set desired state · {{ project.name }} · SHIELD{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('p2.workspace', project_id=project.id) }}">&larr; {{ project.name }}</a></p>
+<h1>Desired future-state target</h1>
+
+<p class="usa-prose">
+  Pick the target answer for each control. This is an
+  <strong>aspirational stated intent</strong> per spec §8.2 —
+  <em>not</em> evidence-backed. The system labels this as
+  <code>human-input</code> at a separate stage so it never visually reads
+  like the current-state assessment.
+</p>
+
+<form method="POST" action="{{ url_for('p2.set_target', project_id=project.id) }}" class="usa-form usa-form--large">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <table class="usa-table">
+    <thead>
+      <tr>
+        <th>Control</th>
+        <th>Pillar</th>
+        <th>Title</th>
+        <th>Target answer</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in framework.controls %}
+        {% set current = targets.get(c.id, '') %}
+        <tr>
+          <td><code>{{ c.id }}</code></td>
+          <td>{{ c.pillar }}</td>
+          <td>{{ c.title }}</td>
+          <td>
+            <select class="usa-select" name="target_{{ c.id }}">
+              <option value="">— no target —</option>
+              {% for opt in ['implemented','partial','not_implemented','na'] %}
+                <option value="{{ opt }}" {% if current == opt %}selected{% endif %}>{{ opt }}</option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <label class="usa-label" for="notes">Notes (aspirational rationale, optional)</label>
+  <textarea class="usa-textarea" id="notes" name="notes" rows="3"
+            placeholder="Where we want to be by EOY and why. This is intent, not evidence.">{{ notes }}</textarea>
+
+  <div class="usa-button-group">
+    <button class="usa-button" type="submit">Record desired state</button>
+    <a class="usa-button usa-button--outline"
+       href="{{ url_for('p2.workspace', project_id=project.id) }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
