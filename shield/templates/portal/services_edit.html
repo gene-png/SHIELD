@@ -1,0 +1,49 @@
+{% extends "_layout/base.html" %}
+{% block title %}Change services &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-page-header" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">{{ client | client_label }}</p>
+  <h1>Change what you're engaging on.</h1>
+  <p class="shield-page-header__intro">
+    Add or pause a service. Pausing doesn't delete the work done so
+    far &mdash; it just stops showing the card on your dashboard and
+    tells the consulting team you're not actively moving on it.
+  </p>
+</section>
+
+<div class="shield-content-card" style="max-width:48rem;margin:0 auto;">
+  <form method="POST" action="{{ url_for('portal.services_edit') }}" class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% set labels = {'tech_debt':'Tech Debt','zero_trust':'Zero Trust','attack_surface':'Attack Surface'} %}
+    {% for key in service_keys %}
+      <div class="usa-checkbox">
+        <input class="usa-checkbox__input" id="svc-{{ key }}" type="checkbox"
+               name="services" value="{{ key }}"
+               {% if key in current_selection %}checked{% endif %}>
+        <label class="usa-checkbox__label" for="svc-{{ key }}">
+          <strong>{{ labels[key] }}</strong>
+        </label>
+      </div>
+    {% endfor %}
+
+    <fieldset class="usa-fieldset" style="margin-top:1rem;">
+      <div class="usa-checkbox">
+        <input class="usa-checkbox__input" id="consult" type="checkbox"
+               name="consult_requested" value="yes"
+               {% if consult_requested %}checked{% endif %}>
+        <label class="usa-checkbox__label" for="consult">
+          I'd like to talk to a consultant first.
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="usa-button-group" style="margin-top:1.5rem;">
+      <button class="usa-button" type="submit">Save changes</button>
+      <a class="usa-button usa-button--outline" href="{{ url_for('portal.services') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

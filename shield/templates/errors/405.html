@@ -1,0 +1,17 @@
+{% extends "_layout/base.html" %}
+{% block title %}Method not allowed · SHIELD{% endblock %}
+{% block content %}
+<section class="shield-page-header" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">Error 405</p>
+  <h1>That action can't be performed this way.</h1>
+  <p class="shield-page-header__intro">
+    Looks like you reached this URL through a link instead of the form
+    that normally posts to it. Try the page you came from, or head
+    back home.
+  </p>
+</section>
+<p style="max-width:48rem;margin:1rem auto;">
+  <a class="usa-button" href="{{ url_for('home') }}">Home</a>
+  <a class="usa-button usa-button--outline" href="javascript:history.back()">&larr; Back</a>
+</p>
+{% endblock %}

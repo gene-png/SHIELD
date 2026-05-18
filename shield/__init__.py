@@ -196,6 +196,14 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     def _404(e):
         return render_template("errors/404.html"), 404
 
+    @app.errorhandler(405)
+    def _405(e):
+        # v1.9: render 405s inside the app shell. Pre-fix, hitting a
+        # POST-only route via GET produced a bare browser 405 page with
+        # no header, nav, or way back. Reviewers correctly flagged that
+        # broke recovery.
+        return render_template("errors/405.html"), 405
+
     @app.errorhandler(500)
     def _500(e):
         return render_template("errors/500.html"), 500

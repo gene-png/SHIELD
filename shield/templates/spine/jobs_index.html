@@ -1,83 +1,135 @@
 {% extends "_layout/base.html" %}
 {% block title %}Activity · SHIELD{% endblock %}
 {% block content %}
-<h1>Activity</h1>
-<p class="usa-prose">
-  Background analyses, queued and recent. Admin-only view.
-  <br><small>
-    Queue: <code>{{ queue_name }}</code>
-    &middot; Workers registered: <strong>{{ workers | length }}</strong>
-  </small>
-  {% for w in workers %}
-    <br><small><code>{{ w.name }}</code> &middot; state: <code>{{ w.get_state() }}</code> &middot; last heartbeat: {{ w.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S') if w.last_heartbeat else '—' }}</small>
-  {% endfor %}
-</p>
 
-{% macro job_row(j) %}
-  <tr>
-    <td><code>{{ j.id[:8] }}</code></td>
-    <td><code>{{ j.func_name.split('.')[-1] }}</code></td>
-    <td>{{ (j.enqueued_at.strftime('%H:%M:%S') if j.enqueued_at else '—') }}</td>
-    <td>{{ (j.ended_at.strftime('%H:%M:%S') if j.ended_at else (j.started_at.strftime('%H:%M:%S') if j.started_at else '—')) }}</td>
-    <td>
-      <details>
-        <summary>{{ j.args | length }} arg(s)</summary>
-        <pre class="shield-body-text">{{ j.args | tojson(indent=2) }}</pre>
-      </details>
-    </td>
-  </tr>
-{% endmacro %}
+<section class="shield-page-header" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">Admin</p>
+  <h1>Activity.</h1>
+  <p class="shield-page-header__intro">
+    Background analyses queued and recently run. Failed runs surface
+    at the top with an alert so they're obvious to triage.
+  </p>
+</section>
 
-<h2>Started ({{ started | length }})</h2>
-{% if started %}
-<table class="usa-table usa-table--striped"><thead><tr><th>id</th><th>func</th><th>enqueued</th><th>started</th><th>args</th></tr></thead><tbody>
-{% for j in started %}{{ job_row(j) }}{% endfor %}
-</tbody></table>
-{% else %}<p><em>No jobs in flight.</em></p>{% endif %}
+{# Round-7 §1.2 / v1.9: replace raw function names with friendly
+   per-job labels. Lookup falls back to the function name on unknown
+   keys so a new job type still renders something. #}
+{% set friendly_labels = {
+    'p1_extract_job':  'Reading uploaded inventory (Tech Debt)',
+    'p1_overlap_job':  'Overlap analysis (Tech Debt)',
+    'p1_chat_job':     'Tech Debt question + answer',
+    'p2_analyze_job':  'Current-state assessment (Zero Trust)',
+    'p2_roadmap_job':  'Transition roadmap (Zero Trust)',
+    'p3_coverage_job': 'ATT&CK coverage analysis (Attack Surface)',
+} %}
+{% macro friendly(func_name) -%}
+  {%- set short = func_name.split('.')[-1] -%}
+  {{ friendly_labels.get(short, short) }}
+{%- endmacro %}
 
-<h2>Queued ({{ queued | length }})</h2>
-{% if queued %}
-<table class="usa-table usa-table--striped"><thead><tr><th>id</th><th>func</th><th>enqueued</th><th>—</th><th>args</th></tr></thead><tbody>
-{% for j in queued %}{{ job_row(j) }}{% endfor %}
-</tbody></table>
-{% else %}<p><em>No jobs in the queue.</em></p>{% endif %}
-
-<h2>Failed ({{ failed | length }})</h2>
+{# v1.9 §2: failed-jobs alert banner — must be impossible to miss. #}
 {% if failed %}
-<table class="usa-table usa-table--striped"><thead><tr><th>id</th><th>func</th><th>enqueued</th><th>ended</th><th>traceback</th></tr></thead><tbody>
-{% for j in failed %}
-  <tr>
-    <td><code>{{ j.id[:8] }}</code></td>
-    <td><code>{{ j.func_name.split('.')[-1] }}</code></td>
-    <td>{{ (j.enqueued_at.strftime('%H:%M:%S') if j.enqueued_at else '—') }}</td>
-    <td>{{ (j.ended_at.strftime('%H:%M:%S') if j.ended_at else '—') }}</td>
-    <td>
-      <details>
-        <summary>traceback</summary>
-        <pre class="shield-body-text">{{ j.exc_info or '—' }}</pre>
-      </details>
-    </td>
-  </tr>
-{% endfor %}
-</tbody></table>
-{% else %}<p><em>No failed jobs.</em></p>{% endif %}
+  <div class="shield-jobs-alert" style="max-width:64rem;margin:0 auto 1rem;">
+    {{ failed | length }} failed analysis{{ 'es' if failed|length != 1 else '' }} need attention.
+    Review the table below; rerun from the originating project once you've
+    addressed the root cause.
+  </div>
+{% endif %}
 
-<h2>Recently finished ({{ finished | length }})</h2>
-{% if finished %}
-<table class="usa-table usa-table--striped"><thead><tr><th>id</th><th>func</th><th>enqueued</th><th>ended</th><th>result (artifact id)</th></tr></thead><tbody>
-{% for j in finished %}
-  <tr>
-    <td><code>{{ j.id[:8] }}</code></td>
-    <td><code>{{ j.func_name.split('.')[-1] }}</code></td>
-    <td>{{ (j.enqueued_at.strftime('%H:%M:%S') if j.enqueued_at else '—') }}</td>
-    <td>{{ (j.ended_at.strftime('%H:%M:%S') if j.ended_at else '—') }}</td>
-    <td>
-      {% if j.result %}
-        <a href="{{ url_for('repository.artifact_detail', artifact_id=j.result) }}">{{ j.result[:8] }}</a>
-      {% else %}<em>—</em>{% endif %}
-    </td>
-  </tr>
-{% endfor %}
-</tbody></table>
-{% else %}<p><em>No finished jobs in the retention window.</em></p>{% endif %}
+<div style="max-width:64rem;margin:0 auto;">
+  <p class="usa-hint">
+    <small>
+      Queue: <code>{{ queue_name }}</code>
+      &middot; Workers registered: <strong>{{ workers | length }}</strong>
+    </small>
+    {% for w in workers %}
+      <br><small><code>{{ w.name }}</code> &middot; state: <code>{{ w.get_state() }}</code> &middot; last heartbeat:
+        {{ w.last_heartbeat | local_time if w.last_heartbeat else '—' }}
+      </small>
+    {% endfor %}
+  </p>
+
+  {% macro job_row(j) %}
+    <tr>
+      <td><strong>{{ friendly(j.func_name) }}</strong>
+        <br><small class="usa-hint">id <code>{{ j.id[:8] }}</code></small>
+      </td>
+      <td>{{ j.enqueued_at | local_time if j.enqueued_at else '—' }}</td>
+      <td>{{ j.ended_at | local_time if j.ended_at else (j.started_at | local_time if j.started_at else '—') }}</td>
+      <td>
+        <details>
+          <summary><small>{{ j.args | length }} input{{ 's' if j.args|length != 1 else '' }}</small></summary>
+          <pre class="shield-body-text">{{ j.args | tojson(indent=2) }}</pre>
+        </details>
+      </td>
+    </tr>
+  {% endmacro %}
+
+  <h2>Started ({{ started | length }})</h2>
+  {% if started %}
+    <table class="usa-table usa-table--striped">
+      <thead><tr><th>What</th><th>Enqueued</th><th>Started</th><th>Inputs</th></tr></thead>
+      <tbody>{% for j in started %}{{ job_row(j) }}{% endfor %}</tbody>
+    </table>
+  {% else %}<p><em>No jobs in flight.</em></p>{% endif %}
+
+  <h2>Queued ({{ queued | length }})</h2>
+  {% if queued %}
+    <table class="usa-table usa-table--striped">
+      <thead><tr><th>What</th><th>Enqueued</th><th>—</th><th>Inputs</th></tr></thead>
+      <tbody>{% for j in queued %}{{ job_row(j) }}{% endfor %}</tbody>
+    </table>
+  {% else %}<p><em>No jobs in the queue.</em></p>{% endif %}
+
+  <h2 class="shield-jobs-status--failed">Failed ({{ failed | length }})</h2>
+  {% if failed %}
+    <table class="usa-table usa-table--striped">
+      <thead><tr><th>What</th><th>Enqueued</th><th>Ended</th><th>Traceback</th></tr></thead>
+      <tbody>
+        {% for j in failed %}
+          <tr class="shield-jobs-row--failed">
+            <td>
+              <strong>{{ friendly(j.func_name) }}</strong>
+              <br><small class="usa-hint">id <code>{{ j.id[:8] }}</code></small>
+            </td>
+            <td>{{ j.enqueued_at | local_time if j.enqueued_at else '—' }}</td>
+            <td>{{ j.ended_at | local_time if j.ended_at else '—' }}</td>
+            <td>
+              <details>
+                <summary><small>show technical details</small></summary>
+                <pre class="shield-body-text">{{ j.exc_info or '—' }}</pre>
+              </details>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p><em>No failed jobs.</em></p>{% endif %}
+
+  <h2>Recently finished ({{ finished | length }})</h2>
+  {% if finished %}
+    <table class="usa-table usa-table--striped">
+      <thead><tr><th>What</th><th>Enqueued</th><th>Ended</th><th>Result</th></tr></thead>
+      <tbody>
+        {% for j in finished %}
+          <tr>
+            <td>
+              <strong>{{ friendly(j.func_name) }}</strong>
+              <br><small class="usa-hint">id <code>{{ j.id[:8] }}</code></small>
+            </td>
+            <td>{{ j.enqueued_at | local_time if j.enqueued_at else '—' }}</td>
+            <td>{{ j.ended_at | local_time if j.ended_at else '—' }}</td>
+            <td>
+              {% if j.result %}
+                <a href="{{ url_for('repository.artifact_detail', artifact_id=j.result) }}">
+                  Open the resulting artifact &rarr;
+                </a>
+              {% else %}<em>—</em>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p><em>No finished jobs in the retention window.</em></p>{% endif %}
+</div>
 {% endblock %}

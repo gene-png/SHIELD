@@ -37,7 +37,12 @@
         <tr>
           <td>{{ u.display_name }}</td>
           <td>{{ u.email }}</td>
-          <td>{{ m.membership_role }}</td>
+          <td>
+            {% if m.membership_role == 'primary_poc' %}Primary Point of Contact
+            {% elif m.membership_role == 'member' %}Team member
+            {% else %}{{ m.membership_role | replace('_', ' ') | title }}
+            {% endif %}
+          </td>
           <td>{% if m.accepted_at %}joined {{ m.accepted_at | local_time(fmt='date') }}{% else %}<em>pending</em>{% endif %}</td>
         </tr>
       {% endfor %}

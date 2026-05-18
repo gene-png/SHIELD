@@ -2,15 +2,18 @@
 {% block title %}Action queue &mdash; SHIELD{% endblock %}
 {% block content %}
 
-<section class="shield-exec" style="max-width:64rem;margin:1rem auto;">
-  <p class="shield-exec__eyebrow">Admin queue</p>
-  <h1 class="shield-exec__headline">Who needs you next.</h1>
-  <p class="usa-prose">
-    Three buckets &mdash; new leads (intake not finished), waiting on
-    us (intake done, services requested, no project yet), and active
-    (work in flight). The unread-message count surfaces conversational
-    work that needs a reply.
-  </p>
+<section class="shield-page-header" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">Admin queue</p>
+  <h1>Who needs you next.</h1>
+  <details class="shield-page-header__intro">
+    <summary><small>What's in each bucket</small></summary>
+    <p class="usa-prose">
+      Three buckets &mdash; new leads (intake not finished), waiting on
+      us (intake done, services requested, no project yet), and active
+      (work in flight). The unread-message count surfaces conversational
+      work that needs a reply.
+    </p>
+  </details>
 </section>
 
 <div style="max-width:64rem;margin:0 auto;">
@@ -26,7 +29,9 @@
         {% for c in new_leads %}
           <tr>
             <td>
-              <strong>{{ c.name }}</strong>
+              <strong>
+                <a href="{{ url_for('clients.detail', client_id=c.id) }}">{{ c.name }}</a>
+              </strong>
               {% if c.industry %}<br><small>{{ c.industry }}</small>{% endif %}
             </td>
             <td>{{ c.created_at | local_time(fmt='date') }}</td>
@@ -55,7 +60,11 @@
             'unsure':'Unsure (talk to them)'} %}
         {% for row in waiting %}
           <tr>
-            <td><strong>{{ row.client | client_label }}</strong></td>
+            <td>
+              <strong>
+                <a href="{{ url_for('clients.detail', client_id=row.client.id) }}">{{ row.client | client_label }}</a>
+              </strong>
+            </td>
             <td>
               {% for g in row.gaps %}
                 <span class="usa-tag">{{ service_labels.get(g, g) }}</span>
@@ -119,7 +128,11 @@
       <tbody>
         {% for row in active %}
           <tr>
-            <td><strong>{{ row.client.name }}</strong></td>
+            <td>
+              <strong>
+                <a href="{{ url_for('clients.detail', client_id=row.client.id) }}">{{ row.client | client_label }}</a>
+              </strong>
+            </td>
             <td>
               {% for p in row.projects %}
                 <small>{{ p.name }} &middot; {{ p.stage }}</small><br>

@@ -23,7 +23,57 @@
 {% endif %}
 
 <h2>Lineage</h2>
-<pre>{{ art.lineage | tojson(indent=2) }}</pre>
+{# v1.9 §3: render lineage as readable cards, with clickable links
+   for referenced artifact ids. The raw JSON moves behind a "Show
+   technical details" toggle for compliance auditors. #}
+{% set _lineage = art.lineage or {} %}
+<div class="shield-content-card" style="background:#f8f9fa;">
+  {% if not _lineage %}
+    <p class="usa-hint"><em>No lineage recorded.</em></p>
+  {% else %}
+    <dl class="shield-walkability__provenance" style="margin:0;">
+      {% if _lineage.get('prompt_version') %}
+        <dt>Prompt version</dt>
+        <dd><code>{{ _lineage.get('prompt_version') }}</code></dd>
+      {% endif %}
+      {% if _lineage.get('model') %}
+        <dt>Model</dt><dd><code>{{ _lineage.get('model') }}</code></dd>
+      {% endif %}
+      {% if _lineage.get('redacted') is mapping %}
+        <dt>PII stripped</dt>
+        <dd>
+          {% set r = _lineage.get('redacted') %}
+          {% if r %}
+            {% for k, v in r.items() %}
+              <span class="usa-tag">{{ k }}: {{ v }}</span>
+            {% endfor %}
+          {% else %}<em>none</em>{% endif %}
+        </dd>
+      {% endif %}
+      {% set cited = _lineage.get('cites') or _lineage.get('input_artifact_ids') or [] %}
+      {% if cited %}
+        <dt>Built from</dt>
+        <dd>
+          <ul class="usa-prose" style="margin:0;">
+            {% for src_id in cited %}
+              <li>
+                <a href="{{ url_for('repository.artifact_detail', artifact_id=src_id) }}">
+                  Open source artifact <code>{{ src_id[:8] }}</code>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </dd>
+      {% endif %}
+    </dl>
+  {% endif %}
+  {% if _lineage %}
+    <details style="margin-top:0.5rem;">
+      <summary><small>Show technical details</small></summary>
+      <pre class="shield-body-text">{{ _lineage | tojson(indent=2) }}</pre>
+    </details>
+  {% endif %}
+</div>
 
 {# ============ Approval (was "Promotion") ============ #}
 {% if art.reuse_status.value == 'approved' %}

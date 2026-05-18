@@ -21,66 +21,76 @@
       </div>
       <nav aria-label="Primary navigation" class="usa-nav">
         {# Role-aware nav. Per spec §6.6, the client intake surface is
-           stripped: clients see ONLY "Submit documents", never the
-           platform-level nav, never the repository. Admin and reviewer
-           see the full nav. #}
+           stripped: clients see ONLY portal links. Admin and reviewer
+           see the full nav.
+
+           v1.9 §1: active-state. The macro below renders a nav link
+           with aria-current="page" and an .is-active class when the
+           current request path matches the link's prefix. Wayfinding
+           was flagged as the foundational gap in both UX reviews. #}
+        {%- set _path = request.path -%}
+        {%- macro nav_link(href, label, match=None, exclude=None) -%}
+          {# `match`   — prefix that, if request.path starts with, marks active.
+             `exclude` — list of more-specific prefixes to NOT match against
+                        (so /clients/ doesn't light up when we're on
+                        /clients/queue).
+
+             ns() because Jinja's `{% set %}` inside `{% for %}` is
+             loop-local — without namespace the excluded=true assignment
+             evaporates when the loop ends. #}
+          {%- set m = match or href -%}
+          {%- set ns = namespace(excluded=false) -%}
+          {%- for e in (exclude or []) -%}
+            {%- if _path == e or _path.startswith(e ~ '/') or _path == e.rstrip('/') -%}
+              {%- set ns.excluded = true -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- set is_active = (not ns.excluded) and (_path == m or (m != '/' and _path.startswith(m))) -%}
+          <li class="usa-nav__primary-item">
+            <a href="{{ href }}"
+               class="usa-nav__link{% if is_active %} usa-current shield-nav__link--active{% endif %}"
+               {% if is_active %}aria-current="page"{% endif %}>
+              <span>{{ label }}</span>
+            </a>
+          </li>
+        {%- endmacro -%}
         <ul class="usa-nav__primary usa-accordion">
-          {% if current_user.is_authenticated and current_user.role.value == 'client' %}
-            {# v1.8 portal nav for CLIENT users — all under /portal/. #}
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('portal.index') }}" class="usa-nav__link"><span>Home</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('portal.documents') }}" class="usa-nav__link"><span>My documents</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('portal.services') }}" class="usa-nav__link"><span>My services</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('portal.deliverables_list') }}" class="usa-nav__link"><span>Deliverables</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('portal.messages_list') }}" class="usa-nav__link"><span>Messages</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('portal.settings') }}" class="usa-nav__link"><span>Settings</span></a>
-            </li>
+        {% if current_user.is_authenticated %}
+          {%- set _role = current_user.role.value -%}
+          {% if _role == 'client' %}
+            {# Portal nav (CLIENT users). Home matches the portal root
+               exactly; the other pages get their own prefix match. #}
+            {{ nav_link(url_for('portal.index'), 'Home',
+                        match='/portal/',
+                        exclude=['/portal/documents','/portal/services',
+                                 '/portal/deliverables','/portal/messages',
+                                 '/portal/settings','/portal/zero-trust',
+                                 '/portal/welcome','/portal/about',
+                                 '/portal/confirm']) }}
+            {{ nav_link(url_for('portal.documents'),         'My documents') }}
+            {{ nav_link(url_for('portal.services'),          'My services') }}
+            {{ nav_link(url_for('portal.deliverables_list'), 'Deliverables', match='/portal/deliverables') }}
+            {{ nav_link(url_for('portal.messages_list'),     'Messages',     match='/portal/messages') }}
+            {{ nav_link(url_for('portal.settings'),          'Settings') }}
           {% else %}
-            {% if current_user.role.value == 'admin' %}
-              <li class="usa-nav__primary-item">
-                <a href="{{ url_for('clients.queue') }}" class="usa-nav__link"><span>Queue</span></a>
-              </li>
+            {% if _role == 'admin' %}
+              {{ nav_link(url_for('clients.queue'), 'Queue', match='/clients/queue') }}
             {% endif %}
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('clients.index') }}" class="usa-nav__link"><span>Clients</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('p1.index') }}" class="usa-nav__link"><span>Tech Debt</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('p2.index') }}" class="usa-nav__link"><span>Zero Trust</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('p3.index') }}" class="usa-nav__link"><span>Attack Surface</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('repository.browse') }}" class="usa-nav__link"><span>Repository</span></a>
-            </li>
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('admin_views.messages_inbox') }}" class="usa-nav__link"><span>Inbox</span></a>
-            </li>
-            {# Activity (was: "Jobs") shows queued and recent background work.
-               Hidden from reviewers per UX guidance — reviewers walk
-               finished artifacts, not the worker queue. #}
-            {% if current_user.role.value == 'admin' %}
-              <li class="usa-nav__primary-item">
-                <a href="{{ url_for('jobs.index') }}" class="usa-nav__link"><span>Activity</span></a>
-              </li>
+            {# Clients matches /clients/* EXCEPT /clients/queue (admin
+               queue lives there but should highlight as Queue). #}
+            {{ nav_link(url_for('clients.index'), 'Clients',
+                        match='/clients/', exclude=['/clients/queue']) }}
+            {{ nav_link(url_for('p1.index'),                'Tech Debt',       match='/platform/tech-debt') }}
+            {{ nav_link(url_for('p2.index'),                'Zero Trust',      match='/platform/zero-trust') }}
+            {{ nav_link(url_for('p3.index'),                'Attack Surface',  match='/platform/attack-surface') }}
+            {{ nav_link(url_for('repository.browse'),       'Repository',      match='/repository/') }}
+            {{ nav_link(url_for('admin_views.messages_inbox'), 'Inbox',        match='/admin/messages') }}
+            {% if _role == 'admin' %}
+              {{ nav_link(url_for('jobs.index'),            'Activity',        match='/jobs/') }}
             {% endif %}
-            <li class="usa-nav__primary-item">
-              <a href="{{ url_for('audit.index') }}" class="usa-nav__link"><span>Audit</span></a>
-            </li>
+            {{ nav_link(url_for('audit.index'),             'Audit',           match='/audit/') }}
           {% endif %}
+        {% endif %}
         </ul>
         <div class="usa-nav__secondary">
           {% if current_user.is_authenticated %}
@@ -113,13 +123,13 @@
   <footer class="usa-footer usa-footer--slim" role="contentinfo">
     <div class="grid-container">
       <small>SHIELD · Unified Portal · MIT License</small>
-      {% if current_user.is_authenticated and current_user.role.value != 'client' %}
-        <small class="shield-footer-disclosure" style="display:block;margin-top:.25rem;color:#5c5c5c;">
+      {% if current_user.is_authenticated and current_user.role and current_user.role.value != 'client' %}
+        <div class="shield-footer-disclosure" style="display:block;margin-top:.25rem;">
           Before any automated analysis is sent off-platform, SHIELD strips
           emails, phone numbers, addresses, the client&rsquo;s name, and
           (where available) personal names &amp; organizations from the
           input. Each run records what was masked.
-        </small>
+        </div>
       {% endif %}
     </div>
   </footer>

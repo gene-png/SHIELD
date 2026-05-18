@@ -62,8 +62,11 @@
 .shield-card--good      { border-left: 6px solid #1a7733; }
 .shield-card--mid       { border-left: 6px solid #936f00; background: #fff5c2; }
 .shield-card--bad       { background: #fdf4d4; }
+/* v1.9: blindspot card — keep the left-rail color signal for severity
+   but use a neutral dark color (not red) for product / tool names so
+   product strings don't read as error states. */
 .shield-card--blindspot { border: 1px solid #c9c9c9; border-left: 6px solid #b50909; padding: 0.85rem; background: #fff; height: 100%; }
-.shield-card--blindspot h3 { margin: 0.5rem 0; color: #b50909; }
+.shield-card--blindspot h3 { margin: 0.5rem 0; color: #1b1b1b; }
 .shield-card__tag { color: #565c65; font-size: 0.85rem; margin: 0; }
 .shield-blindspots { margin-top: 1rem; }
 
@@ -100,3 +103,105 @@
 /* ============ picker variants ============ */
 .shield-picker__client { margin: 0.75rem 0; padding-left: 0.5rem; border-left: 2px solid #dfe1e2; }
 .shield-ai-ack { background: #fdf4d4; border-left: 4px solid #936f00; padding: 0.5rem 1rem; margin-top: 1rem; }
+
+/* ============ v1.9 — wayfinding + visual consistency ============ */
+
+/* Active nav state. Reviewers flagged "no active nav" as the foundational
+   wayfinding gap. Uses a bottom underline + bold weight so the current
+   section is obvious without relying on color alone. */
+.shield-nav__link--active {
+  font-weight: 700;
+  color: #005ea2 !important;
+  border-bottom: 3px solid #005ea2;
+  padding-bottom: 0.25rem;
+}
+.shield-nav__link--active:focus {
+  outline: 2px solid #ffbe2e;
+  outline-offset: 2px;
+}
+
+/* Standard page header block — eyebrow + H1 + intro paragraph.
+   Used by every primary route via `_components/page_header.html`. */
+.shield-page-header {
+  background: #fff;
+  border-radius: 4px;
+  border-left: 4px solid #005ea2;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0 1.5rem 0;
+}
+.shield-page-header__eyebrow {
+  margin: 0 0 0.15rem 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #565c65;
+}
+.shield-page-header h1 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.55rem;
+  line-height: 1.2;
+}
+.shield-page-header__intro {
+  margin: 0.25rem 0 0 0;
+  color: #3d4551;
+}
+
+/* Page-wide content card — the white "panel" wrapper the client portal
+   uses for its primary content surfaces. Standardize so every page
+   feels like the same product. */
+.shield-content-card {
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid #dfe1e2;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.shield-content-card__heading {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1b1b1b;
+  margin: 0 0 0.5rem 0;
+}
+
+/* Footer disclosure: muted small print, not body-weight text.
+   Reviewers correctly flagged this was too prominent. */
+.shield-footer-disclosure { color: #71767a; font-size: 0.78rem; line-height: 1.4; }
+
+/* Header secondary: user identity + Log out chip. The Log out button
+   was visually competing with nav links; this aligns it right and
+   gives it a clear "this is account stuff" container. */
+.shield-user-chip { color: #565c65; font-size: 0.85rem; margin-right: 0.75rem; }
+
+/* Failed-jobs alert: red dot + count so the Activity page screams
+   when something needs admin attention. */
+.shield-jobs-alert {
+  background: #f8e9e8; color: #b50909; border-left: 6px solid #b50909;
+  padding: 0.75rem 1rem; border-radius: 4px; margin: 1rem 0;
+  font-weight: 600;
+}
+.shield-jobs-status--failed { color: #b50909; font-weight: 700; }
+.shield-jobs-row--failed { background: #fcf2f1; }
+
+/* Service card status badges on the portal dashboard. Reviewers
+   correctly noted the badge component existed but wasn't wired. */
+.shield-status-badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; vertical-align: middle; }
+.shield-status-badge--setup     { background: #f0f0f0; color: #565c65; }
+.shield-status-badge--requested { background: #f0f0f0; color: #565c65; }
+.shield-status-badge--intake    { background: #e1f3f8; color: #0b4778; }
+.shield-status-badge--in_review { background: #fff5c2; color: #6a4b00; }
+.shield-status-badge--waiting   { background: #fff5c2; color: #6a4b00; }
+.shield-status-badge--ready     { background: #ecf3ec; color: #154c21; }
+.shield-status-badge--complete  { background: #ecf3ec; color: #154c21; }
+.shield-status-badge--declined  { background: #f8e9e8; color: #b50909; }
+
+/* Portal service card — clickable surface with status + next-action. */
+.shield-service-card { background: #fff; border: 1px solid #dfe1e2; border-radius: 4px; padding: 1rem; height: 100%; transition: border-color 0.1s, box-shadow 0.1s; }
+.shield-service-card:hover { border-color: #005ea2; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+.shield-service-card h3 { margin: 0 0 0.25rem 0; }
+.shield-service-card__next { margin-top: 0.5rem; color: #3d4551; }
+
+/* Responsive nav. Government laptops + tablet viewports. */
+@media (max-width: 960px) {
+  .usa-nav__primary { flex-wrap: wrap; }
+}

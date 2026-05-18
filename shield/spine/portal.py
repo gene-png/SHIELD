@@ -296,6 +296,14 @@ def about_submit():
 @bp.route("/documents", methods=["GET"])
 @login_required
 def documents():
+    """Documents page — two modes.
+
+    v1.9 §1: split the onboarding-wizard rendering from the
+    steady-state document library. Returning users (intake complete)
+    hit a clean library page; users still finishing intake get the
+    "Step 3 of 4" wizard framing. Same URL, mode chosen by the
+    client's `intake_completed_at` stamp.
+    """
     client = _require_client(_current_client())
     repo = _client_repository_project(client)
     uploads = (
@@ -304,9 +312,11 @@ def documents():
         .order_by(Artifact.created_at.desc())
         .all()
     )
+    in_onboarding = client.intake_completed_at is None
     return render_template(
         "portal/documents.html",
         client=client, repo=repo, uploads=uploads,
+        in_onboarding=in_onboarding,
     )
 
 
@@ -848,12 +858,46 @@ def index():
 @bp.route("/services", methods=["GET", "POST"])
 @login_required
 def services():
+    """My Services — the overview/view page (v1.9 §1).
+
+    The reviewer correctly flagged that this route used to drop the
+    user straight into an edit form. The view shows each service as
+    a card with its current status; the edit form lives at
+    /portal/services/edit and is reachable via the "Change services"
+    button at the bottom of this page.
+
+    POST is retained on this URL for backward compatibility with
+    earlier callers that submitted directly to /portal/services —
+    routes the request through the same write logic as
+    /portal/services/edit.
+    """
     client = _require_client(_current_client())
     if request.method == "POST":
-        # Reuse the welcome handler's exact write logic by delegating.
-        return welcome()
+        return welcome()  # shared write path
+    # Build status cards using the same resolver the dashboard uses
+    # so the user sees identical state info on both pages.
+    cards = []
+    for key in SERVICE_KEYS:
+        card = _service_card_state(client, key)
+        if card is not None:
+            cards.append(card)
     return render_template(
         "portal/services.html",
+        client=client,
+        cards=cards,
+        consult_requested=bool(client.consult_requested),
+    )
+
+
+@bp.route("/services/edit", methods=["GET", "POST"])
+@login_required
+def services_edit():
+    """The actual checkbox form. Same write logic as welcome."""
+    client = _require_client(_current_client())
+    if request.method == "POST":
+        return welcome()
+    return render_template(
+        "portal/services_edit.html",
         client=client,
         service_keys=SERVICE_KEYS,
         current_selection=set(client.service_interests or []),
