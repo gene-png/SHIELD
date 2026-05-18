@@ -245,15 +245,18 @@ def test_workspace_step3_done_offers_rerun_when_review_is_newer(
     r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
     assert r.status_code == 200
     assert b"latest reviewed version is newer" in r.data
-    assert b"Re-run on latest review" in r.data
+    # Round-7 §20/22: the verb is now "Refresh overlap analysis" rather
+    # than "Re-run on latest review."
+    assert b"Refresh overlap analysis" in r.data
 
 
 def test_workspace_step4_done_offers_refinalize(
     admin_client, p1_project, admin,
 ):
-    """When a final list exists, Step 4 still surfaces a 'Re-finalize'
-    button so the admin can produce a new version from a newer review.
-    A stale-final warning appears when there's a newer review."""
+    """When a final list exists, Step 4 still surfaces a 'Refresh results'
+    button (was 'Re-finalize' until round-7 §20) so the admin can produce
+    a new version from a newer review. A stale-final warning appears when
+    there's a newer review."""
     from datetime import datetime, timedelta
 
     # Empty final (the production failure mode).
@@ -273,7 +276,7 @@ def test_workspace_step4_done_offers_refinalize(
     )
 
     r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
-    assert b"Re-finalize" in r.data
+    assert b"Refresh results" in r.data
     assert b"A newer reviewed version exists" in r.data
 
 

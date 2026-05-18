@@ -85,7 +85,7 @@
                            list_id=project.capability_snapshot.id) }}">v{{ project.capability_snapshot.version }}</a>
     {% endif %}
     {% if current_user.role.value in ('admin', 'reviewer') %}
-      &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Relink list &rarr;</a>
+      &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Change list &rarr;</a>
     {% endif %}
   </p>
   <h1 class="shield-exec__headline">
@@ -204,7 +204,7 @@
           <span class="usa-alert__body">
             <small class="usa-alert__text">
               <strong>The latest reviewed version is newer than this overlap analysis.</strong>
-              Re-run to pick up your changes.
+              Refresh results to pick up your changes.
             </small>
           </span>
         </p>
@@ -222,7 +222,7 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="artifact_id" value="{{ r.id }}">
               <button class="usa-button usa-button--small usa-button--outline">
-                Re-run on latest review
+                Refresh overlap analysis
               </button>
             </form>
           {% endfor %}
@@ -262,7 +262,7 @@
           <span class="usa-alert__body">
             <small class="usa-alert__text">
               <strong>A newer reviewed version exists.</strong>
-              Re-finalize to produce a fresh capability list from the latest review.
+              Refresh results to produce a fresh capability list from the latest review.
             </small>
           </span>
         </p>
@@ -274,7 +274,7 @@
         </a>
         <a class="usa-button usa-button--small usa-button--outline"
            href="{{ url_for('p1.finalize', project_id=project.id) }}">
-          Re-finalize (new version)
+          Refresh results
         </a>
       </p>
     {% elif reviews %}
