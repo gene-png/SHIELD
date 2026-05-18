@@ -1,9 +1,22 @@
 {% extends "_layout/base.html" %}
 {% block title %}Clients · SHIELD{% endblock %}
 {% block content %}
-<h1>Clients</h1>
+<section class="shield-page-header">
+  <p class="shield-page-header__eyebrow">All clients</p>
+  <h1>Clients.</h1>
+  <p class="shield-page-header__intro">
+    Every client you have access to. Click a name to open the client
+    hub with intake info, projects, and capability lists.
+  </p>
+</section>
+
 {% set service_labels = {'tech_debt':'Tech Debt','zero_trust':'Zero Trust','attack_surface':'Attack Surface'} %}
-<table class="usa-table usa-table--striped">
+
+{% set filter_key = 'clients' %}
+{% set stages = [] %}
+{% include '_components/list_filter.html' %}
+
+<table class="usa-table usa-table--striped" data-shield-filter="clients">
   <thead>
     <tr>
       <th>Name</th>
@@ -48,4 +61,5 @@
   {% endfor %}
   </tbody>
 </table>
+<p data-shield-filter-empty="clients" style="display:none;"><em>No clients match the search.</em></p>
 {% endblock %}

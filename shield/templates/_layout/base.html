@@ -94,6 +94,17 @@
         </ul>
         <div class="usa-nav__secondary">
           {% if current_user.is_authenticated %}
+            {# v1.9 §5: notifications bell. The context processor in
+               shield/__init__.py injects the unread count + a few
+               recent items into every render. #}
+            <a class="shield-bell" href="{{ url_for('notifications.index') }}"
+               title="{{ shield_unread_notifications }} unread"
+               aria-label="Notifications ({{ shield_unread_notifications }} unread)">
+              <span aria-hidden="true">&#x1F514;</span>
+              {% if shield_unread_notifications %}
+                <span class="shield-bell__badge">{{ shield_unread_notifications }}</span>
+              {% endif %}
+            </a>
             <span class="shield-user-chip" title="{{ current_user.role.value }}">{{ current_user.email }} · {{ current_user.role.value }}</span>
             <a class="usa-button usa-button--outline usa-button--small" href="{{ url_for('identity.logout') }}">Log out</a>
           {% else %}
@@ -138,5 +149,7 @@
      to the viewer's local timezone. UTC stays in the attribute (and on
      hover) — only the visible text changes. #}
   <script src="{{ url_for('static', filename='shield/local-time.js') }}" defer></script>
+  {# v1.9 §3: client-side filter for any `<table data-shield-filter>`. #}
+  <script src="{{ url_for('static', filename='shield/list-filter.js') }}" defer></script>
 </body>
 </html>

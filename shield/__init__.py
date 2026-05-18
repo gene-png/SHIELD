@@ -100,6 +100,28 @@ def create_app(config_object: type[Config] = Config) -> Flask:
         )
     app.jinja_env.filters["local_time"] = _local_time
 
+    # `shield_unread_notifications`: context processor that injects the
+    # logged-in user's unread Notification count + first page of items
+    # into every template, so the top-nav bell can render its badge.
+    @app.context_processor
+    def _inject_notifications():
+        from flask_login import current_user as _u
+        if not getattr(_u, "is_authenticated", False):
+            return {"shield_unread_notifications": 0,
+                    "shield_recent_notifications": []}
+        from .models import Notification as _N
+        from .extensions import db as _db
+        unread = (_db.session.query(_N)
+                  .filter(_N.user_id == _u.id, _N.read_at.is_(None))
+                  .count())
+        recent = (_db.session.query(_N)
+                  .filter(_N.user_id == _u.id)
+                  .order_by(_N.created_at.desc())
+                  .limit(5)
+                  .all())
+        return {"shield_unread_notifications": unread,
+                "shield_recent_notifications": recent}
+
     # --- Models must be imported before migrations ---
     from . import models  # noqa: F401
 
@@ -116,6 +138,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     from .spine.intake import bp as intake_bp
     from .spine.jobs import bp as jobs_bp
     from .spine.lifecycle import bp as lifecycle_bp
+    from .spine.notifications import bp as notifications_bp
     from .spine.portal import bp as portal_bp
     from .spine.projects import bp as projects_bp
     from .spine.repository_views import bp as repo_bp
@@ -129,6 +152,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     app.register_blueprint(audit_bp, url_prefix="/audit")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(lifecycle_bp, url_prefix="/admin/lifecycle")
+    app.register_blueprint(notifications_bp, url_prefix="/notifications")
 
     # --- Platform Blueprints ---
     from .p1_techdebt import bp as p1_bp

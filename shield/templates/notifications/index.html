@@ -1,0 +1,31 @@
+{% extends "_layout/base.html" %}
+{% block title %}Notifications · SHIELD{% endblock %}
+{% block content %}
+<section class="shield-page-header">
+  <p class="shield-page-header__eyebrow">Notifications</p>
+  <h1>Notifications.</h1>
+  <p class="shield-page-header__intro">
+    Things that have happened that matter to you. Opening this page
+    marks them all as read.
+  </p>
+</section>
+
+{% if items %}
+  <div class="shield-content-card">
+    <ul class="usa-prose" style="list-style:none;padding:0;margin:0;">
+      {% for n in items %}
+        <li style="border-bottom:1px solid #dfe1e2;padding:.6rem 0;">
+          <strong>{{ n.title }}</strong>
+          <br><small class="usa-hint">{{ n.created_at | local_time }}</small>
+          {% if n.body %}<br>{{ n.body }}{% endif %}
+          {% if n.link %}
+            <br><a href="{{ n.link }}">Open &rarr;</a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% else %}
+  <p class="usa-prose"><em>No notifications yet.</em></p>
+{% endif %}
+{% endblock %}

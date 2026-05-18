@@ -357,6 +357,20 @@ def set_target(project_id: str):
             actor=current_user,
             body_text=json.dumps(payload, indent=2),
         )
+        # v1.9: auto-progress roadmap if both current-state + target now
+        # exist and the admin has the flag on.
+        from ..spine.auto_progress import maybe_auto_progress_p2_after_target
+        job = maybe_auto_progress_p2_after_target(project, actor=current_user)
+        if job is not None:
+            flash(
+                "Target recorded. Running transition roadmap automatically — "
+                "refreshing as it runs.",
+                "info",
+            )
+            return redirect(url_for(
+                "jobs.wait", job_id=job.id,
+                next=url_for("p2.workspace", project_id=project.id),
+            ))
         flash("Desired future-state target recorded (human-input).", "info")
         return redirect(url_for("p2.workspace", project_id=project.id))
 
@@ -509,6 +523,9 @@ def submit(project_id: str):
         project_id=project.id, client_id=project.client_id,
         details={"locked_responses": locked_count},
     )
+    # v1.9: auto-queue the current-state assessment.
+    from ..spine.auto_progress import maybe_auto_progress_p2_after_submit
+    maybe_auto_progress_p2_after_submit(project, actor=current_user)
     flash(
         f"Submitted: locked {locked_count} response(s). Per the spec, "
         f"attribution is now immutable.",

@@ -205,3 +205,19 @@
 @media (max-width: 960px) {
   .usa-nav__primary { flex-wrap: wrap; }
 }
+
+/* v1.9 §5: top-nav notifications bell. */
+.shield-bell {
+  display: inline-flex; align-items: center; position: relative;
+  margin-right: 0.75rem; padding: 0.25rem 0.4rem;
+  text-decoration: none; color: #1b1b1b; font-size: 1.1rem;
+  border-radius: 4px;
+}
+.shield-bell:hover { background: #f0f0f0; }
+.shield-bell__badge {
+  position: absolute; top: -0.25rem; right: -0.4rem;
+  background: #b50909; color: #fff;
+  font-size: 0.65rem; font-weight: 700;
+  border-radius: 999px; padding: 0.05rem 0.35rem;
+  line-height: 1.3;
+}
