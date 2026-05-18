@@ -7,6 +7,13 @@
    that pattern collided with Jinja's autoescape and produced literal
    <li>...</li> text on the page). #}
 
+{# The _components/attach.html include below needs `upload_url` and
+   `project_name` in context. {% set %} blocks AFTER the include
+   don't retroactively populate it — that bug surfaced as a "Method
+   Not Allowed" when an admin tried to upload from the workspace. #}
+{%- set upload_url = url_for('p1.upload', project_id=project.id) -%}
+{%- set project_name = project.name -%}
+
 {# Pre-compute the artifact lists. #}
 {%- set sources    = human -%}
 {%- set extractions = ai | selectattr('stage', 'equalto', 'ai_extraction') | list -%}
@@ -277,8 +284,5 @@
   {% endif %}
 </section>
 {% endif %}
-
-{% set upload_url = url_for('p1.upload', project_id=project.id) %}
-{% set project_name = project.name %}
 
 {% endblock %}

@@ -175,6 +175,25 @@ def test_workspace_does_not_render_old_3_column_labels(admin_client, p1_project)
     assert b"Your reviewed versions" not in r.data
 
 
+def test_workspace_upload_form_points_at_p1_upload_route(admin_client, p1_project):
+    """Regression: the workspace embeds _components/attach.html, which
+    reads `upload_url` from context. The `{% set upload_url %}` block
+    was originally at the BOTTOM of the template — AFTER the include —
+    so the form's action attribute fell back to the current page URL.
+    POSTing the upload then hit the workspace GET handler, producing
+    'Method Not Allowed.'
+
+    The form's action MUST point at /platform/tech-debt/project/<id>/upload.
+    """
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    expected = f'action="/platform/tech-debt/project/{p1_project.id}/upload"'.encode()
+    assert expected in r.data, (
+        "attach.html upload form action is wrong — upload_url likely "
+        "set after the include again"
+    )
+
+
 def test_workspace_does_not_leak_literal_html_tags(admin_client, p1_project, admin):
     """Regression for the round-5 §6.1 bug where step recap text was
     built up via Jinja {% set %} string concatenation. When `r.title`
