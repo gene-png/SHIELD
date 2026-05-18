@@ -21,6 +21,55 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.3] — 2026-05-17 — vendor allowlist: stop NER from redacting brand names
+
+User reported the admin-final v2 capability list contained
+`[REDACTED_PERSON]` / `[REDACTED_LOCATION]` / `[REDACTED_NRP]` tokens
+covering vendor names — Commvault, Cisco, Atlassian, Jamf, Zscaler,
+Tenable, Intune, Entra, Rapid7, etc. The regex layer was fine
+(those aren't emails/phones/SSN/etc.); Presidio's spaCy NER was
+misclassifying commercial brand names as named entities.
+
+### Added — `shield.ai.vendor_allowlist`
+
+Curated allowlist of ~150 well-known security / IT vendor + product
+names. Used by `_apply_presidio` to pre-mask matches with NER-invisible
+sentinels (angle-bracket form `<<k0001>>` — verified that spaCy
+classifies these as O / out-of-entity, where lowercase-identifier
+sentinels like `xshieldkeep0001x` were still being flagged as PERSON
+in subject position).
+
+### Changed — `_apply_presidio`
+
+Pipeline now:
+  1. Mask allowlisted vendor names → sentinels
+  2. Run Presidio analyzer on masked text
+  3. Apply NER replacements
+  4. Restore sentinels → original vendor names
+
+The regex layer (emails / phones / SSN / CC / IP / URLs / addresses)
+runs BEFORE the mask step and is unaffected — vendor names don't
+pattern-match real-PII regexes anyway. The per-project literal
+terms (client org name) also run before NER and take precedence
+over the allowlist, so a client-name token next to a vendor still
+gets masked.
+
+Lineage adds an `ALLOWLISTED_VENDOR_TERMS` count so audit can
+verify the allowlist actually fired.
+
+### Tests
+
+- 190 → 208 passing. 18 new tests in
+  `tests/test_v18_round4_vendor_allowlist.py`: roundtrip
+  mask/unmask, case-insensitive + word-boundary matching,
+  every reported failure case (Commvault, Cisco, Cisco Secure
+  Firewall, Atlassian, Jamf, Zscaler, Tenable, Intune, Entra,
+  Rapid7, Defender for Cloud Apps) passes through untouched,
+  email next to vendor still redacted, phone next to vendor
+  still redacted, client-name extra-term still wins over
+  vendor neighbor, real PERSON (Bob Henderson) still redacted
+  with vendor (CrowdStrike) nearby.
+
 ## [1.8.2] — 2026-05-17 — round-4 sub-PR C: "Start a new project" entry point
 
 Final of three round-4 sub-PRs. Adds the third use of the shared

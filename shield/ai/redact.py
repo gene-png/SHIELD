@@ -193,17 +193,40 @@ def _apply_presidio(text: str, report: RedactionReport) -> str:
     if analyzer is None:
         return text
     report.presidio_available = True
+
+    # Vendor-name pre-mask: replace any known commercial vendor /
+    # product name with a sentinel BEFORE Presidio sees the text.
+    # Without this, spaCy's PERSON / LOCATION / NRP / ORG detectors
+    # routinely flag brand names (Commvault, Cisco, Atlassian, Jamf,
+    # Zscaler, Tenable, etc.) as named entities and the redactor
+    # destroys legitimate commercial-software metadata.
+    #
+    # The sentinel is restored AFTER Presidio runs, so the output
+    # contains the original vendor names untouched. The regex layer
+    # has already run earlier in `redact()` and catches actual PII
+    # (emails / phones / SSN / etc.) regardless of vendor context.
+    from .vendor_allowlist import mask_allowlisted, unmask_allowlisted
+    masked_text, sentinel_map = mask_allowlisted(text)
+    if sentinel_map:
+        report._bump("ALLOWLISTED_VENDOR_TERMS", len(sentinel_map))
+
     results = analyzer.analyze(
-        text=text,
+        text=masked_text,
         entities=_PRESIDIO_ENTITIES,
         language="en",
     )
     # Replace right-to-left so earlier spans' character offsets stay
     # valid as we mutate the string.
+    out = masked_text
     for r in sorted(results, key=lambda x: x.start, reverse=True):
         report._bump(r.entity_type)
-        text = text[:r.start] + f"[REDACTED_{r.entity_type}]" + text[r.end:]
-    return text
+        out = out[:r.start] + f"[REDACTED_{r.entity_type}]" + out[r.end:]
+
+    # Restore vendor names. Sentinels won't survive being inside a
+    # [REDACTED_*] span because we'd never put a sentinel inside one
+    # (mask runs before NER), but the unmasker is defensive against
+    # any leftover token.
+    return unmask_allowlisted(out, sentinel_map)
 
 
 # --------------------------------------------------------------------
