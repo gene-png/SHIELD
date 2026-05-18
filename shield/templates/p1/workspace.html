@@ -55,6 +55,13 @@
   {%- set s4_state = 'waiting' -%}
 {%- endif -%}
 
+{# Staleness checks: if a review exists that's newer than the latest
+   downstream artifact, the step is technically "done" but with stale
+   inputs. The template surfaces a re-run button + a note. Artifacts
+   are ordered created_at DESC by the route, so [0] is the newest. #}
+{%- set overlap_stale = (reviews and overlaps and reviews[0].created_at > overlaps[0].created_at) -%}
+{%- set final_stale = (reviews and finals and reviews[0].created_at > finals[0].created_at) -%}
+
 {# Render-helper: friendly label for the "Step N · state" tag. #}
 {% macro state_label(state) -%}
   {%- if state == 'done'      -%}done
@@ -192,11 +199,34 @@
 
     {% if overlaps %}
       <p>Overlap analysis complete. The summary view groups findings by category, with estimated annual savings.</p>
+      {% if overlap_stale %}
+        <p class="usa-alert usa-alert--warning usa-alert--slim" style="margin-top:.5rem;">
+          <span class="usa-alert__body">
+            <small class="usa-alert__text">
+              <strong>The latest reviewed version is newer than this overlap analysis.</strong>
+              Re-run to pick up your changes.
+            </small>
+          </span>
+        </p>
+      {% endif %}
       <p style="margin-top:.5rem;">
         <a class="usa-button usa-button--small"
            href="{{ url_for('p1.project_summary', project_id=project.id) }}">
           Open overlap dashboard &rarr;
         </a>
+        {% if reviews %}
+          {% for r in reviews[:1] %}
+            <form method="POST"
+                  action="{{ url_for('p1.overlap', project_id=project.id) }}"
+                  style="display:inline;margin-left:.5rem;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="artifact_id" value="{{ r.id }}">
+              <button class="usa-button usa-button--small usa-button--outline">
+                Re-run on latest review
+              </button>
+            </form>
+          {% endfor %}
+        {% endif %}
       </p>
     {% elif reviews %}
       <p>Run overlap analysis on the reviewed version to find redundant tools and consolidation savings.</p>
@@ -227,10 +257,24 @@
 
     {% if finals %}
       <p><strong>{{ finals[0].title }}</strong> &mdash; finalized {{ finals[0].created_at.strftime('%Y-%m-%d %H:%M') }}.</p>
+      {% if final_stale %}
+        <p class="usa-alert usa-alert--warning usa-alert--slim" style="margin-top:.5rem;">
+          <span class="usa-alert__body">
+            <small class="usa-alert__text">
+              <strong>A newer reviewed version exists.</strong>
+              Re-finalize to produce a fresh capability list from the latest review.
+            </small>
+          </span>
+        </p>
+      {% endif %}
       <p style="margin-top:.5rem;">
         <a class="usa-button usa-button--small"
            href="{{ url_for('repository.artifact_detail', artifact_id=finals[0].id) }}">
           View final list &rarr;
+        </a>
+        <a class="usa-button usa-button--small usa-button--outline"
+           href="{{ url_for('p1.finalize', project_id=project.id) }}">
+          Re-finalize (new version)
         </a>
       </p>
     {% elif reviews %}

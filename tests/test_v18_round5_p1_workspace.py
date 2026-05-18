@@ -209,6 +209,74 @@ def test_workspace_step2_done_still_offers_reopen_review(
     assert expected_url in r.data
 
 
+def test_workspace_step3_done_offers_rerun_when_review_is_newer(
+    admin_client, p1_project, admin,
+):
+    """If overlap exists but a newer review came after it (e.g. the
+    admin re-opened the review and saved), Step 3 should call the
+    overlap analysis stale and offer a re-run button against the
+    latest review."""
+    from datetime import datetime, timedelta
+
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(early empty review)", body_text="",
+        cites_artifact_ids=[], actor=admin,
+    )
+    # Overlap is older than the next review.
+    overlap = write_ai_artifact(
+        project=p1_project, stage="overlap_analysis",
+        title="overlap on the empty list",
+        body_text=json.dumps({"overlaps": [], "summary": {}}),
+        input_artifact_ids=[],
+        prompt_version="p1_overlap.v1", model="fixture",
+    )
+    # Stamp the overlap as older than the new review we're about to add.
+    overlap.created_at = datetime.utcnow() - timedelta(minutes=5)
+    db.session.commit()
+    # Newer review (real data).
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(corrected review)",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        cites_artifact_ids=[], actor=admin,
+    )
+
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    assert b"latest reviewed version is newer" in r.data
+    assert b"Re-run on latest review" in r.data
+
+
+def test_workspace_step4_done_offers_refinalize(
+    admin_client, p1_project, admin,
+):
+    """When a final list exists, Step 4 still surfaces a 'Re-finalize'
+    button so the admin can produce a new version from a newer review.
+    A stale-final warning appears when there's a newer review."""
+    from datetime import datetime, timedelta
+
+    # Empty final (the production failure mode).
+    final = write_human_ai_informed_artifact(
+        project=p1_project, stage="admin_final",
+        title="Admin-final capability list v1", body_text="[]",
+        cites_artifact_ids=[], actor=admin,
+    )
+    final.created_at = datetime.utcnow() - timedelta(minutes=5)
+    db.session.commit()
+    # Newer review.
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(corrected review)",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        cites_artifact_ids=[], actor=admin,
+    )
+
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"Re-finalize" in r.data
+    assert b"A newer reviewed version exists" in r.data
+
+
 def test_workspace_upload_form_points_at_p1_upload_route(admin_client, p1_project):
     """Regression: the workspace embeds _components/attach.html, which
     reads `upload_url` from context. The `{% set upload_url %}` block
