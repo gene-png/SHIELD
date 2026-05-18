@@ -22,7 +22,8 @@ from flask import (
 from flask_login import current_user, login_required
 
 from ..extensions import db
-from ..models import Artifact, Origin, Project
+from ..models import Artifact, Origin, Project, Role
+from .access import client_ids_for_user
 from .audit import log_audit
 from .repository import write_human_artifact
 
@@ -32,17 +33,28 @@ bp = Blueprint("intake", __name__, template_folder="../templates/intake")
 def _client_visible_projects() -> list[Project]:
     """Projects a logged-in client may submit to.
 
-    v0.6 scope: we do not yet have a per-user Client association in the
-    model, so a CLIENT-role user sees every non-archived project that is
-    still in an intake-friendly stage. v1.0 will tighten this to a
-    Client FK on User. ADMIN/REVIEWER see all (intake surface is rarely
-    relevant to them, but useful for testing).
+    Round-7 §4.5: a CLIENT-role user must only see projects belonging to
+    a client they have an accepted ClientMembership with. ADMIN and
+    REVIEWER users see all non-archived projects in an intake stage
+    (the intake surface is rarely the primary entry for them, but the
+    indirection keeps the route useful for staff testing).
+
+    Cross-client probing through this route returns an empty list
+    rather than 404; the intake page itself is generic and not
+    addressed by client_id. Direct artifact / project URLs are still
+    gated by `require_client_access` at their own route layer.
     """
     q = (
         db.session.query(Project)
-        .filter_by(archived=False)
+        .filter(Project.archived.is_(False))
+        .filter(Project.is_client_repository.is_(False))
         .order_by(Project.created_at.desc())
     )
+    if current_user.is_authenticated and current_user.role == Role.CLIENT:
+        allowed = client_ids_for_user(current_user) or []
+        if not allowed:
+            return []
+        q = q.filter(Project.client_id.in_(allowed))
     # Limit to projects in early stages — the intake surface is for
     # ingestion, not for browsing finalized engagements.
     open_stages = ("intake", "extraction", "extraction_review")
