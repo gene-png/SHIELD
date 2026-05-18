@@ -21,6 +21,49 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.6] — 2026-05-17 — clients/detail.html rebuild (round-5 §5.4 leftover)
+
+The detail page rendered projects as `<ul><li>` one-liners with no links.
+Round-5 §5.4 wants per-project cards with service chips, stage badges,
+last-activity timestamps, and a stage-aware primary action button — same
+shape as the dashboard cards on the portal side.
+
+### Changed — `shield/templates/clients/detail.html`
+
+- **Contact section** at the top (only renders when at least one POC
+  or address field is set) with primary POC + email + phone +
+  multi-line address. Pulls from the Phase 1 Client metadata fields.
+- **Projects** rebuilt as a grid of cards:
+  - Each card has a service chip (Tech Debt / Zero Trust / Attack
+    Surface), the current stage as a hint, a title link to the
+    workspace, optional internal-name preview when
+    `client_display_name` is set, and a stage-aware action button.
+  - The action button label is keyed off `project.stage`:
+    `intake` → "Continue intake", `extraction_review` → "Continue
+    review", `overlap_analysis` → "View overlap findings",
+    `current_state_assessment` → "Open assessment",
+    `transition_roadmap` → "Open roadmap", `complete`/`archived` →
+    "View results", etc.
+  - Synthetic `is_client_repository` projects are excluded.
+  - Archived projects go in a separate `<details>` collapsible.
+- **Capability lists** table cleaned up; "Origin" header renamed to
+  "Source" to match the language pass.
+- Empty-state CTA when the client has no real projects yet (admins
+  see a link to start one).
+
+### Tests
+
+- 221 → 231 passing. 10 new tests in
+  `tests/test_v18_round5_detail_rebuild.py`:
+  - per-project cards render with names + service chips
+  - synthetic repository project is excluded from the cards
+  - archived projects go to the collapsible section
+  - stage-aware action labels appear on the right cards
+  - contact info shows when set, hidden when not
+  - empty-state copy for clients with no projects
+  - `client_display_name` takes precedence over `name`
+  - admin sees the action buttons; reviewer doesn't
+
 ## [1.8.5] — 2026-05-17 — self-signup: anyone-can-register + org bootstrap
 
 Per user ask: the login page should let new clients create a username

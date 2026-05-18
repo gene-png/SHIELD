@@ -1,16 +1,18 @@
 {% extends "_layout/base.html" %}
 {% block title %}{{ client | client_label }} &middot; SHIELD{% endblock %}
 {% block content %}
-<h1>{{ client | client_label }}</h1>
-<p>{{ client.industry or '' }}</p>
+
+<section class="shield-exec" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.industry or 'Client' }}</p>
+  <h1 class="shield-exec__headline">{{ client | client_label }}</h1>
+</section>
 
 {% if current_user.role.value == 'admin' %}
-  <p>
+  <p style="max-width:64rem;margin:0 auto;">
     <a class="usa-button"
        href="{{ url_for('clients.new_project_for_client', client_id=client.id) }}">
       + Start a new project for this client
     </a>
-    &middot;
     <a class="usa-button usa-button--outline"
        href="{{ url_for('clients.intake_view', client_id=client.id) }}">
       View intake
@@ -18,26 +20,154 @@
   </p>
 {% endif %}
 
-<h2>Capability lists</h2>
-<table class="usa-table usa-table--striped">
-  <thead><tr><th>Version</th><th>Label</th><th>Origin</th><th>Items</th><th>Created</th></tr></thead>
-  <tbody>
-    {% for cl in capability_lists %}
-      <tr>
-        <td><a href="{{ url_for('clients.capability_list_detail', client_id=client.id, list_id=cl.id) }}">v{{ cl.version }}</a></td>
-        <td>{{ cl.label }}</td>
-        <td>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %}</td>
-        <td>{{ cl.items | length }}</td>
-        <td>{{ cl.created_at.strftime('%Y-%m-%d') }}</td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+{# ============ Contact info ============ #}
+{% if client.primary_poc_name or client.primary_poc_email or client.address_line1 %}
+<section style="max-width:64rem;margin:1.5rem auto;">
+  <h2>Contact</h2>
+  <div class="grid-row grid-gap">
+    <div class="tablet:grid-col-6">
+      <dl class="shield-walkability__provenance">
+        <dt>Primary point of contact</dt>
+        <dd>
+          {{ client.primary_poc_name or '&mdash;' | safe }}
+          {% if client.primary_poc_title %}<br><small>{{ client.primary_poc_title }}</small>{% endif %}
+        </dd>
+        {% if client.primary_poc_email %}<dt>Email</dt><dd>{{ client.primary_poc_email }}</dd>{% endif %}
+        {% if client.primary_poc_phone %}<dt>Phone</dt><dd>{{ client.primary_poc_phone }}</dd>{% endif %}
+      </dl>
+    </div>
+    <div class="tablet:grid-col-6">
+      {% if client.address_line1 %}
+        <dl class="shield-walkability__provenance">
+          <dt>Address</dt>
+          <dd>
+            {{ client.address_line1 }}{% if client.address_line2 %}<br>{{ client.address_line2 }}{% endif %}<br>
+            {{ client.city or '' }}{% if client.state %}, {{ client.state }}{% endif %} {{ client.postal_code or '' }}<br>
+            {{ client.country or '' }}
+          </dd>
+        </dl>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
 
-<h2>Projects</h2>
-<ul>
-  {% for p in client.projects %}
-    <li>{{ p.platform.value }} — {{ p.name }} — stage: {{ p.stage }}</li>
-  {% endfor %}
-</ul>
+{# ============ Projects ============ #}
+{# Per round-5 §5.4: each project is a card with service chip, stage, last
+   activity, and a primary action button whose label varies by stage. We
+   exclude the synthetic client-repository project (is_client_repository=True). #}
+{% set real_projects = client.projects | rejectattr('is_client_repository') | rejectattr('archived') | list %}
+{% set archived_projects = client.projects | rejectattr('is_client_repository') | selectattr('archived') | list %}
+{% set service_labels = {
+    'tech_debt':      'Tech Debt',
+    'zero_trust':     'Zero Trust',
+    'attack_surface': 'Attack Surface',
+} %}
+{% set stage_to_label_and_endpoint = {
+    'intake':                       ('Continue intake',         'workspace'),
+    'raw_intake':                   ('Continue intake',         'workspace'),
+    'ai_extraction':                ('Review extraction',       'workspace'),
+    'extraction_review':            ('Continue review',         'workspace'),
+    'overlap_analysis':             ('View overlap findings',   'project_summary'),
+    'conversational_interrogation': ('Open chat',               'workspace'),
+    'admin_final':                  ('View final list',         'finalize'),
+    'current_state_assessment':     ('Open assessment',         'project_summary'),
+    'desired_future_state':         ('Set targets',             'workspace'),
+    'transition_roadmap':           ('Open roadmap',            'project_summary'),
+    'attack_coverage':              ('View coverage',           'workspace'),
+    'submitted':                    ('Open project',            'workspace'),
+    'archived':                     ('View results',            'workspace'),
+    'complete':                     ('View results',            'workspace'),
+} %}
+{% set platform_blueprint = {
+    'tech_debt':      'p1',
+    'zero_trust':     'p2',
+    'attack_surface': 'p3',
+} %}
+
+<section style="max-width:64rem;margin:1.5rem auto;">
+  <h2>Projects</h2>
+  {% if real_projects %}
+    <div class="grid-row grid-gap shield-portal-cards">
+      {% for p in real_projects %}
+        {% set service_key = p.platform.value %}
+        {% set action_pair = stage_to_label_and_endpoint.get(p.stage, ('Open project', 'workspace')) %}
+        {% set action_label = action_pair[0] %}
+        {% set action_endpoint = action_pair[1] %}
+        {% set blueprint = platform_blueprint.get(service_key, 'p1') %}
+        <div class="tablet:grid-col-6" style="margin-bottom:1rem;">
+          <div class="usa-card shield-portal-service-card">
+            <p class="shield-card__tag">
+              <span class="usa-tag">{{ service_labels.get(service_key, service_key) }}</span>
+              <small class="usa-hint">&middot; {{ p.stage }}</small>
+            </p>
+            <h3>
+              <a href="{{ url_for(blueprint ~ '.workspace', project_id=p.id) }}">
+                {{ p.client_display_name or p.name }}
+              </a>
+            </h3>
+            {% if p.client_display_name %}
+              <p class="usa-hint"><small>Internal: {{ p.name }}</small></p>
+            {% endif %}
+            <p class="usa-hint">
+              <small>Created {{ p.created_at.strftime('%Y-%m-%d') }}.</small>
+            </p>
+            <p style="margin-top:.5rem;">
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for(blueprint ~ '.' ~ action_endpoint, project_id=p.id) }}">
+                {{ action_label }}
+              </a>
+            </p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="usa-hint"><em>No active projects yet.</em>
+      {% if current_user.role.value == 'admin' %}
+        <a href="{{ url_for('clients.new_project_for_client', client_id=client.id) }}">Start one &rarr;</a>
+      {% endif %}
+    </p>
+  {% endif %}
+
+  {% if archived_projects %}
+    <details style="margin-top:1rem;">
+      <summary><small>Archived projects ({{ archived_projects | length }})</small></summary>
+      <ul class="usa-prose">
+        {% for p in archived_projects %}
+          <li>
+            <a href="{{ url_for(platform_blueprint.get(p.platform.value, 'p1') ~ '.workspace', project_id=p.id) }}">
+              {{ p.client_display_name or p.name }}
+            </a>
+            <small>&middot; {{ service_labels.get(p.platform.value, p.platform.value) }} &middot; archived</small>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+</section>
+
+{# ============ Capability lists ============ #}
+<section style="max-width:64rem;margin:1.5rem auto;">
+  <h2>Capability lists</h2>
+  {% if capability_lists %}
+    <table class="usa-table usa-table--striped">
+      <thead><tr><th>Version</th><th>Label</th><th>Source</th><th>Items</th><th>Created</th></tr></thead>
+      <tbody>
+        {% for cl in capability_lists %}
+          <tr>
+            <td><a href="{{ url_for('clients.capability_list_detail', client_id=client.id, list_id=cl.id) }}">v{{ cl.version }}</a></td>
+            <td>{{ cl.label }}</td>
+            <td>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %}</td>
+            <td>{{ cl.items | length }}</td>
+            <td>{{ cl.created_at.strftime('%Y-%m-%d') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No capability lists yet.</em></p>
+  {% endif %}
+</section>
+
 {% endblock %}
