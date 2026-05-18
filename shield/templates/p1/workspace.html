@@ -152,6 +152,19 @@
           </li>
         {% endfor %}
       </ul>
+      {# Even when at least one review exists, leave a way back into the
+         editor so the admin can correct an earlier mistake — saving will
+         create a new review artifact and finalize picks the latest. #}
+      {% if extractions %}
+        {% set first_ext = extractions[0] %}
+        <p style="margin-top:.5rem;">
+          <a class="usa-button usa-button--small usa-button--outline"
+             href="{{ url_for('p1.review_extraction', project_id=project.id, ai_artifact_id=first_ext.id) }}">
+            Re-open the review
+          </a>
+          <small class="usa-hint">&mdash; saving creates a new reviewed version; the older ones stay in the audit log.</small>
+        </p>
+      {% endif %}
     {% elif extractions %}
       {% set first_ext = extractions[0] %}
       <p>Automated reading produced <strong>{{ first_ext.title }}</strong>. Review the rows the analysis pulled out and correct anything before overlap.</p>

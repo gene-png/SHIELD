@@ -175,6 +175,40 @@ def test_workspace_does_not_render_old_3_column_labels(admin_client, p1_project)
     assert b"Your reviewed versions" not in r.data
 
 
+def test_workspace_step2_done_still_offers_reopen_review(
+    admin_client, p1_project, admin,
+):
+    """Regression: when at least one review exists, Step 2 used to
+    render only the bullet list with no way back into the editor.
+    If the earlier review was wrong / empty (which happened in
+    production when the table-editor JS was CSP-blocked), the admin
+    was stuck — Step 2 looked 'done' but had no Review button.
+
+    The fix surfaces a 'Re-open the review' outline button even on
+    the done branch, as long as an AI extraction exists.
+    """
+    # Set up: AI extraction + at least one (potentially empty) review.
+    ext = write_ai_artifact(
+        project=p1_project, stage="ai_extraction",
+        title="Initial reading",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        input_artifact_ids=[],
+        prompt_version="p1_extraction.v1", model="fixture",
+    )
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(empty review)", body_text="",
+        cites_artifact_ids=[ext.id], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    # The "Re-open the review" CTA appears.
+    assert b"Re-open the review" in r.data
+    # And it points at the review_extraction route for this AI artifact.
+    expected_url = f"/platform/tech-debt/project/{p1_project.id}/review/{ext.id}".encode()
+    assert expected_url in r.data
+
+
 def test_workspace_upload_form_points_at_p1_upload_route(admin_client, p1_project):
     """Regression: the workspace embeds _components/attach.html, which
     reads `upload_url` from context. The `{% set upload_url %}` block
