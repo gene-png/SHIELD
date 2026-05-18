@@ -21,6 +21,42 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.7] — 2026-05-17 — P1 review + finalize: table editor (round-5 §6.2-6.3)
+
+The two surfaces where admins reviewed and finalized a Tech Debt
+capability list were giant JSON `<textarea>` blocks — admins literally
+hand-edited raw JSON. Replaced with a real HTML table editor.
+
+### Added — `_components/capability_table_editor.html`
+
+Shared Jinja partial used by both review_extraction and finalize.
+Takes a parsed `items` list + a `field_name` parameter and renders
+an editable USWDS table with columns: name / vendor / category /
+function / annual cost / licenses / notes. "+ Add row" creates a
+fresh row; the × button per row removes it.
+
+An inline script (no jQuery, no external deps) serializes the
+visible table to a hidden form input named `{{ field_name }}` on
+submit, so the route layer reads the same shape it always did
+(no Python changes to the POST handlers).
+
+### Changed — `review_extraction` + `finalize`
+
+- `p1.review_extraction` GET parses `Artifact.body_text` into the
+  `items` list the partial expects; falls back to `[]` if the AI
+  body isn't valid JSON.
+- `p1.finalize` GET does the same with `confirmed.body_text`.
+- Both templates simplified: no more `<textarea>`, no JSON syntax
+  notes for the admin.
+
+### Tests
+
+- 231 → 236 passing. 5 new in `tests/test_v18_round5_p1_table_editor.py`
+  covering: review page renders the editor + both items, POST writes
+  the human_ai_informed artifact with the right JSON, malformed AI
+  body falls back to empty editor, finalize page renders the editor,
+  finalize POST creates a CapabilityList row.
+
 ## [1.8.6] — 2026-05-17 — clients/detail.html rebuild (round-5 §5.4 leftover)
 
 The detail page rendered projects as `<ul><li>` one-liners with no links.

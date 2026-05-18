@@ -1,13 +1,33 @@
 {% extends "_layout/base.html" %}
-{% block title %}Review extraction · {{ project.name }}{% endblock %}
+{% block title %}Review extraction &middot; {{ project.name }}{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('p1.workspace', project_id=project.id) }}">&larr; workspace</a></p>
-<h1>Review extraction</h1>
-<p>Edit the automatically-extracted JSON below. What you save here becomes <em>your reviewed version</em> and is what the overlap analysis runs on. Garbage in, garbage out &mdash; this checkpoint matters.</p>
 
-<form method="POST">
+<section class="shield-exec" style="max-width:72rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ project.name }}</p>
+  <h1 class="shield-exec__headline">Review the automatic reading.</h1>
+  <p class="usa-prose">
+    We pulled these items out of <em>{{ src.title }}</em>. Edit anything
+    that's wrong, add anything the automatic reading missed, remove
+    duplicates. What you save here becomes <strong>your reviewed
+    version</strong> and is what the overlap analysis reads next &mdash;
+    so this checkpoint matters.
+  </p>
+</section>
+
+<form method="POST" class="usa-form usa-form--large" style="max-width:72rem;margin:0 auto;">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <textarea class="usa-textarea" name="confirmed_text" rows="24" style="font-family: ui-monospace, monospace;">{{ src.body_text }}</textarea>
-  <button class="usa-button">Save admin-confirmed extraction</button>
+  {# The shared partial takes the parsed list-of-dicts and renders an
+     editable table. On submit, its inline JS serializes the table back
+     into a hidden field named `confirmed_text` so the route below
+     reads it the same way it did with the old textarea. #}
+  {% set field_name = 'confirmed_text' %}
+  {% include "_components/capability_table_editor.html" %}
+
+  <div class="usa-button-group" style="margin-top:1rem;">
+    <button class="usa-button" type="submit">Save reviewed version</button>
+    <a class="usa-button usa-button--outline"
+       href="{{ url_for('p1.workspace', project_id=project.id) }}">Cancel</a>
+  </div>
 </form>
 {% endblock %}

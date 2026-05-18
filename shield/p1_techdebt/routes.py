@@ -287,7 +287,21 @@ def review_extraction(project_id: str, ai_artifact_id: str):
         )
         flash("Admin-confirmed extraction recorded.", "info")
         return redirect(url_for("p1.workspace", project_id=project.id))
-    return render_template("p1/review_extraction.html", project=project, src=src)
+
+    # Round-5 §6.2: the page used to be a giant JSON textarea. Now it's
+    # a real table editor. Parse the AI body_text into a list of dicts
+    # the partial can render; fall back to an empty list on malformed
+    # input so the admin can still add rows manually.
+    try:
+        items = json.loads(src.body_text or "[]")
+        if not isinstance(items, list):
+            items = []
+    except (ValueError, TypeError):
+        items = []
+    return render_template(
+        "p1/review_extraction.html",
+        project=project, src=src, items=items,
+    )
 
 
 # ----- AI overlap analysis -----
@@ -525,11 +539,20 @@ def finalize(project_id: str):
             client_id=client.id, list_id=new_cl.id,
         ))
 
+    # Round-5 §6.3: render the confirmed extraction as a table the
+    # admin can edit inline, not a raw JSON textarea. Server still
+    # reads `items_json` from the form; the partial's JS serializes
+    # the table back into that hidden field on submit.
+    try:
+        items = json.loads(confirmed.body_text or "[]")
+        if not isinstance(items, list):
+            items = []
+    except (ValueError, TypeError):
+        items = []
     return render_template(
         "p1/finalize.html", project=project,
         confirmed=confirmed, chat_commits=chat_commits,
-        items_json=confirmed.body_text or "[]",
-        notes="",
+        items=items, notes="",
     )
 
 
