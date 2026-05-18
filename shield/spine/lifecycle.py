@@ -41,7 +41,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from ..extensions import db
-from ..models import Artifact, Project
+from ..models import Artifact, CapabilityList, Project
 from .audit import log_audit
 from .rbac import admin_only
 
@@ -278,3 +278,101 @@ def _purge_artifact_inplace(a: Artifact, *, actor_id: str, reason: str) -> None:
             pass
         else:
             a.storage_key = None
+
+
+# --------------------------------------------------------------------
+# CapabilityList — v1.9
+# --------------------------------------------------------------------
+
+@bp.route("/capability-lists/<list_id>/archive", methods=["POST"])
+@login_required
+@admin_only
+def capability_list_archive(list_id: str):
+    cl = db.session.get(CapabilityList, list_id)
+    if cl is None or cl.purged_at is not None:
+        abort(404)
+    if cl.archived:
+        flash("Capability list is already archived.", "info")
+        return redirect(url_for("clients.detail", client_id=cl.client_id))
+    reason = (request.form.get("reason") or "").strip()
+    from datetime import datetime
+    cl.archived = True
+    cl.archived_at = datetime.utcnow()
+    cl.archived_by_id = current_user.id
+    cl.archived_reason = reason or None
+    db.session.commit()
+    log_audit(
+        "capability_list.archived",
+        actor=current_user,
+        target_type="capability_list", target_id=cl.id,
+        client_id=cl.client_id,
+        details={"reason": reason, "version": cl.version,
+                 "label": cl.label, "prior_state": "active"},
+    )
+    flash(f"Archived capability list v{cl.version}.", "info")
+    return redirect(url_for("clients.detail", client_id=cl.client_id))
+
+
+@bp.route("/capability-lists/<list_id>/unarchive", methods=["POST"])
+@login_required
+@admin_only
+def capability_list_unarchive(list_id: str):
+    cl = db.session.get(CapabilityList, list_id)
+    if cl is None or cl.purged_at is not None:
+        abort(404)
+    if not cl.archived:
+        flash("Capability list isn't archived.", "info")
+        return redirect(url_for("clients.detail", client_id=cl.client_id))
+    cl.archived = False
+    cl.archived_at = None
+    cl.archived_by_id = None
+    cl.archived_reason = None
+    db.session.commit()
+    log_audit(
+        "capability_list.unarchived",
+        actor=current_user,
+        target_type="capability_list", target_id=cl.id,
+        client_id=cl.client_id,
+        details={"version": cl.version, "label": cl.label,
+                 "prior_state": "archived"},
+    )
+    flash(f"Restored capability list v{cl.version}.", "info")
+    return redirect(url_for("clients.detail", client_id=cl.client_id))
+
+
+@bp.route("/capability-lists/<list_id>/purge", methods=["POST"])
+@login_required
+@admin_only
+def capability_list_purge(list_id: str):
+    cl = db.session.get(CapabilityList, list_id)
+    if cl is None:
+        abort(404)
+    if cl.purged_at is not None:
+        flash("Capability list is already purged.", "info")
+        return redirect(url_for("clients.detail", client_id=cl.client_id))
+    expected = f"v{cl.version}"
+    typed = (request.form.get("confirmation_phrase") or "").strip()
+    if typed != expected:
+        flash(
+            f"Type the list's version (“{expected}”) to confirm purge. "
+            f"Nothing was changed.",
+            "error",
+        )
+        return redirect(url_for("clients.detail", client_id=cl.client_id))
+    reason = (request.form.get("reason") or "").strip()
+    from datetime import datetime
+    cl.purged_at = datetime.utcnow()
+    cl.purged_by_id = current_user.id
+    cl.purged_reason = reason or None
+    cl.archived = True  # purged implies archived for view-filter purposes
+    db.session.commit()
+    log_audit(
+        "capability_list.purged",
+        actor=current_user,
+        target_type="capability_list", target_id=cl.id,
+        client_id=cl.client_id,
+        details={"reason": reason, "version": cl.version,
+                 "label": cl.label, "items_at_purge": len(cl.items)},
+    )
+    flash(f"Purged capability list v{cl.version}.", "info")
+    return redirect(url_for("clients.detail", client_id=cl.client_id))

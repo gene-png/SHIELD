@@ -211,25 +211,100 @@
 </section>
 
 {# ============ Capability lists ============ #}
+{% set active_lists   = capability_lists | rejectattr('archived') | list %}
+{% set archived_lists = capability_lists | selectattr('archived') | list %}
 <section style="max-width:64rem;margin:1.5rem auto;">
   <h2>Capability lists</h2>
-  {% if capability_lists %}
+  {% if active_lists %}
     <table class="usa-table usa-table--striped">
-      <thead><tr><th>Version</th><th>Label</th><th>Source</th><th>Items</th><th>Created</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Version</th><th>Label</th><th>Source</th><th>Items</th><th>Created</th>
+          {% if current_user.role.value == 'admin' %}<th>Admin</th>{% endif %}
+        </tr>
+      </thead>
       <tbody>
-        {% for cl in capability_lists %}
+        {% for cl in active_lists %}
           <tr>
             <td><a href="{{ url_for('clients.capability_list_detail', client_id=client.id, list_id=cl.id) }}">v{{ cl.version }}</a></td>
             <td>{{ cl.label }}</td>
             <td>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %}</td>
             <td>{{ cl.items | length }}</td>
             <td>{{ cl.created_at | local_time(fmt='date') }}</td>
+            {% if current_user.role.value == 'admin' %}
+              <td>
+                <form method="POST"
+                      action="{{ url_for('lifecycle.capability_list_archive', list_id=cl.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Archive capability list v{{ cl.version }}? Reversible from the Archived section below.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="reason" value="archived via client-detail page">
+                  <button class="usa-button usa-button--small usa-button--outline">Archive</button>
+                </form>
+              </td>
+            {% endif %}
           </tr>
         {% endfor %}
       </tbody>
     </table>
   {% else %}
-    <p class="usa-hint"><em>No capability lists yet.</em></p>
+    <p class="usa-hint"><em>No active capability lists yet.</em></p>
+  {% endif %}
+
+  {% if archived_lists %}
+    <details style="margin-top:1rem;">
+      <summary><small>Archived capability lists ({{ archived_lists | length }})</small></summary>
+      <table class="usa-table usa-table--striped" style="margin-top:.5rem;">
+        <thead>
+          <tr>
+            <th>Version</th><th>Label</th><th>Status</th><th>Items</th>
+            {% if current_user.role.value == 'admin' %}<th>Admin</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for cl in archived_lists %}
+            <tr>
+              <td>v{{ cl.version }}</td>
+              <td>{{ cl.label }}</td>
+              <td>
+                {% if cl.lifecycle_state == 'purged' %}
+                  <span class="usa-tag" style="background:#5c5c5c;">Purged</span>
+                  {% if cl.purged_reason %}<small class="usa-hint">{{ cl.purged_reason }}</small>{% endif %}
+                {% else %}
+                  <span class="usa-tag">Archived</span>
+                {% endif %}
+              </td>
+              <td>{{ cl.items | length }}</td>
+              {% if current_user.role.value == 'admin' %}
+                <td>
+                  {% if cl.lifecycle_state == 'archived' %}
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.capability_list_unarchive', list_id=cl.id) }}"
+                          style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="usa-button usa-button--small usa-button--outline">Restore</button>
+                    </form>
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.capability_list_purge', list_id=cl.id) }}"
+                          style="display:inline;margin-left:.5rem;"
+                          onsubmit="return confirm('PURGE permanently tombstones capability list v{{ cl.version }}. Audit history stays. Continue?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input class="usa-input usa-input--small" type="text"
+                             name="confirmation_phrase"
+                             placeholder='Type "v{{ cl.version }}" to purge'
+                             style="width:10rem;display:inline-block;vertical-align:middle;">
+                      <input type="hidden" name="reason" value="purged via client-detail page">
+                      <button class="usa-button usa-button--small usa-button--secondary"
+                              style="background:#b50909;">Purge</button>
+                    </form>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
   {% endif %}
 </section>
 

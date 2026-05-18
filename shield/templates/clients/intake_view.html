@@ -81,6 +81,32 @@
   <h2>What's prompting this</h2>
   <p class="usa-prose">{{ client.prompting_context or '—' }}</p>
 
+  {% if current_user.role.value == 'admin' %}
+    <details style="margin-top:1rem;border-top:1px solid #dfe1e2;padding-top:.5rem;">
+      <summary><small>Admin: reset intake fields</small></summary>
+      <p class="usa-prose">
+        Use this if every contact / address field shows the same value —
+        a symptom of the pre-v1.9 /portal/about form bug. Clears the
+        contact + organization + address fields back to NULL so the
+        client can re-fill <code>/portal/about</code> cleanly. Doesn't
+        touch services, consult flag, intake-completion stamp, or any
+        uploaded documents.
+      </p>
+      <form method="POST"
+            action="{{ url_for('clients.reset_intake_fields', client_id=client.id) }}"
+            class="usa-form usa-form--inline"
+            onsubmit="return confirm('Reset “{{ client.name }}” intake fields? Their submitted contact + address data will be cleared. Uploads stay.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="usa-input usa-input--small" type="text"
+               name="confirmation_phrase"
+               placeholder='Type "{{ client.name }}" to confirm'
+               style="min-width:20rem;">
+        <button class="usa-button usa-button--small usa-button--secondary"
+                style="background:#b50909;">Reset intake fields</button>
+      </form>
+    </details>
+  {% endif %}
+
   <h2>Uploaded documents <small class="usa-hint">({{ repo_uploads | length }})</small></h2>
   {% if repo_uploads %}
     <table class="usa-table usa-table--striped">

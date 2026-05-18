@@ -9,9 +9,17 @@
     Each row below is one capability we want to measure for your
     {{ framework.name if framework else 'Zero Trust' }} posture.
     Pick the answer that best matches today's reality and add a short
-    note for context. Answers save as you change them &mdash; you can
-    close this tab and come back later. When everything's filled in,
-    click <strong>Submit final answers</strong> at the bottom.
+    note for context. <strong>Answers auto-save as you change them</strong>
+    &mdash; the green "saved ✓" tag confirms each write. You can close
+    this tab and come back later. When everything's filled in, click
+    <strong>Submit final answers</strong> at the bottom.
+  </p>
+
+  <p>
+    <a class="usa-button usa-button--outline usa-button--small"
+       href="{{ url_for('portal.zero_trust_sections') }}">
+      Switch to step-by-step view &rarr;
+    </a>
   </p>
 
   {% if is_submitted %}
@@ -64,29 +72,42 @@
             <td><em>{{ r.rationale if r and r.rationale else '—' }}</em></td>
           {% else %}
             <td colspan="2">
-              <form method="POST"
-                    action="{{ url_for('portal.zero_trust_answer') }}"
-                    class="usa-form usa-form--inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="control_id" value="{{ c.id }}">
-                <select class="usa-select" name="answer">
-                  <option value="">— pick one —</option>
-                  {% for opt in valid_answers %}
-                    <option value="{{ opt }}" {% if r and r.answer == opt %}selected{% endif %}>
-                      {% if opt == 'implemented' %}In place
-                      {% elif opt == 'partial' %}Partly in place
-                      {% elif opt == 'not_implemented' %}Not in place
-                      {% else %}Not applicable
-                      {% endif %}
-                    </option>
-                  {% endfor %}
-                </select>
-                <input class="usa-input" type="text" name="rationale"
-                       placeholder="Short note (optional)"
-                       value="{{ r.rationale if r else '' }}"
-                       style="min-width:14rem;">
-                <button class="usa-button usa-button--small">Save</button>
-              </form>
+              {# v1.9 §1: auto-save per row via HTMX. The select and the
+                 rationale input each post to /portal/zero-trust/answer
+                 with `hx-include="closest tr"` so both fields (and the
+                 hidden control_id) ship together — no whole-form
+                 multi-value confusion like the old /portal/about bug.
+                 The server returns a small "saved ✓" fragment we swap
+                 into the per-row status pip. #}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="control_id" value="{{ c.id }}">
+              <select class="usa-select" name="answer"
+                      hx-post="{{ url_for('portal.zero_trust_answer') }}"
+                      hx-trigger="change"
+                      hx-include="closest tr"
+                      hx-target="#saved-{{ c.id }}"
+                      hx-swap="innerHTML">
+                <option value="">— pick one —</option>
+                {% for opt in valid_answers %}
+                  <option value="{{ opt }}" {% if r and r.answer == opt %}selected{% endif %}>
+                    {% if opt == 'implemented' %}In place
+                    {% elif opt == 'partial' %}Partly in place
+                    {% elif opt == 'not_implemented' %}Not in place
+                    {% else %}Not applicable
+                    {% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <input class="usa-input" type="text" name="rationale"
+                     placeholder="Short note (optional)"
+                     value="{{ r.rationale if r else '' }}"
+                     style="min-width:14rem;"
+                     hx-post="{{ url_for('portal.zero_trust_answer') }}"
+                     hx-trigger="blur changed"
+                     hx-include="closest tr"
+                     hx-target="#saved-{{ c.id }}"
+                     hx-swap="innerHTML">
+              <span id="saved-{{ c.id }}" class="shield-portal-saved-host" aria-live="polite"></span>
             </td>
           {% endif %}
         </tr>

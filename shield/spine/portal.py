@@ -35,6 +35,7 @@ import hashlib
 import json
 import secrets
 from datetime import datetime, timedelta
+from typing import Any
 
 from flask import (
     Blueprint,
@@ -484,27 +485,50 @@ def zero_trust_answer():
     Trust tier is always CLIENT_ASSERTED here — only the admin
     workspace creates ADMIN_ASSISTED rows. Locked responses refuse
     edits with a flash + redirect.
+
+    v1.9 auto-save: when the request carries an `HX-Request` header
+    (set by the HTMX library), return a tiny "saved ✓" fragment with
+    200 instead of a flash+redirect. The template auto-saves each
+    row's answer + rationale on change/blur instead of requiring a
+    Save click per row.
     """
     from ..models import QuestionnaireResponse, TrustTier
+    is_htmx = bool(request.headers.get("HX-Request"))
     client = _require_client(_current_client())
     project = _find_or_create_zt_project(client)
-    if project.stage == "submitted":
-        flash("Answers are submitted and locked.", "error")
+
+    def _resp_error(msg: str, anchor: str | None = None) -> Any:
+        if is_htmx:
+            return make_response(
+                f'<span class="usa-hint" style="color:#b50909;">{msg}</span>',
+                200,
+            )
+        flash(msg, "error")
+        return redirect(url_for("portal.zero_trust") + (f"#{anchor}" if anchor else ""))
+
+    def _resp_saved() -> Any:
+        if is_htmx:
+            return make_response(
+                '<span class="usa-hint shield-portal-saved" style="color:#1a7733;">saved &#10003;</span>',
+                200,
+            )
+        flash("Answer saved.", "info")
         return redirect(url_for("portal.zero_trust"))
+
+    if project.stage == "submitted":
+        return _resp_error("Answers are submitted and locked.")
     control_id = (request.form.get("control_id") or "").strip()
     ans = (request.form.get("answer") or "").strip()
     rationale = (request.form.get("rationale") or "").strip()
     if not control_id or ans not in _VALID_ANSWERS:
-        flash("Pick a valid answer.", "error")
-        return redirect(url_for("portal.zero_trust") + f"#c-{control_id}")
+        return _resp_error("Pick a valid answer.", anchor=f"c-{control_id}")
     existing = (
         db.session.query(QuestionnaireResponse)
         .filter_by(project_id=project.id, control_id=control_id)
         .one_or_none()
     )
     if existing and existing.locked:
-        flash("That answer is locked.", "error")
-        return redirect(url_for("portal.zero_trust") + f"#c-{control_id}")
+        return _resp_error("That answer is locked.", anchor=f"c-{control_id}")
     if existing:
         existing.answer = ans
         existing.rationale = rationale
@@ -521,8 +545,228 @@ def zero_trust_answer():
             attributed_user_id=current_user.id,
         ))
     db.session.commit()
-    flash("Answer saved.", "info")
-    return redirect(url_for("portal.zero_trust") + f"#c-{control_id}")
+    return _resp_saved()
+
+
+# ====================================================================
+# §21.7 — section-by-section progressive questionnaire (v1.9 item 2)
+# ====================================================================
+# Consumes the rich YAML catalogs from shield.p2_zerotrust.questionnaires
+# instead of the flat legacy `frameworks.py` catalog. One section at a
+# time, with per-question stem + cues + current-state + target-state +
+# N/A + framework-mapping chips. Auto-saves each field via HTMX.
+#
+# QuestionnaireResponse.control_id stores the YAML question.id
+# ("cisa.s1.q1" etc); QuestionnaireResponse.framework stores the
+# questionnaire framework_id; the new `extra` JSON blob carries
+# target_state_score, target_state_notes, not_applicable,
+# not_applicable_reason, current_state_text.
+
+
+# Map the YAML framework id ("cisa_ztmm_v2") to a stable Project.framework
+# value. We pick the YAML id directly so the questionnaire loader can
+# round-trip without translation.
+def _yaml_framework_for_project(project) -> str:
+    if project.framework in {"cisa_ztmm_v2", "dod_zt", "csf_2_0_high"}:
+        return project.framework
+    # Legacy projects might carry the older flat-catalog framework ids
+    # ("nist_csf_v2", etc) — map them to a YAML-shipped variant where
+    # possible, else default to CISA ZTMM.
+    return "cisa_ztmm_v2"
+
+
+def _resolve_questionnaire(project):
+    """Loaded section-and-question catalog for this project, or None if
+    the configured framework has no YAML variant on hand."""
+    from ..p2_zerotrust.questionnaires import load_questionnaire
+    try:
+        return load_questionnaire(_yaml_framework_for_project(project))
+    except (KeyError, FileNotFoundError):
+        return None
+
+
+def _section_completion(project, q):
+    """Return {section_id: (answered_count, total_count)} so the
+    overview + section header can show progress."""
+    from ..models import QuestionnaireResponse
+    responses = (db.session.query(QuestionnaireResponse)
+                 .filter_by(project_id=project.id)
+                 .all())
+    answered_ids = {r.control_id for r in responses
+                    if r.answer and r.answer.strip()}
+    result = {}
+    for section in q.sections:
+        total = len(section.questions)
+        done = sum(1 for question in section.questions
+                   if question.id in answered_ids)
+        result[section.id] = (done, total)
+    return result
+
+
+@bp.route("/zero-trust/sections", methods=["GET"])
+@login_required
+def zero_trust_sections():
+    """Overview of the section-by-section questionnaire: progress per
+    section + a "Resume" button that drops the user into the first
+    unfinished section."""
+    client = _require_client(_current_client())
+    if "zero_trust" not in (client.service_interests or []):
+        flash("Zero Trust isn't one of your selected services. ",
+              "info")
+        return redirect(url_for("portal.services"))
+    project = _find_or_create_zt_project(client)
+    q = _resolve_questionnaire(project)
+    if q is None:
+        flash(
+            "No questionnaire is available for this framework yet — "
+            "showing the one-page view instead.",
+            "info",
+        )
+        return redirect(url_for("portal.zero_trust"))
+    completion = _section_completion(project, q)
+    # Find the first incomplete section (or 1 if everything's done).
+    resume_number = 1
+    for section in q.sections:
+        done, total = completion[section.id]
+        if done < total:
+            resume_number = section.number
+            break
+    return render_template(
+        "portal/zero_trust_overview.html",
+        client=client, project=project, questionnaire=q,
+        completion=completion, resume_number=resume_number,
+        is_submitted=(project.stage == "submitted"),
+    )
+
+
+@bp.route("/zero-trust/section/<int:section_number>", methods=["GET"])
+@login_required
+def zero_trust_section(section_number: int):
+    """One section's worth of questions, progressively-navigable."""
+    from ..models import QuestionnaireResponse
+    client = _require_client(_current_client())
+    if "zero_trust" not in (client.service_interests or []):
+        return redirect(url_for("portal.services"))
+    project = _find_or_create_zt_project(client)
+    q = _resolve_questionnaire(project)
+    if q is None:
+        return redirect(url_for("portal.zero_trust"))
+    sections_list = list(q.sections)
+    if section_number < 1 or section_number > len(sections_list):
+        return redirect(url_for("portal.zero_trust_sections"))
+    section = sections_list[section_number - 1]
+    responses_by_qid = {
+        r.control_id: r for r in
+        db.session.query(QuestionnaireResponse).filter_by(project_id=project.id)
+    }
+    completion = _section_completion(project, q)
+    return render_template(
+        "portal/zero_trust_section.html",
+        client=client, project=project, questionnaire=q,
+        section=section, section_number=section_number,
+        total_sections=len(sections_list),
+        responses_by_qid=responses_by_qid,
+        completion=completion,
+        is_submitted=(project.stage == "submitted"),
+    )
+
+
+@bp.route("/zero-trust/section/answer", methods=["POST"])
+@login_required
+def zero_trust_section_answer():
+    """Auto-save endpoint for the section-by-section flow.
+
+    Accepts:
+      question_id           — the YAML question.id (e.g. "cisa.s1.q1")
+      current_state_score   — one of the framework's scale ids
+      current_state_text    — freeform narrative
+      target_state_score    — one of the framework's scale ids
+      target_state_notes    — freeform why-this-target
+      not_applicable        — "yes" or omitted
+      not_applicable_reason — freeform N/A justification
+
+    All fields are optional; the row updates whichever ones are sent.
+    Always responds with the small HTMX `saved ✓` fragment.
+    """
+    from ..models import QuestionnaireResponse, TrustTier
+    client = _require_client(_current_client())
+    project = _find_or_create_zt_project(client)
+    q = _resolve_questionnaire(project)
+    is_htmx = bool(request.headers.get("HX-Request"))
+
+    def _frag(msg: str, color: str) -> Any:
+        return make_response(
+            f'<span class="usa-hint" style="color:{color};">{msg}</span>',
+            200,
+        )
+
+    if project.stage == "submitted":
+        return _frag("locked", "#b50909") if is_htmx else (
+            redirect(url_for("portal.zero_trust_sections")))
+    qid = (request.form.get("question_id") or "").strip()
+    if not q or not qid:
+        return _frag("bad input", "#b50909")
+    # Validate that the question id belongs to this framework's catalog.
+    if q.question_by_id(qid) is None:
+        return _frag("unknown question", "#b50909")
+
+    valid_scale = {opt.id for opt in q.answer_scale}
+    current_score = (request.form.get("current_state_score") or "").strip() or None
+    current_text  = (request.form.get("current_state_text") or "").strip() or None
+    target_score  = (request.form.get("target_state_score") or "").strip() or None
+    target_notes  = (request.form.get("target_state_notes") or "").strip() or None
+    na_on         = request.form.get("not_applicable") == "yes"
+    na_reason     = (request.form.get("not_applicable_reason") or "").strip() or None
+    if current_score and current_score not in valid_scale:
+        return _frag("invalid current-state score", "#b50909")
+    if target_score and target_score not in valid_scale:
+        return _frag("invalid target-state score", "#b50909")
+
+    response = (db.session.query(QuestionnaireResponse)
+                .filter_by(project_id=project.id, control_id=qid)
+                .one_or_none())
+    framework_id = _yaml_framework_for_project(project)
+    if response is None:
+        response = QuestionnaireResponse(
+            project_id=project.id,
+            framework=framework_id,
+            control_id=qid,
+            answer=current_score or "",
+            rationale=current_text or "",
+            trust_tier=TrustTier.CLIENT_ASSERTED,
+            attributed_user_id=current_user.id,
+            extra={},
+        )
+        db.session.add(response)
+    else:
+        if response.locked:
+            return _frag("locked", "#b50909")
+        if current_score is not None:
+            response.answer = current_score
+        if current_text is not None:
+            response.rationale = current_text
+        response.attributed_user_id = current_user.id
+
+    extra = dict(response.extra or {})
+    if target_score is not None:
+        extra["target_state_score"] = target_score
+    if target_notes is not None:
+        extra["target_state_notes"] = target_notes
+    extra["not_applicable"] = na_on
+    if na_reason is not None:
+        extra["not_applicable_reason"] = na_reason
+    response.extra = extra
+    db.session.commit()
+    return _frag("saved &#10003;", "#1a7733")
+
+
+@bp.route("/zero-trust/section/submit", methods=["POST"])
+@login_required
+def zero_trust_section_submit():
+    """Lock all answers across every section. Same effect as the
+    legacy /portal/zero-trust/submit, just reachable from the bottom
+    of section N (= total)."""
+    return zero_trust_submit()
 
 
 @bp.route("/zero-trust/submit", methods=["POST"])

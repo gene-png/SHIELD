@@ -288,6 +288,18 @@ FORMATTERS: dict[str, _Formatter] = {
     "artifact.archived":               _fmt_archived,
     "artifact.unarchived":             _fmt_unarchived,
     "artifact.purged":                 _fmt_purged,
+    "capability_list.archived":        _fmt_archived,
+    "capability_list.unarchived":      _fmt_unarchived,
+    "capability_list.purged":          _fmt_purged,
+    "reviewer.assigned": lambda d: (
+        f"Granted {d.get('reviewer_email') or 'a reviewer'} access to "
+        f"{d.get('client_name') or 'a client'}."
+    ),
+    "reviewer.revoked": lambda d: "Revoked a reviewer's access.",
+    "client.intake_fields_reset":      lambda d: (
+        f"Reset {len(d.get('cleared_fields') or [])} intake field(s) — "
+        f"client can refill /portal/about."
+    ),
 }
 
 def _fmt_auto_progress(d: dict[str, Any]) -> str:

@@ -354,6 +354,71 @@ def decline_request(client_id: str, request_id: str):
 # /clients/<id>/intake — admin's read-only view of submitted intake
 # ====================================================================
 
+# Whitelist of Client columns the reset_intake_fields admin verb may
+# touch. Mirrors `_ABOUT_FIELDS` in shield.spine.portal so the reset
+# clears exactly the fields the /portal/about form writes — nothing
+# else (industry, notes, service_interests, intake_completed_at all
+# stay intact so the admin doesn't have to re-classify the client).
+_ABOUT_FIELDS_RESETTABLE = frozenset({
+    "legal_name", "dba_name", "website", "size_band",
+    "primary_poc_name", "primary_poc_title", "primary_poc_email",
+    "primary_poc_phone",
+    "address_line1", "address_line2", "city", "state", "postal_code",
+    "country",
+    "prompting_context",
+})
+
+
+@bp.route("/<client_id>/intake/reset", methods=["POST"])
+@login_required
+@admin_only
+@require_client_for_param("client_id")
+def reset_intake_fields(client_id: str):
+    """Clear every field the /portal/about form writes.
+
+    Use case: the v1.8 /portal/about form had an HTMX scoping bug
+    that wrote whichever input was first in the form to every column
+    on each blur. v1.9 fixed the form (`hx-include="this"`) but
+    existing rows that were saved before the fix still have the
+    corruption baked in. This admin verb resets those rows back to
+    NULL so the client can re-fill /portal/about cleanly.
+
+    Does NOT touch service_interests, consult_requested, or
+    intake_completed_at — those are correct even when the contact /
+    address fields are corrupted. Audited.
+    """
+    client = db.session.get(Client, client_id)
+    if client is None:
+        abort(404)
+    typed = (request.form.get("confirmation_phrase") or "").strip()
+    if typed != client.name:
+        flash(
+            "Type the client's exact name to confirm the reset. "
+            "Nothing was changed.",
+            "error",
+        )
+        return redirect(url_for("clients.intake_view", client_id=client.id))
+    cleared = []
+    for col in _ABOUT_FIELDS_RESETTABLE:
+        if getattr(client, col, None):
+            setattr(client, col, None)
+            cleared.append(col)
+    db.session.commit()
+    log_audit(
+        "client.intake_fields_reset",
+        actor=current_user,
+        target_type="client", target_id=client.id, client_id=client.id,
+        details={"cleared_fields": cleared,
+                 "reason": "admin-triggered remediation for HTMX form bug"},
+    )
+    flash(
+        f"Reset {len(cleared)} field(s). The client can refill them "
+        f"via /portal/about and the values will save correctly now.",
+        "info",
+    )
+    return redirect(url_for("clients.intake_view", client_id=client.id))
+
+
 @bp.route("/<client_id>/intake")
 @login_required
 @require_client_for_param("client_id")

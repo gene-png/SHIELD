@@ -190,7 +190,12 @@ class Client(db.Model):
     )
 
     def latest_capability_list(self) -> CapabilityList | None:
-        return next(iter(self.capability_lists), None)
+        # Skip archived + purged lists — "latest" should mean latest
+        # active. Admin pages show archived lists separately.
+        for cl in self.capability_lists:
+            if not cl.archived and cl.purged_at is None:
+                return cl
+        return None
 
 
 # ============================================================
@@ -210,12 +215,32 @@ class CapabilityList(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_by_id = Column(String(36), ForeignKey("users.id"))
 
+    # v1.9: archive + purge metadata mirrors Project/Artifact. Lists
+    # that are stale, AI-drafted-and-never-cleaned, or accidentally
+    # imported get archived. Purge is the high-friction tombstone for
+    # GDPR or accidental-protected-material cases.
+    archived         = Column(Boolean, default=False, nullable=False)
+    archived_at      = Column(DateTime)
+    archived_by_id   = Column(String(36), ForeignKey("users.id"))
+    archived_reason  = Column(Text)
+    purged_at        = Column(DateTime)
+    purged_by_id     = Column(String(36), ForeignKey("users.id"))
+    purged_reason    = Column(Text)
+
     client = relationship("Client", back_populates="capability_lists")
     created_by = relationship("User", foreign_keys=[created_by_id])
     items = relationship(
         "CapabilityListItem", back_populates="capability_list",
         cascade="all,delete-orphan", order_by="CapabilityListItem.category, CapabilityListItem.name",
     )
+
+    @property
+    def lifecycle_state(self) -> str:
+        if self.purged_at is not None:
+            return "purged"
+        if self.archived:
+            return "archived"
+        return "active"
 
 
 class CapabilityListItem(db.Model):
@@ -419,6 +444,12 @@ class QuestionnaireResponse(db.Model):
     attributed_user_id = Column(String(36), ForeignKey("users.id"))
     submitted_at = Column(DateTime)
     locked = Column(Boolean, default=False, nullable=False)
+    # v1.9 §21.7: extra fields for the section-by-section progressive
+    # questionnaire (target_state_score, target_state_notes,
+    # not_applicable, not_applicable_reason, current_state_text).
+    # JSON blob rather than discrete columns so additional richer
+    # fields can be carried forward without a migration each time.
+    extra = Column(JSON, default=dict, nullable=False)
 
     # Convenience relationship for templates: r.evidence_artifact -> Artifact | None.
     evidence_artifact = relationship("Artifact", foreign_keys=[evidence_artifact_id])

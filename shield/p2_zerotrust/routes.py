@@ -227,8 +227,26 @@ def project_summary(project_id: str):
 @login_required
 @admin_only
 def answer(project_id: str):
+    """Save a single answer.
+
+    v1.9 auto-save: when the request carries the HX-Request header
+    (HTMX), return a small "saved ✓" fragment instead of flash+redirect.
+    The workspace template auto-saves each row on change/blur so the
+    admin doesn't have to click Save per row.
+    """
+    from flask import make_response
+    is_htmx = bool(request.headers.get("HX-Request"))
+
+    def _fragment(msg: str, color: str) -> object:
+        return make_response(
+            f'<span class="usa-hint" style="color:{color};">{msg}</span>',
+            200,
+        )
+
     project = _get_project_or_404(project_id)
     if project.stage == "submitted":
+        if is_htmx:
+            return _fragment("locked", "#b50909")
         flash(
             "This project has been submitted. Per spec decision #3, "
             "attribution is immutable once submitted — reopen via a "
@@ -241,6 +259,8 @@ def answer(project_id: str):
     ans = request.form.get("answer", "").strip()
     rationale = request.form.get("rationale", "").strip()
     if not control_id or ans not in ("implemented", "partial", "not_implemented", "na"):
+        if is_htmx:
+            return _fragment("pick an answer", "#b50909")
         flash("Invalid answer.", "error")
         return redirect(url_for("p2.workspace", project_id=project.id))
 
@@ -259,6 +279,8 @@ def answer(project_id: str):
         .one_or_none()
     )
     if existing and existing.locked:
+        if is_htmx:
+            return _fragment("locked", "#b50909")
         flash("Answer is locked.", "error")
         return redirect(url_for("p2.workspace", project_id=project.id))
 
@@ -278,6 +300,8 @@ def answer(project_id: str):
             attributed_user_id=current_user.id,
         ))
     db.session.commit()
+    if is_htmx:
+        return _fragment("saved ✓", "#1a7733")
     flash(f"Answer saved for {control_id}.", "info")
     return redirect(url_for("p2.workspace", project_id=project.id) + f"#c-{control_id}")
 

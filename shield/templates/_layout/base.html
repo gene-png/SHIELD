@@ -86,6 +86,7 @@
             {{ nav_link(url_for('repository.browse'),       'Repository',      match='/repository/') }}
             {{ nav_link(url_for('admin_views.messages_inbox'), 'Inbox',        match='/admin/messages') }}
             {% if _role == 'admin' %}
+              {{ nav_link(url_for('admin_views.reviewers_index'), 'Reviewers', match='/admin/reviewers') }}
               {{ nav_link(url_for('jobs.index'),            'Activity',        match='/jobs/') }}
             {% endif %}
             {{ nav_link(url_for('audit.index'),             'Audit',           match='/audit/') }}

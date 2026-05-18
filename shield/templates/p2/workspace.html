@@ -61,18 +61,33 @@
                 {% if r and r.rationale %}<br><small>{{ r.rationale }}</small>{% endif %}
                 <span class="shield-locked-pill">locked</span>
               {% else %}
-                <form method="POST" action="{{ url_for('p2.answer', project_id=project.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="control_id" value="{{ c.id }}">
-                  <select class="usa-select" name="answer">
-                    <option value="">—</option>
-                    {% for opt in ['implemented','partial','not_implemented','na'] %}
-                      <option value="{{ opt }}" {% if r and r.answer == opt %}selected{% endif %}>{{ opt }}</option>
-                    {% endfor %}
-                  </select>
-                  <input class="usa-input" type="text" name="rationale" placeholder="rationale (optional)" value="{{ r.rationale if r else '' }}">
-                  <button class="usa-button usa-button--small">Save</button>
-                </form>
+                {# v1.9 §1: auto-save per row. Each <select> + rationale
+                   <input> posts to p2.answer with `hx-include="closest tr"`
+                   so the control_id + both fields ship together — no
+                   whole-form multi-value confusion. Server returns a
+                   "saved ✓" pip we swap into the per-row status span. #}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="control_id" value="{{ c.id }}">
+                <select class="usa-select" name="answer"
+                        hx-post="{{ url_for('p2.answer', project_id=project.id) }}"
+                        hx-trigger="change"
+                        hx-include="closest tr"
+                        hx-target="#saved-{{ c.id }}"
+                        hx-swap="innerHTML">
+                  <option value="">—</option>
+                  {% for opt in ['implemented','partial','not_implemented','na'] %}
+                    <option value="{{ opt }}" {% if r and r.answer == opt %}selected{% endif %}>{{ opt }}</option>
+                  {% endfor %}
+                </select>
+                <input class="usa-input" type="text" name="rationale"
+                       placeholder="rationale (optional)"
+                       value="{{ r.rationale if r else '' }}"
+                       hx-post="{{ url_for('p2.answer', project_id=project.id) }}"
+                       hx-trigger="blur changed"
+                       hx-include="closest tr"
+                       hx-target="#saved-{{ c.id }}"
+                       hx-swap="innerHTML">
+                <span id="saved-{{ c.id }}" class="shield-portal-saved-host" aria-live="polite"></span>
               {% endif %}
             </td>
             <td>

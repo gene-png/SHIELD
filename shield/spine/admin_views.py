@@ -29,9 +29,17 @@ from flask_login import current_user, login_required
 from sqlalchemy import select
 
 from ..extensions import db
-from ..models import Client, Message, Project, Role, User
+from ..models import (
+    Client,
+    Message,
+    Project,
+    ReviewerAssignment,
+    Role,
+    User,
+)
 from .access import client_ids_for_user, require_client_access, scope_query
 from .audit import log_audit
+from .rbac import admin_only
 
 bp = Blueprint("admin_views", __name__, template_folder="../templates/admin")
 
@@ -179,6 +187,131 @@ def messages_thread(client_id: str, thread_key: str):
         client=client, project=project, thread_key=thread_key,
         messages=msgs, authors=authors,
     )
+
+
+# ====================================================================
+# v1.9: Reviewer-assignment management
+# ====================================================================
+# Admin-only routes for granting / revoking a REVIEWER user's
+# per-client scope. The ReviewerAssignment table existed from round 2;
+# this is the UI surface admins were missing.
+
+
+@bp.route("/reviewers/", methods=["GET"])
+@login_required
+@admin_only
+def reviewers_index():
+    """List every REVIEWER and the clients they're currently assigned to.
+
+    Shows two columns side-by-side:
+      - Reviewer + their list of active assignments (with a revoke
+        button per row).
+      - "Grant access" form: pick a reviewer + a client + submit.
+    """
+    reviewers = (db.session.query(User)
+                 .filter(User.role == Role.REVIEWER,
+                         User.is_active_flag.is_(True))
+                 .order_by(User.display_name)
+                 .all())
+    # Group active assignments by reviewer id.
+    rows = (db.session.query(ReviewerAssignment, Client)
+            .join(Client, Client.id == ReviewerAssignment.client_id)
+            .filter(ReviewerAssignment.revoked_at.is_(None))
+            .order_by(Client.name)
+            .all())
+    by_reviewer: dict[str, list[tuple]] = {}
+    for ra, c in rows:
+        by_reviewer.setdefault(ra.reviewer_id, []).append((ra, c))
+    clients = (db.session.query(Client)
+               .order_by(Client.name)
+               .all())
+    return render_template(
+        "admin/reviewers_index.html",
+        reviewers=reviewers,
+        clients=clients,
+        assignments_by_reviewer=by_reviewer,
+    )
+
+
+@bp.route("/reviewers/grant", methods=["POST"])
+@login_required
+@admin_only
+def reviewers_grant():
+    """Create a new ReviewerAssignment row (or restore a revoked one)."""
+    reviewer_id = (request.form.get("reviewer_id") or "").strip()
+    client_id = (request.form.get("client_id") or "").strip()
+    if not reviewer_id or not client_id:
+        flash("Pick both a reviewer and a client.", "error")
+        return redirect(url_for("admin_views.reviewers_index"))
+    reviewer = db.session.get(User, reviewer_id)
+    client = db.session.get(Client, client_id)
+    if reviewer is None or client is None:
+        flash("Reviewer or client not found.", "error")
+        return redirect(url_for("admin_views.reviewers_index"))
+    if reviewer.role != Role.REVIEWER:
+        flash(f"{reviewer.email} isn't a reviewer.", "error")
+        return redirect(url_for("admin_views.reviewers_index"))
+
+    existing = (db.session.query(ReviewerAssignment)
+                .filter_by(reviewer_id=reviewer.id, client_id=client.id)
+                .one_or_none())
+    if existing is not None:
+        if existing.revoked_at is None:
+            flash(
+                f"{reviewer.display_name or reviewer.email} already has "
+                f"access to {client.name}.",
+                "info",
+            )
+            return redirect(url_for("admin_views.reviewers_index"))
+        # Restore a previously-revoked row.
+        existing.revoked_at = None
+        existing.assigned_at = datetime.utcnow()
+        existing.assigned_by_id = current_user.id
+    else:
+        db.session.add(ReviewerAssignment(
+            reviewer_id=reviewer.id,
+            client_id=client.id,
+            assigned_by_id=current_user.id,
+        ))
+    db.session.commit()
+    log_audit(
+        "reviewer.assigned",
+        actor=current_user,
+        target_type="reviewer_assignment", target_id=reviewer.id,
+        client_id=client.id,
+        details={"reviewer_email": reviewer.email,
+                 "client_name": client.name},
+    )
+    flash(
+        f"Granted {reviewer.display_name or reviewer.email} access to "
+        f"{client.name}.",
+        "info",
+    )
+    return redirect(url_for("admin_views.reviewers_index"))
+
+
+@bp.route("/reviewers/<assignment_id>/revoke", methods=["POST"])
+@login_required
+@admin_only
+def reviewers_revoke(assignment_id: str):
+    """Soft-revoke a ReviewerAssignment so the audit trail keeps it."""
+    ra = db.session.get(ReviewerAssignment, assignment_id)
+    if ra is None:
+        abort(404)
+    if ra.revoked_at is not None:
+        flash("Already revoked.", "info")
+        return redirect(url_for("admin_views.reviewers_index"))
+    ra.revoked_at = datetime.utcnow()
+    db.session.commit()
+    log_audit(
+        "reviewer.revoked",
+        actor=current_user,
+        target_type="reviewer_assignment", target_id=ra.id,
+        client_id=ra.client_id,
+        details={"reviewer_id": ra.reviewer_id},
+    )
+    flash("Access revoked.", "info")
+    return redirect(url_for("admin_views.reviewers_index"))
 
 
 # silence the linter on the unused-but-doc-relevant helper.

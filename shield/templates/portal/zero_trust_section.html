@@ -1,0 +1,232 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ section.title }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-page-header" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">
+    {{ questionnaire.display_name }} &middot; {{ client | client_label }}
+  </p>
+  <h1>Section {{ section_number }} of {{ total_sections }} &mdash; {{ section.title }}</h1>
+  {# Progress bar — one segment per section. #}
+  <div style="display:flex;gap:.25rem;margin:.5rem 0;">
+    {% for s in questionnaire.sections %}
+      {% set done, total = completion[s.id] %}
+      {% set pct = (done * 100 // total) if total else 0 %}
+      <div title="Section {{ s.number }}: {{ done }} / {{ total }}"
+           style="flex:1;height:.5rem;background:#dfe1e2;border-radius:2px;overflow:hidden;
+                  {% if s.number == section_number %}outline:2px solid #005ea2;{% endif %}">
+        <div style="height:100%;width:{{ pct }}%;background:#1a7733;"></div>
+      </div>
+    {% endfor %}
+  </div>
+  <p class="shield-page-header__intro">
+    Each question has a "where you are today" and a "where you want
+    to be" panel. Answers auto-save as you change them.
+  </p>
+</section>
+
+<div style="max-width:64rem;margin:0 auto;">
+
+  {% if is_submitted %}
+    <div class="usa-alert usa-alert--info">
+      <div class="usa-alert__body">
+        <p class="usa-alert__text">
+          <strong>Submitted &amp; locked.</strong> Read-only view.
+        </p>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Answer-scale options used by both dropdowns. #}
+  {% set scale = questionnaire.answer_scale %}
+
+  {% for question in section.questions %}
+    {% set r = responses_by_qid.get(question.id) %}
+    {% set extra = (r.extra if r and r.extra else {}) or {} %}
+    {% set locked = r and r.locked %}
+    {% set na_on = extra.get('not_applicable') %}
+    <article class="shield-content-card" id="q-{{ question.id }}" style="margin-bottom:1.25rem;">
+      <p class="shield-content-card__heading" style="font-size:1.15rem;">
+        {{ question.number }} &middot; {{ question.stem }}
+      </p>
+
+      {% if question.cues %}
+        <details style="margin:.25rem 0 .75rem 0;">
+          <summary><small>Things to think about</small></summary>
+          <ul class="usa-prose" style="margin:.4rem 0 0 0;">
+            {% for cue in question.cues %}
+              <li>{{ cue }}</li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endif %}
+
+      {% if locked or is_submitted %}
+        <p>
+          <strong>Where you are today:</strong>
+          {{ r.answer or '—' }}
+          {% if r.rationale %}<br><em>{{ r.rationale }}</em>{% endif %}
+        </p>
+        {% if extra.get('target_state_score') %}
+          <p>
+            <strong>Target:</strong>
+            {{ extra.get('target_state_score') }}
+            {% if extra.get('target_state_notes') %}
+              <br><em>{{ extra.get('target_state_notes') }}</em>
+            {% endif %}
+          </p>
+        {% endif %}
+        {% if na_on %}
+          <p><span class="usa-tag">Marked N/A</span>
+             {% if extra.get('not_applicable_reason') %}
+               <em>{{ extra.get('not_applicable_reason') }}</em>
+             {% endif %}</p>
+        {% endif %}
+      {% else %}
+        {# Editable form: each <select> + <input> posts to the section
+           answer endpoint with `hx-include="closest article"` so the
+           question_id + every field in this card ships together. #}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="question_id" value="{{ question.id }}">
+
+        <div class="grid-row grid-gap">
+          <div class="tablet:grid-col-6">
+            <label class="usa-label" for="cs-{{ question.id }}">
+              <strong>Where you are today</strong>
+            </label>
+            <select class="usa-select" id="cs-{{ question.id }}"
+                    name="current_state_score"
+                    hx-post="{{ url_for('portal.zero_trust_section_answer') }}"
+                    hx-trigger="change"
+                    hx-include="closest article"
+                    hx-target="#saved-{{ question.id }}"
+                    hx-swap="innerHTML">
+              <option value="">— pick one —</option>
+              {% for opt in scale %}
+                <option value="{{ opt.id }}"
+                  {% if r and r.answer == opt.id %}selected{% endif %}>
+                  {{ opt.label }}
+                </option>
+              {% endfor %}
+            </select>
+            <textarea class="usa-textarea" name="current_state_text"
+                      rows="2"
+                      placeholder="Short note (optional)"
+                      hx-post="{{ url_for('portal.zero_trust_section_answer') }}"
+                      hx-trigger="blur changed"
+                      hx-include="closest article"
+                      hx-target="#saved-{{ question.id }}"
+                      hx-swap="innerHTML">{{ r.rationale if r and r.rationale else '' }}</textarea>
+          </div>
+
+          <div class="tablet:grid-col-6">
+            <label class="usa-label" for="ts-{{ question.id }}">
+              <strong>Where you want to be</strong>
+            </label>
+            <select class="usa-select" id="ts-{{ question.id }}"
+                    name="target_state_score"
+                    hx-post="{{ url_for('portal.zero_trust_section_answer') }}"
+                    hx-trigger="change"
+                    hx-include="closest article"
+                    hx-target="#saved-{{ question.id }}"
+                    hx-swap="innerHTML">
+              <option value="">— pick one —</option>
+              {% for opt in scale %}
+                <option value="{{ opt.id }}"
+                  {% if extra.get('target_state_score') == opt.id %}selected{% endif %}>
+                  {{ opt.label }}
+                </option>
+              {% endfor %}
+            </select>
+            <textarea class="usa-textarea" name="target_state_notes"
+                      rows="2"
+                      placeholder="Why this target? (optional)"
+                      hx-post="{{ url_for('portal.zero_trust_section_answer') }}"
+                      hx-trigger="blur changed"
+                      hx-include="closest article"
+                      hx-target="#saved-{{ question.id }}"
+                      hx-swap="innerHTML">{{ extra.get('target_state_notes') or '' }}</textarea>
+          </div>
+        </div>
+
+        <div class="usa-checkbox" style="margin-top:.5rem;">
+          <input class="usa-checkbox__input" id="na-{{ question.id }}" type="checkbox"
+                 name="not_applicable" value="yes"
+                 {% if na_on %}checked{% endif %}
+                 hx-post="{{ url_for('portal.zero_trust_section_answer') }}"
+                 hx-trigger="change"
+                 hx-include="closest article"
+                 hx-target="#saved-{{ question.id }}"
+                 hx-swap="innerHTML">
+          <label class="usa-checkbox__label" for="na-{{ question.id }}">
+            Not applicable to this system
+          </label>
+          <input class="usa-input" type="text" name="not_applicable_reason"
+                 placeholder="Why N/A? (optional)"
+                 value="{{ extra.get('not_applicable_reason') or '' }}"
+                 style="margin-top:.3rem;"
+                 hx-post="{{ url_for('portal.zero_trust_section_answer') }}"
+                 hx-trigger="blur changed"
+                 hx-include="closest article"
+                 hx-target="#saved-{{ question.id }}"
+                 hx-swap="innerHTML">
+        </div>
+
+        <p style="margin-top:.25rem;">
+          <span id="saved-{{ question.id }}" class="shield-portal-saved-host" aria-live="polite"></span>
+        </p>
+      {% endif %}
+
+      <p class="usa-hint" style="margin-top:.5rem;font-size:.78rem;">
+        {% for d in question.dimensions %}
+          <span class="usa-tag">{{ d | replace('_',' ') }}</span>
+        {% endfor %}
+        {% set mappings = question.csf_subcategories or question.ztmm_functions or question.dod_activities %}
+        {% if current_user.role and current_user.role.value in ('admin','reviewer') and mappings %}
+          <details style="display:inline-block;margin-left:.5rem;">
+            <summary><small>Show framework mappings</small></summary>
+            {% for m in mappings %}<code>{{ m }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+          </details>
+        {% endif %}
+      </p>
+    </article>
+  {% endfor %}
+
+  {# Navigation footer. #}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;flex-wrap:wrap;gap:.5rem;">
+    {% if section_number > 1 %}
+      <a class="usa-button usa-button--outline"
+         href="{{ url_for('portal.zero_trust_section', section_number=section_number - 1) }}">
+        &larr; Previous section
+      </a>
+    {% else %}
+      <span></span>
+    {% endif %}
+
+    <a class="usa-button usa-button--outline"
+       href="{{ url_for('portal.zero_trust_sections') }}">
+      Save and finish later
+    </a>
+
+    {% if section_number < total_sections %}
+      <a class="usa-button"
+         href="{{ url_for('portal.zero_trust_section', section_number=section_number + 1) }}">
+        Next section &rarr;
+      </a>
+    {% else %}
+      {% if not is_submitted %}
+        <form method="POST"
+              action="{{ url_for('portal.zero_trust_section_submit') }}"
+              style="display:inline;"
+              onsubmit="return confirm('Submit your answers? Once submitted you can’t change them.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="usa-button">Submit final answers</button>
+        </form>
+      {% else %}
+        <span></span>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
