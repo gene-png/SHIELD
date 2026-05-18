@@ -82,7 +82,7 @@ def test_known_vendor_names_survive_full_redaction(vendor):
     regex-only fallback never touches the vendor name anyway.
     """
     text = f"We use {vendor} as our primary tool."
-    out, _ = redact(text, mode="full")
+    out, _, _ = redact(text, mode="full")
     assert vendor in out, (
         f"Vendor name {vendor!r} got redacted: {out!r}"
     )
@@ -97,16 +97,16 @@ def test_known_vendor_names_survive_full_redaction(vendor):
 def test_email_still_redacted_inside_vendor_string():
     """A real email next to a vendor name is still PII."""
     text = "Contact alice@example.com about our Cisco renewal."
-    out, report = redact(text, mode="full")
+    out, report, _ = redact(text, mode="full")
     assert "alice@example.com" not in out
-    assert "[REDACTED_EMAIL]" in out
+    assert "[REDACTED_EMAIL_" in out
     assert "Cisco" in out
     assert report.counts.get("EMAIL") == 1
 
 
 def test_phone_still_redacted_inside_vendor_string():
     text = "Call 555-123-4567 for the Tenable account team."
-    out, _ = redact(text, mode="full")
+    out, _, _ = redact(text, mode="full")
     assert "555-123-4567" not in out
     assert "Tenable" in out
 
@@ -120,11 +120,11 @@ def test_per_project_term_still_masks_when_adjacent_to_vendor():
     Cisco does not.
     """
     text = "Acme Corp uses Cisco Secure for all of finance."
-    out, _ = redact(
+    out, _, _ = redact(
         text, mode="full", extra_terms=["Acme Corp"],
     )
     assert "Acme Corp" not in out
-    assert "[REDACTED_TERM]" in out
+    assert "[REDACTED_TERM_" in out
     assert "Cisco" in out
 
 
@@ -136,9 +136,9 @@ def test_real_person_still_redacted_with_vendor_nearby():
     no PERSON detector).
     """
     text = "Bob Henderson manages our CrowdStrike deployment."
-    out, report = redact(text, mode="full")
+    out, report, _ = redact(text, mode="full")
     if not report.presidio_available:
         pytest.skip("Presidio NER not installed; PERSON detection N/A")
     assert "CrowdStrike" in out
     assert "Bob Henderson" not in out
-    assert "[REDACTED_PERSON]" in out
+    assert "[REDACTED_PERSON_" in out

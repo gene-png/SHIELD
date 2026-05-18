@@ -21,6 +21,60 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.4] — 2026-05-17 — roundtrip redaction: redact for AI, restore for display
+
+Per user ask: "the purpose of the redaction is to remove organization
+information when it processes in the AI engine but everything should
+be pieced back together after the AI engine processes everything."
+
+Redaction was previously destructive — the displayed admin-final
+artifacts showed `[REDACTED_EMAIL]` / `[REDACTED_PERSON]` tokens
+even though those values originated in the user's own input. Now:
+
+- The user payload is redacted with **uniquely-numbered placeholders**
+  (`[REDACTED_EMAIL_0001]`, `[REDACTED_PERSON_0002]`, …) before going
+  to Anthropic.
+- `AIClient.complete()` holds the `{placeholder: original}` mapping
+  in memory for the duration of the call.
+- Claude's response is `unredact()`'d before being returned — the
+  originals come back wherever Claude echoed a placeholder.
+- The mapping is **never** written to the audit log, the artifact's
+  lineage, or any file. Counts are still recorded in lineage (so
+  auditors can verify the layer ran), but raw values never persist.
+
+Net effect: real org/PII never reaches Anthropic on the wire; the
+body_text persisted in our DB shows the original values. The "no
+org/personal info processed online" boundary is at the network
+egress, not at the database.
+
+### Changed — `shield.ai.redact`
+
+- `redact()` now returns `(text, RedactionReport, mapping)` instead
+  of `(text, report)`. Callers that don't roundtrip can `_` the third
+  value.
+- Placeholder format: every match now gets a unique numbered tag
+  (e.g. `[REDACTED_EMAIL_0001]`). The category prefix is unchanged.
+- New `unredact(text, mapping)` helper restores originals. Longest-
+  placeholder-first iteration is defensive against any name overlap.
+- All three layer functions (`_apply_extra_terms`, `_apply_regex`,
+  `_apply_presidio`) now populate the shared mapping dict.
+
+### Changed — `shield.ai.client.AIClient.complete()`
+
+- Captures the redaction mapping after `redact()` returns.
+- Calls `unredact()` on Claude's response text before any further
+  processing (JSON coercion, lineage assembly).
+
+### Tests
+
+- 208 → 212 passing. 4 new tests in `tests/test_redact.py`:
+  unredact roundtrips an example, unredact handles partial subsets,
+  unredact passes through text with no placeholders, each match
+  gets a unique placeholder. Existing 11 redact tests + 18
+  vendor-allowlist tests updated for the new 3-tuple return and
+  the new placeholder substring (`[REDACTED_EMAIL_` instead of
+  `[REDACTED_EMAIL]`).
+
 ## [1.8.3] — 2026-05-17 — vendor allowlist: stop NER from redacting brand names
 
 User reported the admin-final v2 capability list contained

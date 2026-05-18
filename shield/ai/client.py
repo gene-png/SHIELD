@@ -64,12 +64,20 @@ class AIClient:
 
         # Redact the user payload BEFORE it leaves SHIELD. System prompts
         # are SHIELD-authored and don't contain client PII, so they pass
-        # through untouched; only the user message — which is the part
-        # built from client uploads / questionnaire answers — is filtered.
-        from .redact import redact
+        # through untouched; only the user message — which is built from
+        # client uploads / questionnaire answers — is filtered.
+        #
+        # Round-trip behavior (round-4 follow-up): redact() now returns
+        # a `mapping` of {placeholder: original} that lets us restore
+        # the originals in Claude's response before saving / displaying.
+        # Net effect: real org/PII never reaches Anthropic on the wire,
+        # but the body_text we persist + the UI shows the original
+        # values. The mapping lives only in this function's stack frame
+        # and is discarded after the call; it never lands in lineage.
+        from .redact import redact, unredact
         all_terms = list(self.extra_terms) + list(extra_redaction_terms or [])
-        user, redaction_report = redact(
-            user, mode=self.redaction_mode, extra_terms=all_terms
+        user, redaction_report, redaction_mapping = redact(
+            user, mode=self.redaction_mode, extra_terms=all_terms,
         )
 
         try:
@@ -112,6 +120,13 @@ class AIClient:
                 pass
             message = stream.get_final_message()
         text = "".join(block.text for block in message.content if getattr(block, "type", None) == "text")
+
+        # Roundtrip-restore originals in Claude's response. If Claude
+        # echoed any placeholder back verbatim (it usually does in JSON
+        # outputs that pass through the masked input), the originals
+        # come back. Placeholders Claude didn't echo simply don't
+        # appear in the text — no harm.
+        text = unredact(text, redaction_mapping)
 
         if json_response:
             text = _coerce_json_block(text)
