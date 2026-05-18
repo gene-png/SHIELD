@@ -7,6 +7,20 @@
   <h1 class="shield-exec__headline">{{ client | client_label }}</h1>
 </section>
 
+{% if current_user.role.value == 'admin' and looks_corrupted %}
+  <div class="shield-jobs-alert" style="max-width:64rem;margin:1rem auto;">
+    <strong>This client's intake looks corrupted.</strong>
+    Several contact / address fields share the same value — the
+    pre-v1.9.1 <code>/portal/about</code> form bug. Open the intake
+    view to use the reset action.
+    <br>
+    <a class="usa-button" style="background:#b50909;margin-top:.5rem;"
+       href="{{ url_for('clients.intake_view', client_id=client.id) }}">
+      Open intake to reset &rarr;
+    </a>
+  </div>
+{% endif %}
+
 {% if current_user.role.value == 'admin' %}
   <p style="max-width:64rem;margin:0 auto;">
     <a class="usa-button"

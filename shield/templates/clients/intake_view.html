@@ -7,6 +7,33 @@
   &middot; <a href="{{ url_for('clients.detail', client_id=client.id) }}">Client detail</a>
 </p>
 
+{# v1.9.2: prominent banner when the intake fields look corrupted by
+   the pre-v1.9.1 form bug (3+ fields share the same value). #}
+{% if current_user.role.value == 'admin' and looks_corrupted %}
+  <div class="shield-jobs-alert" style="max-width:56rem;margin:1rem auto;">
+    <strong>This client's intake looks corrupted.</strong>
+    Several contact / address fields share the same value &mdash; the
+    pre-v1.9.1 <code>/portal/about</code> form bug saved one input's
+    text into every column on each blur. Use the reset action below
+    to clear the corrupted fields so {{ client.name }} can re-fill
+    <code>/portal/about</code> cleanly.
+    <br>
+    <form method="POST"
+          action="{{ url_for('clients.reset_intake_fields', client_id=client.id) }}"
+          class="usa-form usa-form--inline"
+          style="margin-top:.5rem;"
+          onsubmit="return confirm('Reset “{{ client.name }}” intake fields? Contact + address data will be cleared. Uploads stay.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="usa-input" type="text"
+             name="confirmation_phrase"
+             placeholder='Type "{{ client.name }}" to confirm'
+             style="min-width:22rem;">
+      <button class="usa-button"
+              style="background:#b50909;">Reset intake fields</button>
+    </form>
+  </div>
+{% endif %}
+
 <section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
   <p class="shield-exec__eyebrow">{{ client.name }}</p>
   <h1 class="shield-exec__headline">What they shared on intake.</h1>

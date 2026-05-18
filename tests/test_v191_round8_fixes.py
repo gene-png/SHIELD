@@ -330,3 +330,54 @@ def test_welcome_template_shows_step_one_of_four(fresh_member):
     client, _, _ = fresh_member
     r = client.get("/portal/welcome")
     assert b"Step 1 of 4" in r.data
+
+
+# --------------------------------------------------------------------
+# v1.9.2: corruption banner auto-detects + surfaces the reset button
+# --------------------------------------------------------------------
+
+def test_intake_view_shows_corruption_banner_when_fields_match(admin_client, app):
+    """When 3+ intake fields share the same value, the intake_view page
+    surfaces a prominent corruption banner with the reset form."""
+    c = Client(
+        name="Nexus-bug-shape",
+        legal_name="Nexus-bug-shape",
+        dba_name="Nexus-bug-shape",
+        primary_poc_name="Nexus-bug-shape",
+        primary_poc_email="Nexus-bug-shape",
+        intake_completed_at=datetime.utcnow(),
+    )
+    db.session.add(c)
+    db.session.commit()
+    r = admin_client.get(f"/clients/{c.id}/intake")
+    body = r.data
+    assert b"intake looks corrupted" in body
+    # The reset form is visible (not buried in <details>).
+    expected = f"/clients/{c.id}/intake/reset".encode()
+    assert expected in body
+
+
+def test_intake_view_no_banner_for_clean_data(admin_client, acme):
+    """Clients with distinct field values don't see the banner."""
+    acme.legal_name = "Acme Test"
+    acme.primary_poc_name = "Jane Operator"
+    acme.primary_poc_email = "jane@acme.example"
+    db.session.commit()
+    r = admin_client.get(f"/clients/{acme.id}/intake")
+    assert b"intake looks corrupted" not in r.data
+
+
+def test_client_detail_links_to_reset_when_corrupted(admin_client, app):
+    """Banner with link to reset also appears on /clients/<id>."""
+    c = Client(
+        name="Bug Client",
+        legal_name="Bug Client",
+        dba_name="Bug Client",
+        primary_poc_name="Bug Client",
+    )
+    db.session.add(c)
+    db.session.commit()
+    r = admin_client.get(f"/clients/{c.id}")
+    body = r.data
+    assert b"intake looks corrupted" in body
+    assert b"Open intake to reset" in body

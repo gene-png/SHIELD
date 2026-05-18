@@ -480,10 +480,27 @@ def intake_view(client_id: str):
         p for p in client.projects
         if not p.is_client_repository and not p.archived
     ]
+
+    # v1.9.2: auto-detect the pre-v1.9.1 "every field saved as legal_name"
+    # corruption shape. If 3+ of the intake fields share the same
+    # non-empty value, the row almost certainly hit the old form bug.
+    # We flag this so the template can render a prominent banner with
+    # the reset button — admins shouldn't have to know to expand a
+    # small <details> toggle.
+    from collections import Counter
+    intake_values = [
+        getattr(client, col, None) for col in _ABOUT_FIELDS_RESETTABLE
+    ]
+    non_empty = [v for v in intake_values if v]
+    most_common_count = (Counter(non_empty).most_common(1)[0][1]
+                         if non_empty else 0)
+    looks_corrupted = most_common_count >= 3
+
     return render_template(
         "clients/intake_view.html",
         client=client, repo_uploads=repo_uploads,
         repo=repo, real_projects=real_projects,
+        looks_corrupted=looks_corrupted,
     )
 
 
@@ -841,7 +858,21 @@ def detail(client_id: str):
         .order_by(CapabilityList.version.desc())
         .all()
     )
-    return render_template("clients/detail.html", client=client, capability_lists=lists)
+    # Same corruption-detection heuristic as intake_view so the
+    # corruption banner appears on whichever page the admin lands on.
+    from collections import Counter
+    intake_values = [
+        getattr(client, col, None) for col in _ABOUT_FIELDS_RESETTABLE
+    ]
+    non_empty = [v for v in intake_values if v]
+    most_common_count = (Counter(non_empty).most_common(1)[0][1]
+                         if non_empty else 0)
+    looks_corrupted = most_common_count >= 3
+    return render_template(
+        "clients/detail.html",
+        client=client, capability_lists=lists,
+        looks_corrupted=looks_corrupted,
+    )
 
 
 @bp.route("/<client_id>/admin-field", methods=["POST"])
