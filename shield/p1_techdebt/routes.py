@@ -277,7 +277,12 @@ def review_extraction(project_id: str, ai_artifact_id: str):
     if src is None or src.origin != Origin.AI_GENERATED:
         abort(404)
     if request.method == "POST":
-        confirmed = request.form.get("confirmed_text", "")
+        confirmed = (request.form.get("confirmed_text") or "").strip()
+        # Defensive: empty hidden field (static JS didn't run, browser
+        # bug, etc.) is still recorded as an empty JSON array rather
+        # than an empty string — downstream readers expect a JSON shape.
+        if not confirmed:
+            confirmed = "[]"
         write_human_ai_informed_artifact(
             project=project, stage="extraction_review",
             title=f"Admin-confirmed extraction (from {src.title})",
@@ -450,6 +455,13 @@ def finalize(project_id: str):
     if request.method == "POST":
         items_json = (request.form.get("items_json") or "").strip()
         notes = (request.form.get("notes") or "").strip()
+
+        # Defensive: an empty hidden field (e.g. if the static JS didn't
+        # load) means "no items", not a parse error. The original code
+        # called json.loads("") which raised. Treat empty as [] so the
+        # later "no items" branch handles it cleanly.
+        if not items_json:
+            items_json = "[]"
 
         try:
             items = json.loads(items_json)

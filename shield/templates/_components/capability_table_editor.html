@@ -76,80 +76,9 @@
 </div>
 
 {% if editable %}
-<script>
-(function () {
-  document.querySelectorAll(".shield-capability-table-editor").forEach(function (root) {
-    var tbody = root.querySelector(".shield-capability-table__body");
-    var fieldName = root.dataset.fieldName;
-    var jsonInput = root.querySelector(".shield-capability-table__json");
-
-    function newRow() {
-      var tr = document.createElement("tr");
-      tr.className = "shield-capability-row";
-      var cols = ["name", "vendor", "category", "function",
-                  "annual_cost_usd", "license_count", "notes"];
-      cols.forEach(function (col) {
-        var td = document.createElement("td");
-        var inp = document.createElement("input");
-        inp.className = "usa-input usa-input--small";
-        inp.type = (col === "annual_cost_usd" || col === "license_count") ? "number" : "text";
-        inp.dataset.col = col;
-        td.appendChild(inp);
-        tr.appendChild(td);
-      });
-      var actTd = document.createElement("td");
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "usa-button usa-button--unstyled shield-capability-row__remove";
-      btn.setAttribute("aria-label", "Remove row");
-      btn.textContent = "×";
-      actTd.appendChild(btn);
-      tr.appendChild(actTd);
-      return tr;
-    }
-
-    // Add row
-    var addBtn = root.querySelector(".shield-capability-table__add");
-    addBtn.addEventListener("click", function () {
-      tbody.appendChild(newRow());
-    });
-
-    // Remove row (delegated)
-    tbody.addEventListener("click", function (e) {
-      var btn = e.target.closest(".shield-capability-row__remove");
-      if (!btn) return;
-      var tr = btn.closest("tr");
-      if (tr) tr.parentNode.removeChild(tr);
-    });
-
-    // Serialize on form submit
-    var form = root.closest("form");
-    if (form) {
-      form.addEventListener("submit", function () {
-        var items = [];
-        tbody.querySelectorAll(".shield-capability-row").forEach(function (tr) {
-          var row = {};
-          tr.querySelectorAll("input[data-col]").forEach(function (inp) {
-            var v = inp.value;
-            if (v === "") return;
-            // Number columns: parse; bad values stored as null so the
-            // server can still load the JSON without choking.
-            if (inp.type === "number") {
-              var n = parseInt(v, 10);
-              if (!isNaN(n)) row[inp.dataset.col] = n;
-            } else {
-              row[inp.dataset.col] = v;
-            }
-          });
-          // Drop rows that have no name — the existing server code
-          // already does this server-side, but doing it client-side
-          // means the hidden field is tidy.
-          if (row.name) items.push(row);
-        });
-        jsonInput.value = JSON.stringify(items);
-      });
-    }
-  });
-})();
-</script>
+{# CSP is `script-src 'self'` (no `unsafe-inline`) — the JS lives in
+   a static file so it actually executes. Without this, the hidden
+   `{{ field_name }}` field stayed empty and finalize POSTed an empty
+   string, surfacing as "Items JSON is malformed: char 0". #}
+<script src="{{ url_for('static', filename='shield/capability_table_editor.js') }}" defer></script>
 {% endif %}

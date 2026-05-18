@@ -163,6 +163,51 @@ def test_finalize_renders_table_editor(admin_client, p1_project, confirmed_extra
     assert b"Items (JSON array)" not in r.data
 
 
+def test_finalize_with_empty_items_json_does_not_500(
+    admin_client, p1_project, confirmed_extraction,
+):
+    """Regression: SHIELD's CSP is `script-src 'self'`, so the inline
+    table-editor script was blocked silently and the hidden
+    `items_json` stayed empty. The original POST handler called
+    `json.loads("")` and surfaced as "Items JSON is malformed: char 0".
+
+    Now: empty form value defaults to `[]` so the route handles it
+    cleanly (no-items branch flashes + re-renders, no 500).
+    """
+    r = admin_client.post(
+        f"/platform/tech-debt/project/{p1_project.id}/finalize",
+        data={"items_json": "", "notes": ""},
+        follow_redirects=False,
+    )
+    # Flash + redirect back, or re-render. Either way, NOT a 500.
+    assert r.status_code in (200, 302)
+
+
+def test_review_extraction_with_empty_confirmed_text_persists_as_json_array(
+    admin_client, p1_project, ai_extraction,
+):
+    """Mirror defense for the review surface — empty form value
+    persists as `[]` rather than empty-string body_text."""
+    r = admin_client.post(
+        f"/platform/tech-debt/project/{p1_project.id}/review/{ai_extraction.id}",
+        data={"confirmed_text": ""},
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    art = (
+        db.session.query(Artifact)
+        .filter_by(
+            project_id=p1_project.id,
+            origin=Origin.HUMAN_AI_INFORMED,
+            stage="extraction_review",
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+    assert art is not None
+    assert art.body_text == "[]"
+
+
 def test_finalize_post_creates_capability_list(admin_client, p1_project, confirmed_extraction):
     """Server-side, the form still reads `items_json` exactly as before.
     POSTing well-formed JSON should still produce a CapabilityList row."""
