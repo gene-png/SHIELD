@@ -307,7 +307,13 @@ def test_capability_list_xlsx_export(admin_client, acme):
     r = admin_client.get(f"/clients/{acme.id}/capability-list/{cl.id}/export.xlsx")
     assert r.status_code == 200
     assert "spreadsheetml" in r.headers["Content-Type"]
-    assert 'attachment; filename="' in r.headers["Content-Disposition"]
+    # Flask's send_file emits `attachment; filename=...` (and may add a
+    # `filename*=UTF-8''...` RFC 5987 form for non-ASCII filenames).
+    # Either way the disposition is an attachment with a filename.
+    cd = r.headers["Content-Disposition"]
+    assert cd.startswith("attachment")
+    assert "filename" in cd
+    assert ".xlsx" in cd
 
     wb = openpyxl.load_workbook(io.BytesIO(r.data))
     assert "Overview" in wb.sheetnames

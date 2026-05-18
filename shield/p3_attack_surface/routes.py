@@ -1,7 +1,7 @@
 """Platform 3 routes (Attack Surface / ATT&CK coverage)."""
 from __future__ import annotations
 
-from flask import Response, abort, flash, redirect, render_template, request, url_for
+from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from ..extensions import db
@@ -231,12 +231,27 @@ def run_export(project_id: str, run_id: str):
     )
     techniques_by_id = {t["technique_id"]: t for t in _load_techniques()}
     blob = coverage_run_to_xlsx(run, project, findings, techniques_by_id)
-    safe_proj = project.name.replace(" ", "_").replace("/", "-")[:60]
-    filename = f"attack_coverage_{safe_proj}_{run.created_at.strftime('%Y%m%d_%H%M')}.xlsx"
-    return Response(
-        blob,
+
+    # ASCII-only filename for Content-Disposition. The em-dash and
+    # other non-ASCII chars commonly land in client_display_name or
+    # project name and silently break Chrome downloads via
+    # `filename="..."` — switching to send_file lets Flask emit the
+    # RFC 5987 `filename*` form for full Unicode in the save dialog.
+    import io
+    import unicodedata
+
+    from flask import send_file
+    raw = f"attack_coverage_{project.name}_{run.created_at.strftime('%Y%m%d_%H%M')}.xlsx"
+    nfkd = unicodedata.normalize("NFKD", raw)
+    ascii_safe = nfkd.encode("ascii", "ignore").decode("ascii")
+    ascii_safe = ascii_safe.replace(" ", "_").replace("/", "-").strip("_")
+    if not ascii_safe.lower().endswith(".xlsx"):
+        ascii_safe = f"{ascii_safe[:80]}.xlsx"
+    return send_file(
+        io.BytesIO(blob),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        as_attachment=True,
+        download_name=ascii_safe,
     )
 
 

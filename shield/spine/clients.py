@@ -16,7 +16,6 @@ from datetime import datetime
 
 from flask import (
     Blueprint,
-    Response,
     abort,
     flash,
     redirect,
@@ -684,10 +683,28 @@ def capability_list_export(client_id: str, list_id: str):
     if cl is None or cl.client_id != client_id:
         abort(404)
     blob = capability_list_to_xlsx(cl)
-    safe_label = (cl.label or "list").replace(" ", "_").replace("/", "-")[:60]
-    filename = f"{cl.client.name}_v{cl.version}_{safe_label}.xlsx".replace(" ", "_")
-    return Response(
-        blob,
+
+    # Build a filename. HTTP `Content-Disposition: filename="..."` only
+    # accepts ASCII per RFC 6266; non-ASCII (em-dash, smart quotes,
+    # accents) in the value confuses the browser and Chrome silently
+    # aborts the download. Strip the filename down to ASCII chars; let
+    # Flask's send_file emit the RFC 5987 `filename*` variant for full
+    # Unicode display in the save dialog.
+    import io
+    import unicodedata
+
+    from flask import send_file
+    raw = f"{cl.client.name}_v{cl.version}_{cl.label or 'list'}.xlsx"
+    nfkd = unicodedata.normalize("NFKD", raw)
+    ascii_safe = nfkd.encode("ascii", "ignore").decode("ascii")
+    # Whitespace and slashes are ugly in filenames; the rest of ASCII
+    # punctuation is fine.
+    ascii_safe = ascii_safe.replace(" ", "_").replace("/", "-").strip("_")
+    if not ascii_safe.lower().endswith(".xlsx"):
+        ascii_safe = f"{ascii_safe[:80]}.xlsx"
+    return send_file(
+        io.BytesIO(blob),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        as_attachment=True,
+        download_name=ascii_safe,
     )
