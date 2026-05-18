@@ -13,13 +13,62 @@ Items deferred to v2 (out of v1 scope):
 - Cross-platform value loop (spec §9 / Decision #5) — explicitly
   deferred per the spec until v1 is validated in production.
 - Workspace rebuild on P1/P2 in the style of P3's executive run-detail
-  (the analog is a per-project "review output" page, not a workspace
-  redesign).
+  — superseded by the round-5 step-flow + three-card dashboard
+  rebuilds (1.8.7-1.8.9). The P3-style executive page (`/summary`) is
+  still the canonical drill-down target.
 - Email-delivered invites — v1.8 ships in-app only; the inviter sees
   a copy-pasteable invitation link.
 - Deliverable revision UI — `superseded_at` / `superseded_by` ship in
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
+- PDF exports (round-5 §6.7) — XLSX exports cover the v1 deliverable
+  need. Adding PDF needs weasyprint + Cairo/Pango system libs +
+  five new exporter functions (capability list, coverage run,
+  current state, roadmap, overlap findings). The dashboards landed
+  in 1.8.6-1.8.9 are HTML-first so a future weasyprint pass will
+  reuse the same layouts.
+- Phase 5 reviewer home + walkability surfaces for P1/P3 (round-5
+  §8.2-8.3). Reviewer scoping is in place (PR 2 of round-2); the
+  dedicated reviewer landing page and per-platform walkability
+  templates are not. Today reviewers use the existing home page +
+  P2's walkability.
+- Real CISA ZTMM 2.0 + DoD ZT catalogs at full size with maturity
+  dimensions (round-5 §14). NIST CSF 2.0 is full (185 subcategories
+  from OSCAL); the other two are curated structures, ~35-44
+  controls each rather than ~150.
+
+## [1.8.9] — 2026-05-17 — P2 three artifact cards → compact dashboards (round-5 §6.4)
+
+The Zero Trust workspace's three artifact lanes (current-state /
+desired-future / roadmap) used to render the AI body as
+`<details><pre>JSON</pre></details>`. Replaced with compact dashboards.
+
+- **Card 1** (Where you are today): big % score = implemented / total,
+  per-pillar progress bars (pure CSS, no chart lib), CTA to open
+  the full assessment.
+- **Card 2** (Where you want to be): target count + Edit-targets CTA.
+- **Card 3** (How to get there): phase count + top-3 phase summaries +
+  Open-roadmap CTA.
+
+Tests: 247 → 255. 8 new in `tests/test_v18_round5_p2_dashboards.py`.
+
+## [1.8.8] — 2026-05-17 — P1 workspace step-flow rebuild (round-5 §6.1)
+
+The 3-column lane view ("Client source documentation" / "Automated
+drafts" / "Your reviewed versions") replaced with a vertical
+4-step flow:
+
+  1. **What the client gave us** — sources + Run-automated-reading CTA
+  2. **Initial reading** — AI extraction + Review-and-confirm CTA →
+     /review/<artifact> (the table editor from 1.8.7)
+  3. **Overlap and waste** — Run-overlap CTA, then Open-dashboard CTA
+     when complete → /summary (executive view from v1.7)
+  4. **Final list** — Finalize CTA → /finalize, View-final-list once done
+
+Each step shows its state (done/active/waiting) and the right CTA.
+Chat scratchpad moved below the flow; only renders once reviews exist.
+
+Tests: 236 → 247. 11 new in `tests/test_v18_round5_p1_workspace.py`.
 
 ## [1.8.7] — 2026-05-17 — P1 review + finalize: table editor (round-5 §6.2-6.3)
 
