@@ -89,6 +89,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     from .spine.identity import bp as identity_bp
     from .spine.intake import bp as intake_bp
     from .spine.jobs import bp as jobs_bp
+    from .spine.lifecycle import bp as lifecycle_bp
     from .spine.portal import bp as portal_bp
     from .spine.projects import bp as projects_bp
     from .spine.repository_views import bp as repo_bp
@@ -101,6 +102,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
     app.register_blueprint(jobs_bp, url_prefix="/jobs")
     app.register_blueprint(audit_bp, url_prefix="/audit")
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(lifecycle_bp, url_prefix="/admin/lifecycle")
 
     # --- Platform Blueprints ---
     from .p1_techdebt import bp as p1_bp

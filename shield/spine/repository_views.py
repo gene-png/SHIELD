@@ -31,6 +31,7 @@ bp = Blueprint("repository", __name__, template_folder="../templates/repository"
 @login_required
 def browse():
     origin_filter = request.args.get("origin", "all")
+    show_archived = request.args.get("show_archived") == "1"
     stmt = select(Artifact).order_by(Artifact.created_at.desc()).limit(200)
     if origin_filter != "all":
         try:
@@ -46,11 +47,17 @@ def browse():
     stmt = stmt.join(Project, Artifact.project_id == Project.id).where(
         Project.is_client_repository.is_(False)
     )
+    if not show_archived:
+        # Round-7 §17: hide archived artifacts (and the tombstones from
+        # purges, which share the archived=True flag) from the default
+        # browse. The toggle re-exposes them with their lifecycle pill.
+        stmt = stmt.where(Artifact.archived.is_(False))
     artifacts = list(db.session.scalars(stmt))
     return render_template(
         "repository/browse.html",
         artifacts=artifacts,
         origin_filter=origin_filter,
+        show_archived=show_archived,
     )
 
 

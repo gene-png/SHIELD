@@ -253,9 +253,32 @@ class Project(db.Model):
     # sees "My Zero Trust review". Admin screens always render `name`.
     client_display_name = Column(String(255))
 
+    # Round-7 §17 archive/purge — two-tier soft + hard delete for admins.
+    # `archived` boolean was already in place; the timestamps + reason
+    # round it out with audit-grade lineage. `purged_*` marks tombstone
+    # rows whose underlying files have been removed; the row itself
+    # stays for the audit log to reference.
+    archived_at      = Column(DateTime)
+    archived_by_id   = Column(String(36), ForeignKey("users.id"))
+    archived_reason  = Column(Text)
+    purged_at        = Column(DateTime)
+    purged_by_id     = Column(String(36), ForeignKey("users.id"))
+    purged_reason    = Column(Text)
+
     client = relationship("Client", back_populates="projects")
     artifacts = relationship("Artifact", back_populates="project", cascade="all,delete-orphan")
     capability_snapshot = relationship("CapabilityList", foreign_keys=[capability_list_version_id])
+
+    @property
+    def lifecycle_state(self) -> str:
+        """One of 'active' | 'archived' | 'purged'. Computed from the
+        archive/purge timestamps so the UI doesn't have to juggle three
+        boolean checks."""
+        if self.purged_at is not None:
+            return "purged"
+        if self.archived:
+            return "archived"
+        return "active"
 
 
 # ============================================================
@@ -304,7 +327,27 @@ class Artifact(db.Model):
     promoted_by_id = Column(String(36), ForeignKey("users.id"))
     promotion_reason = Column(Text)
 
+    # Round-7 §17 archive/purge. The boolean is the default-view filter;
+    # the timestamps + reason are the audit-grade lineage. `purged_at`
+    # marks a tombstone row whose underlying file on disk has been
+    # removed (storage_key cleared).
+    archived         = Column(Boolean, default=False, nullable=False)
+    archived_at      = Column(DateTime)
+    archived_by_id   = Column(String(36), ForeignKey("users.id"))
+    archived_reason  = Column(Text)
+    purged_at        = Column(DateTime)
+    purged_by_id     = Column(String(36), ForeignKey("users.id"))
+    purged_reason    = Column(Text)
+
     project = relationship("Project", back_populates="artifacts")
+
+    @property
+    def lifecycle_state(self) -> str:
+        if self.purged_at is not None:
+            return "purged"
+        if self.archived:
+            return "archived"
+        return "active"
 
     @validates("origin")
     def _validate_origin(self, _key, value):

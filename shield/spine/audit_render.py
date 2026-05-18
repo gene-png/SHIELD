@@ -232,6 +232,24 @@ def _fmt_seed(d: dict[str, Any]) -> str:
 # falling back to prefix match for action families (e.g. seed.*).
 # ---------------------------------------------------------------------
 
+def _fmt_archived(d: dict[str, Any]) -> str:
+    reason = d.get("reason") or ""
+    return f"Archived. {reason}".rstrip(". ") + "."
+
+
+def _fmt_unarchived(d: dict[str, Any]) -> str:
+    return "Restored from archive."
+
+
+def _fmt_purged(d: dict[str, Any]) -> str:
+    reason = d.get("reason") or ""
+    files = d.get("files_deleted")
+    prefix = "Purged"
+    if isinstance(files, int) and files > 0:
+        prefix += f" ({files} files removed)"
+    return prefix + (f" — {reason}" if reason else ".") + ("." if not reason else "")
+
+
 FORMATTERS: dict[str, _Formatter] = {
     "artifact.write_human":            _fmt_artifact_write_human,
     "artifact.write_ai":               _fmt_artifact_write_ai,
@@ -264,6 +282,12 @@ FORMATTERS: dict[str, _Formatter] = {
     "p2.attribution_downgrade":        _fmt_p2_attribution_downgrade,
     "auth.login":                      _fmt_auth_login,
     "auth.logout":                     _fmt_auth_logout,
+    "project.archived":                _fmt_archived,
+    "project.unarchived":              _fmt_unarchived,
+    "project.purged":                  _fmt_purged,
+    "artifact.archived":               _fmt_archived,
+    "artifact.unarchived":             _fmt_unarchived,
+    "artifact.purged":                 _fmt_purged,
 }
 
 _PREFIX_FORMATTERS: tuple[tuple[str, _Formatter], ...] = (
