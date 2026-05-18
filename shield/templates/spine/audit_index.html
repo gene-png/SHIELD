@@ -81,12 +81,16 @@
           {% if e.project_id %}<br><small>proj <code>{{ e.project_id[:8] }}</code></small>{% endif %}
         </td>
         <td>
+          {# Round-7 §6.6: lead with a one-sentence plain-English summary
+             so the column is readable. Raw JSON stays available behind
+             a "Show raw JSON" toggle for compliance auditors. #}
+          {{ e | audit_summary }}
           {% if e.details %}
-            <details>
-              <summary>{{ (e.details | tojson)[:60] }}…</summary>
+            <details style="margin-top:0.25rem;">
+              <summary><small>Show raw JSON</small></summary>
               <pre class="shield-body-text">{{ e.details | tojson(indent=2) }}</pre>
             </details>
-          {% else %}—{% endif %}
+          {% endif %}
         </td>
       </tr>
     {% else %}

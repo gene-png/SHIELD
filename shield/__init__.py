@@ -60,6 +60,20 @@ def create_app(config_object: type[Config] = Config) -> Flask:
         return (client.legal_name or "").strip() or client.name or ""
     app.jinja_env.filters["client_label"] = _client_label
 
+    # `audit_summary`: render an audit row's `details` dict as a single
+    # plain-English sentence. The raw JSON stays available on the page
+    # via a "Show raw JSON" toggle for compliance auditors who want the
+    # structured form. Round-7 §6.6.
+    from .spine.audit_render import render_audit_details as _render_audit_details
+
+    def _audit_summary(entry):
+        if entry is None:
+            return "—"
+        action = getattr(entry, "action", "") or ""
+        details = getattr(entry, "details", None)
+        return _render_audit_details(action, details)
+    app.jinja_env.filters["audit_summary"] = _audit_summary
+
     # --- Models must be imported before migrations ---
     from . import models  # noqa: F401
 
