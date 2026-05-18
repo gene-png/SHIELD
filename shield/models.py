@@ -108,6 +108,13 @@ class User(UserMixin, db.Model):
     # is purely a render-time hint for the client-side JS that converts
     # `<time datetime="...">` elements to local-time strings.
     timezone = Column(String(64))
+    # Round-7 §19: auto-progression. When True (default), the system
+    # auto-queues the next analytic step after the upstream artifact is
+    # saved (upload -> extract, review -> overlap, submit ZT -> analyze).
+    # Admins who want oversight on every step can flip this to False
+    # from /portal/settings. CLIENT users don't trigger any of these
+    # hooks today, so the column is effectively admin-facing.
+    auto_progress_workflows = Column(Boolean, default=True, nullable=False)
     role = Column(Enum(Role, name="user_role", values_callable=_enum_values), nullable=False, default=Role.CLIENT)
     is_active_flag = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -235,11 +235,23 @@ def upload(project_id: str):
     if not f:
         flash("No file selected.", "error")
         return redirect(url_for("p1.workspace", project_id=project.id))
-    write_human_artifact(
+    src = write_human_artifact(
         project=project, stage="raw_intake", title=title,
         file_stream=f.stream, filename=f.filename, mime_type=f.mimetype,
         actor=current_user,
     )
+    # Round-7 §19: auto-queue extraction unless the admin has opted out.
+    from ..spine.auto_progress import maybe_auto_progress_p1_after_upload
+    job = maybe_auto_progress_p1_after_upload(project, src, actor=current_user)
+    if job is not None:
+        flash(
+            f"Uploaded {title}. Reading it automatically — refreshing as it runs.",
+            "info",
+        )
+        return redirect(url_for(
+            "jobs.wait", job_id=job.id,
+            next=url_for("p1.workspace", project_id=project.id),
+        ))
     flash(f"Uploaded {title} to the human lane.", "info")
     return redirect(url_for("p1.workspace", project_id=project.id))
 
@@ -283,13 +295,26 @@ def review_extraction(project_id: str, ai_artifact_id: str):
         # than an empty string — downstream readers expect a JSON shape.
         if not confirmed:
             confirmed = "[]"
-        write_human_ai_informed_artifact(
+        review = write_human_ai_informed_artifact(
             project=project, stage="extraction_review",
             title=f"Admin-confirmed extraction (from {src.title})",
             body_text=confirmed,
             cites_artifact_ids=[src.id],
             actor=current_user,
         )
+        # Round-7 §19: auto-queue overlap analysis on the new review.
+        from ..spine.auto_progress import maybe_auto_progress_p1_after_review
+        job = maybe_auto_progress_p1_after_review(project, review, actor=current_user)
+        if job is not None:
+            flash(
+                "Saved the reviewed extraction. Running overlap analysis "
+                "automatically — refreshing as it runs.",
+                "info",
+            )
+            return redirect(url_for(
+                "jobs.wait", job_id=job.id,
+                next=url_for("p1.workspace", project_id=project.id),
+            ))
         flash("Admin-confirmed extraction recorded.", "info")
         return redirect(url_for("p1.workspace", project_id=project.id))
 

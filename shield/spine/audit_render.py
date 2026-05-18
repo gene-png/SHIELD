@@ -290,8 +290,15 @@ FORMATTERS: dict[str, _Formatter] = {
     "artifact.purged":                 _fmt_purged,
 }
 
+def _fmt_auto_progress(d: dict[str, Any]) -> str:
+    # Action name is "auto_progress.<what>_queued"; surface that as a
+    # sentence so the audit reader knows the system queued the step.
+    return "Auto-queued the next step on the happy path."
+
+
 _PREFIX_FORMATTERS: tuple[tuple[str, _Formatter], ...] = (
-    ("seed.", _fmt_seed),
+    ("seed.",          _fmt_seed),
+    ("auto_progress.", _fmt_auto_progress),
 )
 
 
