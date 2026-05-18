@@ -21,6 +21,43 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.2-rc2] — 2026-05-17 — round-4 sub-PR B: fulfill uses the shared partial
+
+Second of three round-4 sub-PRs. Refactors `/clients/<id>/requests/
+<id>/fulfill` to render the shared `project_create_form` partial
+with `lock_service=True` (service is fixed to the request's service)
+and `show_existing_radio=False` (this entry point creates a NEW
+project to satisfy the request).
+
+### Added — Zero Trust framework support on fulfill
+
+- Fulfilling a `zero_trust` ServiceRequest now requires picking a
+  framework (CISA ZTMM 2.0 / DoD ZT / NIST CSF 2.0). The framework
+  dropdown is conditionally shown by the partial's inline JS;
+  server-side validation rejects atomically when missing.
+
+### Changed — fulfill route shares the project-creation logic
+
+- POST now goes through `_create_project_from_form` (added in PR 4A),
+  which centralizes the service/name/framework validation. The
+  fulfill route adds the request-specific behavior on top:
+  `sr.fulfilled_project_id` linkage + notification fire.
+- Emits TWO audit rows now (matches the adopt-create-new path):
+  `project.created` (with `created_from='fulfill_flow'` +
+  `source_request_id`) and `client.service_request_fulfilled`.
+- Dropped the inline `client_display_name` field from the form;
+  admins set the optional client-facing label later from the
+  project workspace.
+
+### Tests
+
+- 182 → 184 passing. 2 new tests in
+  `tests/test_v18_round3_admin_actions.py` for the Zero Trust
+  framework requirement (without-framework rejects atomically,
+  with-framework succeeds). 5 existing fulfill tests updated for
+  the new form field name (`name` → `new_project_name`) + the
+  paired audit row.
+
 ## [1.8.2-rc1] — 2026-05-17 — round-4 sub-PR A: adopt becomes create-or-pick
 
 First of three round-4 sub-PRs. Replaces the existing-project-only

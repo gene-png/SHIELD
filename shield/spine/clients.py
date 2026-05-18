@@ -222,28 +222,39 @@ def fulfill_request(client_id: str, request_id: str):
     if client is None:
         abort(404)
 
+    from ..p2_zerotrust.frameworks import FRAMEWORKS
+
     if request.method == "POST":
-        name = (request.form.get("name") or "").strip()
-        client_display = (request.form.get("client_display_name") or "").strip() or None
-        if not name:
-            flash("Pick a project name first.", "error")
+        # Service is locked to the request's service (round-4 §3.2);
+        # _create_project_from_form respects default_service.
+        project, error = _create_project_from_form(
+            client, request.form, default_service=sr.service,
+        )
+        if error:
+            flash(error, "error")
             return redirect(url_for("clients.fulfill_request",
                                     client_id=client_id, request_id=request_id))
 
-        project = Project(
-            client_id=client.id,
-            platform=platform,
-            name=name,
-            stage="intake",
-            created_by_id=current_user.id,
-            client_display_name=client_display,
-        )
+        # Round-4 §3.2 keeps the shared partial minimal; admins set
+        # the optional client-facing label later from the project's
+        # workspace, not here.
         db.session.add(project)
         db.session.flush()   # need project.id for the FK below
 
         sr.fulfilled_project_id = project.id
-        db.session.commit()
 
+        log_audit(
+            "project.created",
+            actor=current_user,
+            target_type="project", target_id=project.id,
+            project_id=project.id, client_id=client.id,
+            details={
+                "platform": project.platform.value,
+                "created_from": "fulfill_flow",
+                "source_request_id": sr.id,
+                "framework": project.framework,
+            },
+        )
         log_audit(
             "client.service_request_fulfilled",
             actor=current_user,
@@ -260,29 +271,30 @@ def fulfill_request(client_id: str, request_id: str):
             client.id,
             event_type="client.service_request_fulfilled",
             title=f"Your {sr.service.replace('_', ' ')} project is starting.",
-            body=client_display or name,
+            body=project.name,
             link=url_for("portal.index"),
         )
         db.session.commit()
 
-        flash(f"Project '{name}' created. The client's dashboard will reflect it.", "info")
-        # Send the admin to the right platform's workspace.
-        endpoint = {
-            PlatformType.TECH_DEBT:      "p1.workspace",
-            PlatformType.ZERO_TRUST:     "p2.workspace",
-            PlatformType.ATTACK_SURFACE: "p3.workspace",
-        }[platform]
-        return redirect(url_for(endpoint, project_id=project.id))
+        flash(f"Project '{project.name}' created. The client's dashboard will reflect it.", "info")
+        return redirect(url_for(_WORKSPACE_ENDPOINT[platform], project_id=project.id))
 
-    # Default project name suggestion: "Org name — Service (yyyy-mm)".
-    from datetime import datetime as _dt
-    label = client.legal_name or client.name
-    suggested = f"{label} — {sr.service.replace('_', ' ').title()} "\
-                f"({_dt.utcnow().strftime('%Y-%m')})"
+    # Default project name suggestion follows the partial's pattern:
+    # "{client label} — {service display} {year}". Pre-populated into
+    # the partial's new_project_name input.
     return render_template(
         "clients/fulfill_request.html",
         client=client, request_=sr, platform=platform,
-        suggested_name=suggested,
+        frameworks=FRAMEWORKS,
+        # Shared-partial parameters for the fulfill case:
+        submit_url=url_for("clients.fulfill_request",
+                           client_id=client.id, request_id=sr.id),
+        cancel_url=url_for("clients.intake_view", client_id=client.id),
+        show_existing_radio=False,
+        lock_service=True,
+        default_service=sr.service,
+        submit_label_new=f"Create {sr.service.replace('_', ' ')} project",
+        now_year=datetime.utcnow().year,
     )
 
 

@@ -95,20 +95,27 @@ def test_queue_surfaces_open_request(admin_client, acme, open_request):
 def test_fulfill_creates_project_and_links_request(
     admin_client, acme, admin, open_request,
 ):
+    """Round-4 sub-PR B: the fulfill form now uses the shared partial.
+
+    Field names match `_components/project_create_form.html`:
+    `new_project_name`, `new_project_service` (locked → ignored by the
+    server which uses the request's service), etc.
+    """
     r = admin_client.post(
         f"/clients/{acme.id}/requests/{open_request.id}/fulfill",
-        data={"name": "Acme TD Q2", "client_display_name": "My TD review"},
+        data={"new_project_name": "Acme TD Q2"},
         follow_redirects=False,
     )
     assert r.status_code == 302
-    # Project exists, linked to the request, with the client-facing label.
     project = (
         db.session.query(Project)
         .filter_by(client_id=acme.id, platform=PlatformType.TECH_DEBT, name="Acme TD Q2")
         .first()
     )
     assert project is not None
-    assert project.client_display_name == "My TD review"
+    # client_display_name is no longer collected at fulfill time
+    # (round-4 §3.2 minimalism); admins set it from the workspace.
+    assert project.client_display_name is None
     refreshed = db.session.get(ServiceRequest, open_request.id)
     assert refreshed.fulfilled_project_id == project.id
     assert refreshed.is_fulfilled
@@ -117,8 +124,11 @@ def test_fulfill_creates_project_and_links_request(
 def test_fulfill_writes_audit_and_notification(
     admin_client, acme, admin, open_request, acme_member,
 ):
-    before_audit = db.session.query(AuditEntry).filter_by(
+    before_fulfilled = db.session.query(AuditEntry).filter_by(
         action="client.service_request_fulfilled",
+    ).count()
+    before_created = db.session.query(AuditEntry).filter_by(
+        action="project.created",
     ).count()
     before_notif = db.session.query(Notification).filter_by(
         user_id=acme_member.id,
@@ -126,12 +136,16 @@ def test_fulfill_writes_audit_and_notification(
     ).count()
     admin_client.post(
         f"/clients/{acme.id}/requests/{open_request.id}/fulfill",
-        data={"name": "Acme TD Q2"},
+        data={"new_project_name": "Acme TD Q2"},
     )
+    # Round-4: fulfill now emits BOTH project.created and
+    # client.service_request_fulfilled in the same transaction.
+    assert db.session.query(AuditEntry).filter_by(
+        action="project.created",
+    ).count() == before_created + 1
     assert db.session.query(AuditEntry).filter_by(
         action="client.service_request_fulfilled",
-    ).count() == before_audit + 1
-    # Client member receives a notification.
+    ).count() == before_fulfilled + 1
     assert db.session.query(Notification).filter_by(
         user_id=acme_member.id,
         event_type="client.service_request_fulfilled",
@@ -141,7 +155,7 @@ def test_fulfill_writes_audit_and_notification(
 def test_fulfill_requires_name(admin_client, acme, open_request):
     r = admin_client.post(
         f"/clients/{acme.id}/requests/{open_request.id}/fulfill",
-        data={"name": ""},
+        data={"new_project_name": ""},
         follow_redirects=False,
     )
     assert r.status_code == 302
@@ -155,7 +169,7 @@ def test_fulfill_rejects_unsure_request(admin_client, acme, unsure_request):
     should reply in messages or decline-with-reason."""
     r = admin_client.post(
         f"/clients/{acme.id}/requests/{unsure_request.id}/fulfill",
-        data={"name": "anything"},
+        data={"new_project_name": "anything"},
         follow_redirects=False,
     )
     assert r.status_code == 302
@@ -173,12 +187,12 @@ def test_fulfill_idempotent_on_already_fulfilled(
     # First fulfill — succeeds.
     admin_client.post(
         f"/clients/{acme.id}/requests/{open_request.id}/fulfill",
-        data={"name": "Acme TD Q2"},
+        data={"new_project_name": "Acme TD Q2"},
     )
     # Second attempt — flashes + redirects; no duplicate project.
     r = admin_client.post(
         f"/clients/{acme.id}/requests/{open_request.id}/fulfill",
-        data={"name": "Different Name"},
+        data={"new_project_name": "Different Name"},
         follow_redirects=False,
     )
     assert r.status_code == 302
@@ -244,10 +258,64 @@ def test_decline_requires_reason_at_least_10_chars(admin_client, acme, open_requ
 # Cross-client + RBAC
 # --------------------------------------------------------------------
 
+@pytest.fixture()
+def open_zt_request(app, acme, acme_member):
+    sr = ServiceRequest(
+        client_id=acme.id, requested_by=acme_member.id,
+        service="zero_trust",
+    )
+    db.session.add(sr)
+    db.session.commit()
+    return sr
+
+
+def test_fulfill_zero_trust_requires_framework(
+    admin_client, acme, open_zt_request,
+):
+    """Round-4 sub-PR B adds framework support to fulfill. Zero Trust
+    requests need a framework or the form rejects atomically."""
+    r = admin_client.post(
+        f"/clients/{acme.id}/requests/{open_zt_request.id}/fulfill",
+        data={"new_project_name": "Acme ZT 2026"},   # no framework
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    # Redirected back to the form, not the workspace.
+    assert "/fulfill" in r.headers["Location"]
+    refreshed = db.session.get(ServiceRequest, open_zt_request.id)
+    assert refreshed.is_open
+    assert db.session.query(Project).filter_by(
+        client_id=acme.id, name="Acme ZT 2026",
+    ).count() == 0
+
+
+def test_fulfill_zero_trust_with_framework_succeeds(
+    admin_client, acme, open_zt_request,
+):
+    r = admin_client.post(
+        f"/clients/{acme.id}/requests/{open_zt_request.id}/fulfill",
+        data={
+            "new_project_name": "Acme ZT 2026",
+            "new_project_framework": "nist_csf_v2",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    project = (
+        db.session.query(Project)
+        .filter_by(client_id=acme.id, name="Acme ZT 2026")
+        .first()
+    )
+    assert project is not None
+    assert project.framework == "nist_csf_v2"
+    refreshed = db.session.get(ServiceRequest, open_zt_request.id)
+    assert refreshed.fulfilled_project_id == project.id
+
+
 def test_fulfill_requires_admin_role(reviewer_client, acme, open_request):
     r = reviewer_client.post(
         f"/clients/{acme.id}/requests/{open_request.id}/fulfill",
-        data={"name": "anything"},
+        data={"new_project_name": "anything"},
         follow_redirects=False,
     )
     # @admin_only redirects/302s; either way not 200 + not created.
