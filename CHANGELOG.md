@@ -21,6 +21,45 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.2] — 2026-05-17 — round-4 sub-PR C: "Start a new project" entry point
+
+Final of three round-4 sub-PRs. Adds the third use of the shared
+`project_create_form` partial and finishes the round-4 doc's §3.
+
+### Added — client-detail entry point
+
+- `/clients/<id>/projects/new` — GET renders the shared partial
+  with `show_existing_radio=False`; POST creates the Project and
+  redirects to its workspace. Audited as `project.created` with
+  `created_from='client_detail'`. Admin-only.
+- `/clients/<id>` (client detail) page now shows a primary
+  **"+ Start a new project for this client"** button for admins,
+  alongside a secondary **View intake** link. Reviewers don't see
+  the button.
+
+### Round-4 complete
+
+Three sub-PRs stacked on `feat/v1.8-portal`:
+  `a146a66` (4A — adopt becomes create-or-pick)
+  `05f4f8e` (4B — fulfill uses the shared partial + ZT framework)
+  this commit (4C — client-detail "Start a new project")
+
+The 11-step adopt flow the doc identified is now a 1-POST flow. The
+same shared partial backs all three project-creation entry points,
+so changing copy or adding a field happens in one file. Zero Trust
+projects pick a framework at creation; Tech Debt and Attack Surface
+go straight to a named stage='intake' project. The integrity model
+(origin immutable, capability list linked later via the existing
+relink flow, no AI-reuse ack until the picker selects an AI-origin
+list) is unchanged.
+
+### Tests
+
+- 184 → 190 passing. 6 new in `tests/test_v18_round4_adopt_create.py`
+  for the client-detail entry point: GET renders form, POST creates,
+  Zero Trust without framework rejects atomically, admin-only RBAC,
+  client-detail button visible to admin / hidden from reviewer.
+
 ## [1.8.2-rc2] — 2026-05-17 — round-4 sub-PR B: fulfill uses the shared partial
 
 Second of three round-4 sub-PRs. Refactors `/clients/<id>/requests/

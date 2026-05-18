@@ -345,6 +345,90 @@ def test_adopt_requires_admin(reviewer_client, acme, acme_repo_with_file):
     assert r.status_code in (302, 403, 404)
 
 
+# --------------------------------------------------------------------
+# Sub-PR 4C: /clients/<id>/projects/new + "Start a new project" button
+# --------------------------------------------------------------------
+
+def test_new_project_for_client_get_renders_form(admin_client, acme):
+    r = admin_client.get(f"/clients/{acme.id}/projects/new")
+    assert r.status_code == 200
+    # Shared partial renders.
+    assert b'name="new_project_service"' in r.data
+    assert b'name="new_project_name"' in r.data
+    # Existing-project radio hidden in this entry point.
+    assert b'name="target"' not in r.data or b'value="existing"' not in r.data
+
+
+def test_new_project_for_client_post_creates_project(admin_client, acme):
+    r = admin_client.post(
+        f"/clients/{acme.id}/projects/new",
+        data={
+            "target": "new",
+            "new_project_service": "attack_surface",
+            "new_project_name": "Acme ATT&CK Q4 2026",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    project = (
+        db.session.query(Project)
+        .filter_by(client_id=acme.id, name="Acme ATT&CK Q4 2026")
+        .first()
+    )
+    assert project is not None
+    assert project.platform == PlatformType.ATTACK_SURFACE
+    assert project.stage == "intake"
+    # Audit row with the right `created_from`.
+    entry = (
+        db.session.query(AuditEntry)
+        .filter_by(action="project.created", target_id=project.id)
+        .first()
+    )
+    assert entry is not None
+    assert entry.details.get("created_from") == "client_detail"
+
+
+def test_new_project_for_client_zero_trust_requires_framework(admin_client, acme):
+    r = admin_client.post(
+        f"/clients/{acme.id}/projects/new",
+        data={
+            "target": "new",
+            "new_project_service": "zero_trust",
+            "new_project_name": "Acme ZT",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    assert "/projects/new" in r.headers["Location"]
+    assert db.session.query(Project).filter_by(
+        client_id=acme.id, name="Acme ZT",
+    ).count() == 0
+
+
+def test_new_project_for_client_admin_only(reviewer_client, acme):
+    r = reviewer_client.get(
+        f"/clients/{acme.id}/projects/new",
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 403, 404)
+
+
+def test_client_detail_page_shows_start_new_project_button_for_admin(
+    admin_client, acme,
+):
+    r = admin_client.get(f"/clients/{acme.id}")
+    assert r.status_code == 200
+    assert b"Start a new project" in r.data
+
+
+def test_client_detail_page_hides_button_for_reviewer(
+    reviewer_client, acme,
+):
+    r = reviewer_client.get(f"/clients/{acme.id}")
+    assert r.status_code == 200
+    assert b"Start a new project" not in r.data
+
+
 def test_adopt_existing_project_path_label_when_used(
     admin_client, acme, admin, acme_repo_with_file,
 ):

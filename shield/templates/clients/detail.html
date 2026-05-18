@@ -1,8 +1,22 @@
 {% extends "_layout/base.html" %}
-{% block title %}{{ client.name }} · SHIELD{% endblock %}
+{% block title %}{{ client | client_label }} &middot; SHIELD{% endblock %}
 {% block content %}
-<h1>{{ client.name }}</h1>
+<h1>{{ client | client_label }}</h1>
 <p>{{ client.industry or '' }}</p>
+
+{% if current_user.role.value == 'admin' %}
+  <p>
+    <a class="usa-button"
+       href="{{ url_for('clients.new_project_for_client', client_id=client.id) }}">
+      + Start a new project for this client
+    </a>
+    &middot;
+    <a class="usa-button usa-button--outline"
+       href="{{ url_for('clients.intake_view', client_id=client.id) }}">
+      View intake
+    </a>
+  </p>
+{% endif %}
 
 <h2>Capability lists</h2>
 <table class="usa-table usa-table--striped">

@@ -1,0 +1,21 @@
+{% extends "_layout/base.html" %}
+{% block title %}New project for {{ client | client_label }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:48rem;margin:0 auto;">
+  <a href="{{ url_for('clients.detail', client_id=client.id) }}">&larr; {{ client | client_label }}</a>
+</p>
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
+  <h1 class="shield-exec__headline">Start a new project for this client.</h1>
+  <p class="usa-prose">
+    Pick a service, name the project, and you'll land on the
+    workspace. Capability list and other configuration come later
+    from the workspace itself.
+  </p>
+
+  {% include "_components/project_create_form.html" with context %}
+</section>
+
+{% endblock %}

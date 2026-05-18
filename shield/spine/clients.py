@@ -585,6 +585,64 @@ def adopt_artifact(client_id: str, artifact_id: str):
                             client_id=client_id, artifact_id=artifact_id))
 
 
+@bp.route("/<client_id>/projects/new", methods=["GET", "POST"])
+@login_required
+@admin_only
+@require_client_for_param("client_id")
+def new_project_for_client(client_id: str):
+    """Admin entry point for creating a project from the client detail
+    page (round-4 §3.3). Same shared partial as adopt + fulfill, with
+    the existing-project branch hidden.
+
+    On submit: create the Project, redirect to its workspace. No
+    artifact adoption (this entry point isn't tied to a file).
+    """
+    from ..p2_zerotrust.frameworks import FRAMEWORKS
+    client = db.session.get(Client, client_id)
+    if client is None:
+        abort(404)
+
+    if request.method == "POST":
+        project, error = _create_project_from_form(client, request.form)
+        if error:
+            flash(error, "error")
+            return redirect(url_for("clients.new_project_for_client",
+                                    client_id=client_id))
+        db.session.add(project)
+        db.session.flush()
+        log_audit(
+            "project.created",
+            actor=current_user,
+            target_type="project", target_id=project.id,
+            project_id=project.id, client_id=client.id,
+            details={
+                "platform": project.platform.value,
+                "created_from": "client_detail",
+                "framework": project.framework,
+            },
+        )
+        db.session.commit()
+        flash(f"Created {project.name}.", "info")
+        return redirect(url_for(
+            _WORKSPACE_ENDPOINT[project.platform], project_id=project.id,
+        ))
+
+    return render_template(
+        "clients/new_project_for_client.html",
+        client=client,
+        frameworks=FRAMEWORKS,
+        submit_url=url_for("clients.new_project_for_client",
+                           client_id=client.id),
+        cancel_url=url_for("clients.detail", client_id=client.id),
+        show_existing_radio=False,
+        lock_service=False,
+        default_service="tech_debt",
+        submit_label_new="Create project",
+        existing_projects=[],
+        now_year=datetime.utcnow().year,
+    )
+
+
 @bp.route("/<client_id>")
 @login_required
 @require_client_for_param("client_id")
