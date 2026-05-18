@@ -2,19 +2,60 @@
 {% block title %}{{ project.name }} &middot; Tech Debt{% endblock %}
 {% block content %}
 
-{# Round-5 §6.1 rebuild: replace the 3-column lane view with a vertical
-   step flow. Each step shows a status (done / active / waiting), a
-   short recap of what's there, and a primary action button to the
-   right page. JSON dumps are gone — the readable_body partial handles
-   what little inline rendering is left. #}
+{# Round-5 §6.1 — vertical 4-step flow.
+   Each step is rendered inline (no string-built HTML inside {% set %};
+   that pattern collided with Jinja's autoescape and produced literal
+   <li>...</li> text on the page). #}
 
-{# Compute step state once at the top so the template body stays clean. #}
-{%- set sources = human -%}
+{# Pre-compute the artifact lists. #}
+{%- set sources    = human -%}
 {%- set extractions = ai | selectattr('stage', 'equalto', 'ai_extraction') | list -%}
-{%- set reviews    = informed | selectattr('stage', 'equalto', 'extraction_review') | list -%}
-{%- set overlaps   = ai | selectattr('stage', 'equalto', 'overlap_analysis') | list -%}
-{%- set chats      = ai | selectattr('stage', 'equalto', 'conversational_interrogation') | list -%}
-{%- set finals     = informed | selectattr('stage', 'equalto', 'admin_final') | list -%}
+{%- set reviews     = informed | selectattr('stage', 'equalto', 'extraction_review') | list -%}
+{%- set overlaps    = ai | selectattr('stage', 'equalto', 'overlap_analysis') | list -%}
+{%- set chats       = ai | selectattr('stage', 'equalto', 'conversational_interrogation') | list -%}
+{%- set finals      = informed | selectattr('stage', 'equalto', 'admin_final') | list -%}
+
+{# Step states. #}
+{%- if extractions or reviews or overlaps or finals -%}
+  {%- set s1_state = 'done' -%}
+{%- elif sources -%}
+  {%- set s1_state = 'active' -%}
+{%- else -%}
+  {%- set s1_state = 'waiting' -%}
+{%- endif -%}
+
+{%- if reviews -%}
+  {%- set s2_state = 'done' -%}
+{%- elif extractions -%}
+  {%- set s2_state = 'active' -%}
+{%- else -%}
+  {%- set s2_state = 'waiting' -%}
+{%- endif -%}
+
+{%- if overlaps -%}
+  {%- set s3_state = 'done' -%}
+{%- elif reviews -%}
+  {%- set s3_state = 'active' -%}
+{%- else -%}
+  {%- set s3_state = 'waiting' -%}
+{%- endif -%}
+
+{%- if finals -%}
+  {%- set s4_state = 'done' -%}
+{%- elif reviews -%}
+  {%- set s4_state = 'active' -%}
+{%- else -%}
+  {%- set s4_state = 'waiting' -%}
+{%- endif -%}
+
+{# Render-helper: friendly label for the "Step N · state" tag. #}
+{% macro state_label(state) -%}
+  {%- if state == 'done'      -%}done
+  {%- elif state == 'active'  -%}in progress
+  {%- elif state == 'waiting' -%}not yet
+  {%- else -%}{{ state }}
+  {%- endif -%}
+{%- endmacro %}
 
 <p style="max-width:64rem;margin:0 auto;">
   <a href="{{ url_for('p1.index') }}">&larr; Tech Debt</a>
@@ -38,68 +79,36 @@
   </h1>
 </section>
 
-{# Macro: render one step as a horizontal card with status pill,
-   recap, and primary action button. #}
-{% macro step_card(num, title, subtitle, state, recap, action_label=None, action_url=None) %}
-  {%- set state_class = {
-        'done':    'shield-step--done',
-        'active':  'shield-step--active',
-        'waiting': 'shield-step--waiting',
-      }.get(state, '') -%}
-  {%- set state_label = {
-        'done':    'done',
-        'active':  'in progress',
-        'waiting': 'not yet',
-      }.get(state, state) -%}
-  <div class="usa-card shield-step {{ state_class }}" style="margin-bottom:1rem;">
-    <p class="shield-card__tag">
-      <span class="usa-tag">Step {{ num }}</span>
-      <small class="usa-hint">&middot; {{ state_label }}</small>
-    </p>
-    <h2>{{ title }}</h2>
-    {% if subtitle %}<p class="usa-hint">{{ subtitle }}</p>{% endif %}
-    {% if recap %}<div class="usa-prose">{{ recap | safe }}</div>{% endif %}
-    {% if action_label and action_url %}
-      <p style="margin-top:.5rem;">
-        <a class="usa-button usa-button--small" href="{{ action_url }}">{{ action_label }}</a>
-      </p>
-    {% endif %}
-  </div>
-{% endmacro %}
-
 <div style="max-width:64rem;margin:0 auto;">
 
   {# ===== Step 1: Files uploaded ===== #}
-  {%- if sources -%}
-    {%- set s1_state = 'done' if extractions else 'active' -%}
-    {%- set s1_recap = '<ul class="usa-prose">' -%}
-    {%- for a in sources -%}
-      {%- set s1_recap = s1_recap ~ '<li><strong>' ~ (a.title | e) ~ '</strong>' -%}
-      {%- if not extractions -%}
-        {%- set s1_recap = s1_recap ~ ' &mdash; <em>ready for automated reading</em>' -%}
-      {%- endif -%}
-      {%- set s1_recap = s1_recap ~ '</li>' -%}
-    {%- endfor -%}
-    {%- set s1_recap = s1_recap ~ '</ul>' -%}
-  {%- else -%}
-    {%- set s1_state = 'active' -%}
-    {%- set s1_recap = '<p class="usa-hint">No client source documentation yet. Upload below.</p>' -%}
-  {%- endif -%}
+  <div class="usa-card shield-step shield-step--{{ s1_state }}" style="margin-bottom:1rem;">
+    <p class="shield-card__tag">
+      <span class="usa-tag">Step 1</span>
+      <small class="usa-hint">&middot; {{ state_label(s1_state) }}</small>
+    </p>
+    <h2>What the client gave us</h2>
+    <p class="usa-hint">Files uploaded to this project as source documentation.</p>
+    {% if sources %}
+      <ul class="usa-prose">
+        {% for a in sources %}
+          <li>
+            <strong>{{ a.title }}</strong>
+            {% if not extractions %}
+              &mdash; <em>ready for automated reading</em>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="usa-hint">No client source documentation yet. Upload below.</p>
+    {% endif %}
+  </div>
 
-  {{ step_card(
-       1,
-       "What the client gave us",
-       "Files uploaded to this project as source documentation.",
-       s1_state,
-       s1_recap,
-  ) }}
-
-  {# Inline upload component fits naturally here. #}
+  {# Inline upload component (always available). #}
   {% include "_components/attach.html" with context %}
 
   {% if sources and not extractions %}
-    {# When sources exist but no extraction has run yet, surface the
-       per-source "Run automated extraction" CTA prominently. #}
     <p class="usa-hint" style="margin:.25rem 0 1rem;">
       <strong>Next:</strong> kick off the automated reading on any source above.
     </p>
@@ -120,113 +129,102 @@
   {% endif %}
 
   {# ===== Step 2: Initial reading ===== #}
-  {%- if reviews -%}
-    {%- set s2_state = 'done' -%}
-    {%- set s2_recap_parts = [] -%}
-    {%- for r in reviews -%}
-      {%- set _ = s2_recap_parts.append('<li><strong>' ~ (r.title | e) ~ '</strong> &mdash; reviewed ' ~ r.created_at.strftime('%Y-%m-%d %H:%M') ~ '</li>') -%}
-    {%- endfor -%}
-    {%- set s2_recap = '<ul class="usa-prose">' ~ (s2_recap_parts | join('')) ~ '</ul>' -%}
-    {%- set s2_action = None -%}
-    {%- set s2_url = None -%}
-  {%- elif extractions -%}
-    {%- set s2_state = 'active' -%}
-    {%- set first_ext = extractions[0] -%}
-    {%- set s2_recap = '<p>Automated reading produced <strong>' ~ (first_ext.title | e) ~ '</strong>. Review the rows the analysis pulled out and correct anything before overlap.</p>' -%}
-    {%- set s2_action = 'Review and confirm' -%}
-    {%- set s2_url = url_for('p1.review_extraction', project_id=project.id, ai_artifact_id=first_ext.id) -%}
-  {%- elif sources -%}
-    {%- set s2_state = 'waiting' -%}
-    {%- set s2_recap = '<p class="usa-hint">Run automated reading on a source file above.</p>' -%}
-    {%- set s2_action = None -%}
-    {%- set s2_url = None -%}
-  {%- else -%}
-    {%- set s2_state = 'waiting' -%}
-    {%- set s2_recap = '<p class="usa-hint">Upload source documentation first.</p>' -%}
-    {%- set s2_action = None -%}
-    {%- set s2_url = None -%}
-  {%- endif -%}
+  <div class="usa-card shield-step shield-step--{{ s2_state }}" style="margin-bottom:1rem;">
+    <p class="shield-card__tag">
+      <span class="usa-tag">Step 2</span>
+      <small class="usa-hint">&middot; {{ state_label(s2_state) }}</small>
+    </p>
+    <h2>Initial reading</h2>
+    <p class="usa-hint">Automated extraction of items from the source documentation. Review for accuracy before overlap analysis.</p>
 
-  {{ step_card(
-       2,
-       "Initial reading",
-       "Automated extraction of items from the source documentation. Review for accuracy before overlap analysis.",
-       s2_state,
-       s2_recap,
-       action_label=s2_action,
-       action_url=s2_url,
-  ) }}
+    {% if reviews %}
+      <ul class="usa-prose">
+        {% for r in reviews %}
+          <li>
+            <strong>{{ r.title }}</strong> &mdash; reviewed {{ r.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% elif extractions %}
+      {% set first_ext = extractions[0] %}
+      <p>Automated reading produced <strong>{{ first_ext.title }}</strong>. Review the rows the analysis pulled out and correct anything before overlap.</p>
+      <p style="margin-top:.5rem;">
+        <a class="usa-button usa-button--small"
+           href="{{ url_for('p1.review_extraction', project_id=project.id, ai_artifact_id=first_ext.id) }}">
+          Review and confirm
+        </a>
+      </p>
+    {% elif sources %}
+      <p class="usa-hint">Run automated reading on a source file above.</p>
+    {% else %}
+      <p class="usa-hint">Upload source documentation first.</p>
+    {% endif %}
+  </div>
 
   {# ===== Step 3: Overlap and waste ===== #}
-  {%- if overlaps -%}
-    {%- set s3_state = 'done' -%}
-    {%- set s3_recap = '<p>Overlap analysis complete. The summary view groups findings by category, with estimated annual savings.</p>' -%}
-    {%- set s3_action = 'Open overlap dashboard' -%}
-    {%- set s3_url = url_for('p1.project_summary', project_id=project.id) -%}
-  {%- elif reviews -%}
-    {%- set s3_state = 'active' -%}
-    {%- set s3_recap = '<p>Run overlap analysis on the reviewed version to find redundant tools and consolidation savings.</p>' -%}
-    {%- set s3_action = None -%}
-    {%- set s3_url = None -%}
-  {%- else -%}
-    {%- set s3_state = 'waiting' -%}
-    {%- set s3_recap = '<p class="usa-hint">Finish the initial review first.</p>' -%}
-    {%- set s3_action = None -%}
-    {%- set s3_url = None -%}
-  {%- endif -%}
-
-  {{ step_card(
-       3,
-       "Overlap and waste",
-       "Group items by function and quantify duplicated spend.",
-       s3_state,
-       s3_recap,
-       action_label=s3_action,
-       action_url=s3_url,
-  ) }}
-
-  {% if reviews and not overlaps %}
-    {# Active CTA right under step 3 when the user is here. #}
-    <p style="margin:-.5rem 0 1rem;">
-      {% for r in reviews[:1] %}
-        <form method="POST"
-              action="{{ url_for('p1.overlap', project_id=project.id) }}"
-              style="display:inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="artifact_id" value="{{ r.id }}">
-          <button class="usa-button">Run overlap analysis</button>
-        </form>
-      {% endfor %}
+  <div class="usa-card shield-step shield-step--{{ s3_state }}" style="margin-bottom:1rem;">
+    <p class="shield-card__tag">
+      <span class="usa-tag">Step 3</span>
+      <small class="usa-hint">&middot; {{ state_label(s3_state) }}</small>
     </p>
-  {% endif %}
+    <h2>Overlap and waste</h2>
+    <p class="usa-hint">Group items by function and quantify duplicated spend.</p>
+
+    {% if overlaps %}
+      <p>Overlap analysis complete. The summary view groups findings by category, with estimated annual savings.</p>
+      <p style="margin-top:.5rem;">
+        <a class="usa-button usa-button--small"
+           href="{{ url_for('p1.project_summary', project_id=project.id) }}">
+          Open overlap dashboard &rarr;
+        </a>
+      </p>
+    {% elif reviews %}
+      <p>Run overlap analysis on the reviewed version to find redundant tools and consolidation savings.</p>
+      <p style="margin-top:.5rem;">
+        {% for r in reviews[:1] %}
+          <form method="POST"
+                action="{{ url_for('p1.overlap', project_id=project.id) }}"
+                style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="artifact_id" value="{{ r.id }}">
+            <button class="usa-button">Run overlap analysis</button>
+          </form>
+        {% endfor %}
+      </p>
+    {% else %}
+      <p class="usa-hint">Finish the initial review first.</p>
+    {% endif %}
+  </div>
 
   {# ===== Step 4: Final list ===== #}
-  {%- if finals -%}
-    {%- set s4_state = 'done' -%}
-    {%- set s4_url = url_for('repository.artifact_detail', artifact_id=finals[0].id) -%}
-    {%- set s4_action = 'View final list' -%}
-    {%- set s4_recap = '<p><strong>' ~ (finals[0].title | e) ~ '</strong> &mdash; finalized ' ~ finals[0].created_at.strftime('%Y-%m-%d %H:%M') ~ '.</p>' -%}
-  {%- elif reviews -%}
-    {%- set s4_state = 'active' -%}
-    {%- set s4_recap = '<p>Reconcile the reviewed version (and any committed chat findings) into the project\'s final capability list.</p>' -%}
-    {%- set s4_action = 'Finalize the list' -%}
-    {%- set s4_url = url_for('p1.finalize', project_id=project.id) -%}
-  {%- else -%}
-    {%- set s4_state = 'waiting' -%}
-    {%- set s4_recap = '<p class="usa-hint">Finish the initial review first.</p>' -%}
-    {%- set s4_action = None -%}
-    {%- set s4_url = None -%}
-  {%- endif -%}
+  <div class="usa-card shield-step shield-step--{{ s4_state }}" style="margin-bottom:1rem;">
+    <p class="shield-card__tag">
+      <span class="usa-tag">Step 4</span>
+      <small class="usa-hint">&middot; {{ state_label(s4_state) }}</small>
+    </p>
+    <h2>Final list</h2>
+    <p class="usa-hint">The reconciled capability list this project produces. Becomes a new versioned snapshot on the client.</p>
 
-  {{ step_card(
-       4,
-       "Final list",
-       "The reconciled capability list this project produces. Becomes a new versioned snapshot on the client.",
-       s4_state,
-       s4_recap,
-       action_label=s4_action,
-       action_url=s4_url,
-  ) }}
+    {% if finals %}
+      <p><strong>{{ finals[0].title }}</strong> &mdash; finalized {{ finals[0].created_at.strftime('%Y-%m-%d %H:%M') }}.</p>
+      <p style="margin-top:.5rem;">
+        <a class="usa-button usa-button--small"
+           href="{{ url_for('repository.artifact_detail', artifact_id=finals[0].id) }}">
+          View final list &rarr;
+        </a>
+      </p>
+    {% elif reviews %}
+      <p>Reconcile the reviewed version (and any committed chat findings) into the project&rsquo;s final capability list.</p>
+      <p style="margin-top:.5rem;">
+        <a class="usa-button usa-button--small"
+           href="{{ url_for('p1.finalize', project_id=project.id) }}">
+          Finalize the list &rarr;
+        </a>
+      </p>
+    {% else %}
+      <p class="usa-hint">Finish the initial review first.</p>
+    {% endif %}
+  </div>
 
 </div>
 

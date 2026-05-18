@@ -173,3 +173,37 @@ def test_workspace_does_not_render_old_3_column_labels(admin_client, p1_project)
     # The old column headings shouldn't be on the new step-flow layout.
     assert b"Automated drafts" not in r.data
     assert b"Your reviewed versions" not in r.data
+
+
+def test_workspace_does_not_leak_literal_html_tags(admin_client, p1_project, admin):
+    """Regression for the round-5 §6.1 bug where step recap text was
+    built up via Jinja {% set %} string concatenation. When `r.title`
+    was passed through `| e` and concatenated with literal '<li>'
+    fragments, Jinja autoescape kicked in on the LITERAL tags too,
+    leaking '&lt;ul&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;' as plain
+    text the user could read on screen.
+
+    The fix was to drop the string-build pattern and render the lists
+    inline in the template. This test pins that: visible body must
+    not contain literal HTML-tag fragments as escaped entities.
+    """
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="Admin-confirmed extraction (from AI extraction of inv.xlsx)",
+        body_text="[]", cites_artifact_ids=[], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    body = r.data
+    # If the bug regresses, we'd see things like:
+    #   "&lt;ul class=&#34;usa-prose&#34;&gt;&lt;li&gt;&lt;strong&gt;…"
+    for needle in (
+        b"&lt;ul",
+        b"&lt;li",
+        b"&lt;strong",
+        b"&lt;/li",
+        b"&lt;/ul",
+    ):
+        assert needle not in body, (
+            f"Literal HTML escape {needle!r} leaked into page body — "
+            "string-built recap regressed?"
+        )
