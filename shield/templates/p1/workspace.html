@@ -1,130 +1,251 @@
 {% extends "_layout/base.html" %}
-{% block title %}{{ project.name }} · Tech Debt{% endblock %}
+{% block title %}{{ project.name }} &middot; Tech Debt{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('p1.index') }}">&larr; Tech Debt</a></p>
-<h1>{{ project.name }}</h1>
-<p>
-  Client: <a href="{{ url_for('clients.detail', client_id=project.client_id) }}">{{ project.client.name }}</a>
-  &middot; Stage: <strong>{{ project.stage }}</strong>
-  {% if project.capability_snapshot %}
-    &middot; List: <a href="{{ url_for('clients.capability_list_detail', client_id=project.client_id, list_id=project.capability_snapshot.id) }}">v{{ project.capability_snapshot.version }}</a>
-  {% else %}
-    &middot; List: <em>not linked</em>
-  {% endif %}
-  {% if current_user.role.value in ('admin', 'reviewer') %}
-    &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Relink list →</a>
-  {% endif %}
+
+{# Round-5 §6.1 rebuild: replace the 3-column lane view with a vertical
+   step flow. Each step shows a status (done / active / waiting), a
+   short recap of what's there, and a primary action button to the
+   right page. JSON dumps are gone — the readable_body partial handles
+   what little inline rendering is left. #}
+
+{# Compute step state once at the top so the template body stays clean. #}
+{%- set sources = human -%}
+{%- set extractions = ai | selectattr('stage', 'equalto', 'ai_extraction') | list -%}
+{%- set reviews    = informed | selectattr('stage', 'equalto', 'extraction_review') | list -%}
+{%- set overlaps   = ai | selectattr('stage', 'equalto', 'overlap_analysis') | list -%}
+{%- set chats      = ai | selectattr('stage', 'equalto', 'conversational_interrogation') | list -%}
+{%- set finals     = informed | selectattr('stage', 'equalto', 'admin_final') | list -%}
+
+<p style="max-width:64rem;margin:0 auto;">
+  <a href="{{ url_for('p1.index') }}">&larr; Tech Debt</a>
 </p>
 
-{% set has_confirmed = informed | selectattr('stage', 'equalto', 'extraction_review') | list %}
-<p class="usa-button-group">
-  {% if has_overlap %}
-    <a class="usa-button usa-button--outline" href="{{ url_for('p1.project_summary', project_id=project.id) }}">
-      View project summary &rarr;
-    </a>
-  {% endif %}
-  {% if has_confirmed %}
-    <a class="usa-button" href="{{ url_for('p1.finalize', project_id=project.id) }}">
-      Finalize &mdash; produce admin-final capability list &rarr;
-    </a>
-  {% endif %}
-</p>
-
-<div class="grid-row grid-gap">
-  {# ============ Client source documentation lane ============ #}
-  <div class="tablet:grid-col-4">
-    <section class="shield-lane shield-lane--human">
-      <h3>Client source documentation</h3>
-      {% include "_components/attach.html" with context %}
-      {% if human %}
-        <ul>
-        {% for a in human %}
-          <li>
-            <strong><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></strong>
-            <form method="POST" action="{{ url_for('p1.extract', project_id=project.id) }}" style="display:inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="artifact_id" value="{{ a.id }}">
-              <button class="usa-button usa-button--small">→ Run automated extraction</button>
-            </form>
-          </li>
-        {% endfor %}
-        </ul>
-      {% else %}
-        <p>No client source documentation yet.</p>
-      {% endif %}
-    </section>
-  </div>
-
-  {# ============ Automated-analysis drafts ============ #}
-  <div class="tablet:grid-col-4">
-    <section class="shield-lane shield-lane--ai">
-      <h3>Automated drafts</h3>
-      {% if ai %}
-        <ul>
-        {% for a in ai %}
-          <li id="a-{{ a.id }}">
-            <strong><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></strong>
-            <span class="shield-picker__meta">
-              {% set origin = 'ai_generated' %}{% set reuse = a.reuse_status.value %}
-              {% include "_components/origin_badge.html" %}
-            </span>
-            {% set body_text = a.body_text %}
-            {% set truncate = 4000 %}
-            {% include "_components/readable_body.html" %}
-            {% if a.stage == 'ai_extraction' %}
-              <a class="usa-button usa-button--small" href="{{ url_for('p1.review_extraction', project_id=project.id, ai_artifact_id=a.id) }}">Review &amp; confirm</a>
-            {% endif %}
-          </li>
-        {% endfor %}
-        </ul>
-      {% else %}
-        <p>No drafts yet. Upload a source file, then run the automated extraction.</p>
-      {% endif %}
-    </section>
-  </div>
-
-  {# ============ Reviewed versions ============ #}
-  <div class="tablet:grid-col-4">
-    <section class="shield-lane shield-lane--promoted">
-      <h3>Your reviewed versions</h3>
-      {% if informed %}
-        <ul>
-        {% for a in informed %}
-          <li>
-            <strong><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></strong>
-            <form method="POST" action="{{ url_for('p1.overlap', project_id=project.id) }}" style="display:inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="artifact_id" value="{{ a.id }}">
-              <button class="usa-button usa-button--small">→ Run overlap analysis</button>
-            </form>
-          </li>
-        {% endfor %}
-        </ul>
-      {% else %}
-        <p>The admin-confirmed extraction lands here after review.</p>
-      {% endif %}
-    </section>
-  </div>
-</div>
-{% set upload_url = url_for('p1.upload', project_id=project.id) %}
-{% set project_name = project.name %}
-
-{# ============ Stage 5: Conversational interrogation ============ #}
-<section id="chat" class="shield-chat" style="margin-top:2rem;">
-  <h2>Conversation (workspace, not a report)</h2>
-  <p class="usa-prose">
-    Query your overlap findings. The conversation is a
-    <strong>scratchpad</strong>; nothing is recorded as a finding until
-    you explicitly commit it to the admin-final list.
+<section class="shield-exec" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">
+    {{ project.client | client_label }}
+    {% if project.capability_snapshot %}
+      &middot; List
+      <a href="{{ url_for('clients.capability_list_detail',
+                           client_id=project.client_id,
+                           list_id=project.capability_snapshot.id) }}">v{{ project.capability_snapshot.version }}</a>
+    {% endif %}
+    {% if current_user.role.value in ('admin', 'reviewer') %}
+      &middot; <a href="{{ url_for('projects.relink_capability_list', project_id=project.id) }}">Relink list &rarr;</a>
+    {% endif %}
   </p>
+  <h1 class="shield-exec__headline">
+    {{ project.client_display_name or project.name }}
+  </h1>
+</section>
 
-  {% set chats = ai | selectattr('stage', 'equalto', 'conversational_interrogation') | list %}
+{# Macro: render one step as a horizontal card with status pill,
+   recap, and primary action button. #}
+{% macro step_card(num, title, subtitle, state, recap, action_label=None, action_url=None) %}
+  {%- set state_class = {
+        'done':    'shield-step--done',
+        'active':  'shield-step--active',
+        'waiting': 'shield-step--waiting',
+      }.get(state, '') -%}
+  {%- set state_label = {
+        'done':    'done',
+        'active':  'in progress',
+        'waiting': 'not yet',
+      }.get(state, state) -%}
+  <div class="usa-card shield-step {{ state_class }}" style="margin-bottom:1rem;">
+    <p class="shield-card__tag">
+      <span class="usa-tag">Step {{ num }}</span>
+      <small class="usa-hint">&middot; {{ state_label }}</small>
+    </p>
+    <h2>{{ title }}</h2>
+    {% if subtitle %}<p class="usa-hint">{{ subtitle }}</p>{% endif %}
+    {% if recap %}<div class="usa-prose">{{ recap | safe }}</div>{% endif %}
+    {% if action_label and action_url %}
+      <p style="margin-top:.5rem;">
+        <a class="usa-button usa-button--small" href="{{ action_url }}">{{ action_label }}</a>
+      </p>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+<div style="max-width:64rem;margin:0 auto;">
+
+  {# ===== Step 1: Files uploaded ===== #}
+  {%- if sources -%}
+    {%- set s1_state = 'done' if extractions else 'active' -%}
+    {%- set s1_recap = '<ul class="usa-prose">' -%}
+    {%- for a in sources -%}
+      {%- set s1_recap = s1_recap ~ '<li><strong>' ~ (a.title | e) ~ '</strong>' -%}
+      {%- if not extractions -%}
+        {%- set s1_recap = s1_recap ~ ' &mdash; <em>ready for automated reading</em>' -%}
+      {%- endif -%}
+      {%- set s1_recap = s1_recap ~ '</li>' -%}
+    {%- endfor -%}
+    {%- set s1_recap = s1_recap ~ '</ul>' -%}
+  {%- else -%}
+    {%- set s1_state = 'active' -%}
+    {%- set s1_recap = '<p class="usa-hint">No client source documentation yet. Upload below.</p>' -%}
+  {%- endif -%}
+
+  {{ step_card(
+       1,
+       "What the client gave us",
+       "Files uploaded to this project as source documentation.",
+       s1_state,
+       s1_recap,
+  ) }}
+
+  {# Inline upload component fits naturally here. #}
+  {% include "_components/attach.html" with context %}
+
+  {% if sources and not extractions %}
+    {# When sources exist but no extraction has run yet, surface the
+       per-source "Run automated extraction" CTA prominently. #}
+    <p class="usa-hint" style="margin:.25rem 0 1rem;">
+      <strong>Next:</strong> kick off the automated reading on any source above.
+    </p>
+    <ul class="usa-prose">
+      {% for a in sources %}
+        <li>
+          <strong>{{ a.title }}</strong>
+          <form method="POST"
+                action="{{ url_for('p1.extract', project_id=project.id) }}"
+                style="display:inline;margin-left:.5rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="artifact_id" value="{{ a.id }}">
+            <button class="usa-button usa-button--small">Run automated reading</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {# ===== Step 2: Initial reading ===== #}
+  {%- if reviews -%}
+    {%- set s2_state = 'done' -%}
+    {%- set s2_recap_parts = [] -%}
+    {%- for r in reviews -%}
+      {%- set _ = s2_recap_parts.append('<li><strong>' ~ (r.title | e) ~ '</strong> &mdash; reviewed ' ~ r.created_at.strftime('%Y-%m-%d %H:%M') ~ '</li>') -%}
+    {%- endfor -%}
+    {%- set s2_recap = '<ul class="usa-prose">' ~ (s2_recap_parts | join('')) ~ '</ul>' -%}
+    {%- set s2_action = None -%}
+    {%- set s2_url = None -%}
+  {%- elif extractions -%}
+    {%- set s2_state = 'active' -%}
+    {%- set first_ext = extractions[0] -%}
+    {%- set s2_recap = '<p>Automated reading produced <strong>' ~ (first_ext.title | e) ~ '</strong>. Review the rows the analysis pulled out and correct anything before overlap.</p>' -%}
+    {%- set s2_action = 'Review and confirm' -%}
+    {%- set s2_url = url_for('p1.review_extraction', project_id=project.id, ai_artifact_id=first_ext.id) -%}
+  {%- elif sources -%}
+    {%- set s2_state = 'waiting' -%}
+    {%- set s2_recap = '<p class="usa-hint">Run automated reading on a source file above.</p>' -%}
+    {%- set s2_action = None -%}
+    {%- set s2_url = None -%}
+  {%- else -%}
+    {%- set s2_state = 'waiting' -%}
+    {%- set s2_recap = '<p class="usa-hint">Upload source documentation first.</p>' -%}
+    {%- set s2_action = None -%}
+    {%- set s2_url = None -%}
+  {%- endif -%}
+
+  {{ step_card(
+       2,
+       "Initial reading",
+       "Automated extraction of items from the source documentation. Review for accuracy before overlap analysis.",
+       s2_state,
+       s2_recap,
+       action_label=s2_action,
+       action_url=s2_url,
+  ) }}
+
+  {# ===== Step 3: Overlap and waste ===== #}
+  {%- if overlaps -%}
+    {%- set s3_state = 'done' -%}
+    {%- set s3_recap = '<p>Overlap analysis complete. The summary view groups findings by category, with estimated annual savings.</p>' -%}
+    {%- set s3_action = 'Open overlap dashboard' -%}
+    {%- set s3_url = url_for('p1.project_summary', project_id=project.id) -%}
+  {%- elif reviews -%}
+    {%- set s3_state = 'active' -%}
+    {%- set s3_recap = '<p>Run overlap analysis on the reviewed version to find redundant tools and consolidation savings.</p>' -%}
+    {%- set s3_action = None -%}
+    {%- set s3_url = None -%}
+  {%- else -%}
+    {%- set s3_state = 'waiting' -%}
+    {%- set s3_recap = '<p class="usa-hint">Finish the initial review first.</p>' -%}
+    {%- set s3_action = None -%}
+    {%- set s3_url = None -%}
+  {%- endif -%}
+
+  {{ step_card(
+       3,
+       "Overlap and waste",
+       "Group items by function and quantify duplicated spend.",
+       s3_state,
+       s3_recap,
+       action_label=s3_action,
+       action_url=s3_url,
+  ) }}
+
+  {% if reviews and not overlaps %}
+    {# Active CTA right under step 3 when the user is here. #}
+    <p style="margin:-.5rem 0 1rem;">
+      {% for r in reviews[:1] %}
+        <form method="POST"
+              action="{{ url_for('p1.overlap', project_id=project.id) }}"
+              style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="artifact_id" value="{{ r.id }}">
+          <button class="usa-button">Run overlap analysis</button>
+        </form>
+      {% endfor %}
+    </p>
+  {% endif %}
+
+  {# ===== Step 4: Final list ===== #}
+  {%- if finals -%}
+    {%- set s4_state = 'done' -%}
+    {%- set s4_url = url_for('repository.artifact_detail', artifact_id=finals[0].id) -%}
+    {%- set s4_action = 'View final list' -%}
+    {%- set s4_recap = '<p><strong>' ~ (finals[0].title | e) ~ '</strong> &mdash; finalized ' ~ finals[0].created_at.strftime('%Y-%m-%d %H:%M') ~ '.</p>' -%}
+  {%- elif reviews -%}
+    {%- set s4_state = 'active' -%}
+    {%- set s4_recap = '<p>Reconcile the reviewed version (and any committed chat findings) into the project\'s final capability list.</p>' -%}
+    {%- set s4_action = 'Finalize the list' -%}
+    {%- set s4_url = url_for('p1.finalize', project_id=project.id) -%}
+  {%- else -%}
+    {%- set s4_state = 'waiting' -%}
+    {%- set s4_recap = '<p class="usa-hint">Finish the initial review first.</p>' -%}
+    {%- set s4_action = None -%}
+    {%- set s4_url = None -%}
+  {%- endif -%}
+
+  {{ step_card(
+       4,
+       "Final list",
+       "The reconciled capability list this project produces. Becomes a new versioned snapshot on the client.",
+       s4_state,
+       s4_recap,
+       action_label=s4_action,
+       action_url=s4_url,
+  ) }}
+
+</div>
+
+{# ===== Optional: chat scratchpad ===== #}
+{% if reviews %}
+<section id="chat" class="shield-chat" style="max-width:64rem;margin:2rem auto;">
+  <h2>Questions for the overlap findings</h2>
+  <p class="usa-prose">
+    Ask anything &mdash; "what would consolidating these three SIEMs save?",
+    "any AV products we can retire?" &mdash; against the reviewed version.
+    Answers are a <strong>scratchpad</strong>; nothing lands in the final
+    list unless you explicitly commit it.
+  </p>
 
   <form method="POST" action="{{ url_for('p1.chat', project_id=project.id) }}" class="usa-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="usa-label" for="question">Ask</label>
     <textarea class="usa-textarea" id="question" name="question" rows="3"
-              placeholder="e.g. Show everything that overlaps our SIEM spend. What would consolidating these three save?"></textarea>
+              placeholder="e.g. Which categories have more than one tool?"></textarea>
     <button class="usa-button" type="submit">Ask</button>
   </form>
 
@@ -135,11 +256,7 @@
         <li class="shield-chat__exchange">
           <p>
             <strong><a href="{{ url_for('repository.artifact_detail', artifact_id=c.id) }}">{{ c.title }}</a></strong>
-            <span class="shield-picker__meta">
-              {% set origin = 'ai_generated' %}{% set reuse = c.reuse_status.value %}
-              {% include "_components/origin_badge.html" %}
-            </span>
-            <em>{{ c.created_at.strftime('%H:%M') }}</em>
+            <em>&middot; {{ c.created_at.strftime('%H:%M') }}</em>
           </p>
           {% set body_text = c.body_text %}
           {% set truncate = 3000 %}
@@ -153,7 +270,7 @@
             <input class="usa-input" id="note-{{ c.id }}" name="note" type="text"
                    placeholder="Why this matters to the final list" required>
             <button class="usa-button usa-button--small" type="submit">
-              Commit to admin-final
+              Commit to final list
             </button>
           </form>
         </li>
@@ -161,4 +278,9 @@
     </ol>
   {% endif %}
 </section>
+{% endif %}
+
+{% set upload_url = url_for('p1.upload', project_id=project.id) %}
+{% set project_name = project.name %}
+
 {% endblock %}
