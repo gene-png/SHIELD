@@ -150,16 +150,34 @@ def _keycloak_end_session_url(post_logout_redirect_uri: str,
                               id_token_hint: str | None) -> str:
     """Construct the Keycloak RP-initiated-logout URL.
 
+    Discovers the end-session endpoint from Keycloak's well-known
+    metadata. The dev compose stack uses `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true`
+    so the metadata fetched over the internal Docker hostname
+    (`http://keycloak:8080`) returns FRONT-channel URLs (authorize,
+    end_session) pointing at the browser-reachable hostname
+    (`http://localhost:8080`). Building the URL by hand from
+    KEYCLOAK_URL would produce a back-channel URL the browser can't
+    resolve.
+
     Keycloak 18+ requires either `id_token_hint` or `client_id` plus
     the user's confirmation. We pass `id_token_hint` so the logout
     happens without an extra Keycloak-side confirmation screen.
     """
     from urllib.parse import urlencode
-    base = (
-        f"{current_app.config['KEYCLOAK_URL']}"
-        f"/realms/{current_app.config['KEYCLOAK_REALM']}"
-        f"/protocol/openid-connect/logout"
-    )
+    try:
+        meta = _oauth_client().load_server_metadata()
+        base = meta.get("end_session_endpoint")
+    except Exception:
+        base = None
+    if not base:
+        # Fallback: build from KEYCLOAK_URL. Right in environments
+        # where the browser shares the back-channel hostname (rare in
+        # dev, common in pure cloud deploys behind one ingress).
+        base = (
+            f"{current_app.config['KEYCLOAK_URL']}"
+            f"/realms/{current_app.config['KEYCLOAK_REALM']}"
+            f"/protocol/openid-connect/logout"
+        )
     params = {"post_logout_redirect_uri": post_logout_redirect_uri}
     if id_token_hint:
         params["id_token_hint"] = id_token_hint

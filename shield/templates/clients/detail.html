@@ -117,6 +117,22 @@
                  href="{{ url_for(blueprint ~ '.' ~ action_endpoint, project_id=p.id) }}">
                 {{ action_label }}
               </a>
+              {% if current_user.role.value == 'admin' %}
+                {# Round-7 §17 archive button — outline / small so it
+                   doesn't compete with the primary verb. Purge lives
+                   on the archived list to make it a deliberate move. #}
+                <form method="POST"
+                      action="{{ url_for('lifecycle.project_archive', project_id=p.id) }}"
+                      style="display:inline;margin-left:.5rem;"
+                      onsubmit="return confirm('Archive “{{ p.name }}”? You can restore it from the Archived list below.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="reason" value="archived via client-detail page">
+                  <button class="usa-button usa-button--small usa-button--outline"
+                          title="Soft-delete; reversible from the Archived list">
+                    Archive
+                  </button>
+                </form>
+              {% endif %}
             </p>
           </div>
         </div>
@@ -133,16 +149,63 @@
   {% if archived_projects %}
     <details style="margin-top:1rem;">
       <summary><small>Archived projects ({{ archived_projects | length }})</small></summary>
-      <ul class="usa-prose">
-        {% for p in archived_projects %}
-          <li>
-            <a href="{{ url_for(platform_blueprint.get(p.platform.value, 'p1') ~ '.workspace', project_id=p.id) }}">
-              {{ p.client_display_name or p.name }}
-            </a>
-            <small>&middot; {{ service_labels.get(p.platform.value, p.platform.value) }} &middot; archived</small>
-          </li>
-        {% endfor %}
-      </ul>
+      <table class="usa-table usa-table--striped" style="margin-top:.5rem;">
+        <thead>
+          <tr>
+            <th>Project</th><th>Service</th><th>Status</th>
+            {% if current_user.role.value == 'admin' %}<th>Admin</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in archived_projects %}
+            <tr>
+              <td>
+                <a href="{{ url_for(platform_blueprint.get(p.platform.value, 'p1') ~ '.workspace', project_id=p.id) }}">
+                  {{ p.client_display_name or p.name }}
+                </a>
+              </td>
+              <td>{{ service_labels.get(p.platform.value, p.platform.value) }}</td>
+              <td>
+                {% if p.lifecycle_state == 'purged' %}
+                  <span class="usa-tag" style="background:#5c5c5c;">Purged</span>
+                  {% if p.purged_reason %}<small class="usa-hint">{{ p.purged_reason }}</small>{% endif %}
+                {% else %}
+                  <span class="usa-tag">Archived</span>
+                {% endif %}
+              </td>
+              {% if current_user.role.value == 'admin' %}
+                <td>
+                  {% if p.lifecycle_state == 'archived' %}
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.project_unarchive', project_id=p.id) }}"
+                          style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="usa-button usa-button--small usa-button--outline">Restore</button>
+                    </form>
+                    {# Purge is the high-friction admin verb — confirmation
+                       phrase must match the project name. We surface it as
+                       a small inline form rather than a button so the
+                       typed-confirmation is unavoidable. #}
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.project_purge', project_id=p.id) }}"
+                          style="display:inline;margin-left:.5rem;"
+                          onsubmit="return confirm('PURGE permanently removes “{{ p.name }}” and every file in it from disk. Audit history stays. Continue?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input class="usa-input usa-input--small" type="text"
+                             name="confirmation_phrase"
+                             placeholder='Type "{{ p.name }}" to purge'
+                             style="width:14rem;display:inline-block;vertical-align:middle;">
+                      <input type="hidden" name="reason" value="purged via client-detail page">
+                      <button class="usa-button usa-button--small usa-button--secondary"
+                              style="background:#b50909;">Purge</button>
+                    </form>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </details>
   {% endif %}
 </section>

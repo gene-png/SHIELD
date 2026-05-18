@@ -365,10 +365,208 @@ def documents_upload():
 # Confirm (step 4 of intake) — "got it, we'll be in touch"
 # ====================================================================
 
+# ====================================================================
+# Zero Trust questionnaire — the client-facing entry point.
+#
+# Round-7: after intake the client should immediately be able to start
+# answering the Zero Trust questions, not bounce to a dashboard with
+# nothing to do. The existing P2 routes are admin-only; this is the
+# matching client-side surface. Same QuestionnaireResponse table,
+# same control catalog, locked at submit just like the P2 flow.
+# ====================================================================
+
+_VALID_ANSWERS = {"implemented", "partial", "not_implemented", "na"}
+
+
+def _find_or_create_zt_project(client) -> Project:
+    """Resolve the client's Zero Trust project, creating one if missing.
+
+    Picks the framework from `client.compliance_frameworks` when
+    available so an HHS-adjacent client lands on CSF and a federal
+    civilian client lands on CISA ZTMM. Falls back to CISA ZTMM 2.0
+    as the safe default.
+    """
+    p = (
+        db.session.query(Project)
+        .filter(Project.client_id == client.id,
+                Project.platform == PlatformType.ZERO_TRUST,
+                Project.archived.is_(False),
+                Project.is_client_repository.is_(False))
+        .order_by(Project.created_at.desc())
+        .first()
+    )
+    if p is not None:
+        return p
+    # Compliance hint → framework choice (defaults to CISA ZTMM).
+    frameworks = list(client.compliance_frameworks or [])
+    if "nist_csf" in frameworks:
+        framework = "nist_csf_v2"
+    elif "dod_zt" in frameworks:
+        framework = "dod_zt"
+    else:
+        framework = "cisa_ztmm_v2"
+    p = Project(
+        client_id=client.id,
+        platform=PlatformType.ZERO_TRUST,
+        name=f"{client.legal_name or client.name} — Zero Trust",
+        stage="intake",
+        framework=framework,
+        created_by_id=current_user.id if current_user.is_authenticated else None,
+    )
+    db.session.add(p)
+    db.session.commit()
+    log_audit(
+        "project.create",
+        actor=current_user if current_user.is_authenticated else None,
+        target_type="project", target_id=p.id,
+        project_id=p.id, client_id=client.id,
+        details={
+            "platform": "zero_trust",
+            "framework": framework,
+            "created_from": "portal_zero_trust",
+            "name": p.name,
+        },
+    )
+    return p
+
+
+@bp.route("/zero-trust", methods=["GET"])
+@login_required
+def zero_trust():
+    """Client-side Zero Trust questionnaire.
+
+    Resolves or creates a ZT project for the client, then renders the
+    framework's controls as a one-question-per-row form. Each answer
+    auto-saves on change; the client locks the answers explicitly with
+    a "Submit final answers" button at the bottom.
+    """
+    from ..models import QuestionnaireResponse
+    from ..p2_zerotrust.frameworks import FRAMEWORKS
+    client = _require_client(_current_client())
+    if "zero_trust" not in (client.service_interests or []):
+        flash(
+            "Zero Trust isn't one of your selected services. "
+            "Add it from the services page if you'd like to start.",
+            "info",
+        )
+        return redirect(url_for("portal.services"))
+    project = _find_or_create_zt_project(client)
+    framework = FRAMEWORKS.get(project.framework or "cisa_ztmm_v2")
+    responses = {
+        r.control_id: r
+        for r in db.session.query(QuestionnaireResponse)
+                  .filter_by(project_id=project.id)
+    }
+    is_submitted = project.stage == "submitted"
+    return render_template(
+        "portal/zero_trust.html",
+        client=client, project=project, framework=framework,
+        responses=responses, is_submitted=is_submitted,
+        valid_answers=sorted(_VALID_ANSWERS),
+    )
+
+
+@bp.route("/zero-trust/answer", methods=["POST"])
+@login_required
+def zero_trust_answer():
+    """Save a single answer. Mirrors p2.answer but CLIENT-allowed.
+
+    Trust tier is always CLIENT_ASSERTED here — only the admin
+    workspace creates ADMIN_ASSISTED rows. Locked responses refuse
+    edits with a flash + redirect.
+    """
+    from ..models import QuestionnaireResponse, TrustTier
+    client = _require_client(_current_client())
+    project = _find_or_create_zt_project(client)
+    if project.stage == "submitted":
+        flash("Answers are submitted and locked.", "error")
+        return redirect(url_for("portal.zero_trust"))
+    control_id = (request.form.get("control_id") or "").strip()
+    ans = (request.form.get("answer") or "").strip()
+    rationale = (request.form.get("rationale") or "").strip()
+    if not control_id or ans not in _VALID_ANSWERS:
+        flash("Pick a valid answer.", "error")
+        return redirect(url_for("portal.zero_trust") + f"#c-{control_id}")
+    existing = (
+        db.session.query(QuestionnaireResponse)
+        .filter_by(project_id=project.id, control_id=control_id)
+        .one_or_none()
+    )
+    if existing and existing.locked:
+        flash("That answer is locked.", "error")
+        return redirect(url_for("portal.zero_trust") + f"#c-{control_id}")
+    if existing:
+        existing.answer = ans
+        existing.rationale = rationale
+        existing.trust_tier = TrustTier.CLIENT_ASSERTED
+        existing.attributed_user_id = current_user.id
+    else:
+        db.session.add(QuestionnaireResponse(
+            project_id=project.id,
+            framework=project.framework or "cisa_ztmm_v2",
+            control_id=control_id,
+            answer=ans,
+            rationale=rationale,
+            trust_tier=TrustTier.CLIENT_ASSERTED,
+            attributed_user_id=current_user.id,
+        ))
+    db.session.commit()
+    flash("Answer saved.", "info")
+    return redirect(url_for("portal.zero_trust") + f"#c-{control_id}")
+
+
+@bp.route("/zero-trust/submit", methods=["POST"])
+@login_required
+def zero_trust_submit():
+    """Lock every answer and stamp the project as submitted.
+
+    Mirrors p2.submit's contract — once locked, attribution is
+    immutable. The auto-progress hook then queues the current-state
+    assessment if the admin has it enabled.
+    """
+    from ..models import QuestionnaireResponse
+    client = _require_client(_current_client())
+    project = _find_or_create_zt_project(client)
+    if project.stage == "submitted":
+        flash("Answers are already submitted.", "info")
+        return redirect(url_for("portal.zero_trust"))
+    now = datetime.utcnow()
+    locked = 0
+    for r in (db.session.query(QuestionnaireResponse)
+              .filter_by(project_id=project.id, locked=False)):
+        r.locked = True
+        r.submitted_at = now
+        locked += 1
+    project.stage = "submitted"
+    db.session.commit()
+    log_audit(
+        "p2.submit",
+        actor=current_user,
+        target_type="project", target_id=project.id,
+        project_id=project.id, client_id=project.client_id,
+        details={"locked_responses": locked, "submitted_via": "portal"},
+    )
+    # Auto-progress: kick off the current-state assessment.
+    from .auto_progress import maybe_auto_progress_p2_after_submit
+    maybe_auto_progress_p2_after_submit(project, actor=current_user)
+    flash(
+        f"Submitted {locked} answer(s). Your consultant will review "
+        "and run the current-state assessment next.",
+        "info",
+    )
+    return redirect(url_for("portal.index"))
+
+
 @bp.route("/confirm", methods=["GET", "POST"])
 @login_required
 def confirm():
-    """Final step of the wizard. POST marks `intake_completed_at`."""
+    """Final step of the wizard. POST marks `intake_completed_at`.
+
+    Round-7: if Zero Trust is one of the client's selected services,
+    route them straight into the questionnaire so the engagement
+    starts immediately instead of dead-ending on the dashboard with
+    nothing to do.
+    """
     client = _require_client(_current_client())
 
     if request.method == "POST":
@@ -385,6 +583,8 @@ def confirm():
                     "has_primary_poc_email": bool(client.primary_poc_email),
                 },
             )
+        if "zero_trust" in (client.service_interests or []):
+            return redirect(url_for("portal.zero_trust"))
         return redirect(url_for("portal.index"))
 
     return render_template("portal/confirm.html", client=client)
@@ -742,6 +942,18 @@ def services_request():
         if admins:
             db.session.commit()
 
+        # Round-7: for Zero Trust the client can start answering questions
+        # immediately — no need to wait on admin fulfillment. The admin
+        # notification still fires above so they know to engage; the
+        # client meanwhile has a task to do rather than a static
+        # "Requested" card on the dashboard.
+        if service == "zero_trust":
+            flash(
+                "Request submitted — and we've started your questionnaire "
+                "below. Your consultant will reach out about next steps.",
+                "info",
+            )
+            return redirect(url_for("portal.zero_trust"))
         flash("Request submitted. Your consultant will reach out within one business day.", "info")
         return redirect(url_for("portal.index"))
 

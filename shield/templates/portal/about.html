@@ -13,7 +13,16 @@
 
   {# Per-field HTMX endpoint hits /portal/about/field with
      name=<column>, value=<text>. On blur. Server returns a small
-     "saved" pip we drop next to the field. #}
+     "saved" pip we drop next to the field. Server returns a small
+     "saved" pip we drop next to the field.
+
+     `hx-include="this"` is load-bearing: by default HTMX includes
+     every input in the enclosing form, and every input below shares
+     name="value", so the server's request.form.get("value") would
+     pick the FIRST one (legal_name) regardless of which field the
+     user is editing. "this" scopes the include to just the triggering
+     element, so each blur sends one value/name pair for that field
+     only. #}
   {% macro field(name, label, type="text", placeholder="") %}
     <label class="usa-label" for="f-{{ name }}">{{ label }}</label>
     <div class="shield-portal-field">
@@ -23,6 +32,7 @@
              placeholder="{{ placeholder }}"
              hx-post="{{ url_for('portal.about_field') }}"
              hx-trigger="blur changed"
+             hx-include="this"
              hx-vals='{"name": "{{ name }}"}'
              hx-target="next .shield-portal-saved-host"
              hx-swap="innerHTML">

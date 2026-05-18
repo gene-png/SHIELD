@@ -65,4 +65,59 @@
     <em>Only admin or reviewer roles can approve drafts for reuse.</em>
   </p>
 {% endif %}
+
+{# Round-7 §17 admin lifecycle controls. Archive is the default verb;
+   purge requires a typed confirmation phrase matching the artifact's
+   title and physically removes the file from disk. Audit row stays. #}
+{% if current_user.role.value == 'admin' %}
+  <section style="margin-top:2rem;border-top:1px solid #dfe1e2;padding-top:1rem;">
+    <h2><small>Admin lifecycle</small></h2>
+    {% if art.lifecycle_state == 'purged' %}
+      <p class="usa-alert usa-alert--info usa-alert--slim">
+        <span class="usa-alert__body">
+          <span class="usa-alert__text">
+            <strong>Purged.</strong>
+            {% if art.purged_reason %}{{ art.purged_reason }}{% endif %}
+            File on disk was removed; the audit trail still references
+            this row.
+          </span>
+        </span>
+      </p>
+    {% elif art.archived %}
+      <p>This artifact is <strong>archived</strong> and hidden from the
+        default repository view.</p>
+      <form method="POST"
+            action="{{ url_for('lifecycle.artifact_unarchive', artifact_id=art.id) }}"
+            style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="usa-button usa-button--small usa-button--outline">Restore</button>
+      </form>
+      <form method="POST"
+            action="{{ url_for('lifecycle.artifact_purge', artifact_id=art.id) }}"
+            style="display:inline;margin-left:.5rem;"
+            onsubmit="return confirm('PURGE permanently removes “{{ art.title }}” and its file on disk. Audit history stays. Continue?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="usa-input usa-input--small" type="text"
+               name="confirmation_phrase"
+               placeholder='Type "{{ art.title }}" to purge'
+               style="width:18rem;display:inline-block;vertical-align:middle;">
+        <input type="hidden" name="reason" value="purged via artifact-detail">
+        <button class="usa-button usa-button--small usa-button--secondary"
+                style="background:#b50909;">Purge</button>
+      </form>
+    {% else %}
+      <form method="POST"
+            action="{{ url_for('lifecycle.artifact_archive', artifact_id=art.id) }}"
+            class="usa-form usa-form--inline"
+            onsubmit="return confirm('Archive “{{ art.title }}”? Reversible from the repository browse with show_archived=1.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="usa-input usa-input--small" type="text"
+               name="reason"
+               placeholder="Reason (optional)"
+               style="min-width:18rem;">
+        <button class="usa-button usa-button--small usa-button--outline">Archive</button>
+      </form>
+    {% endif %}
+  </section>
+{% endif %}
 {% endblock %}
