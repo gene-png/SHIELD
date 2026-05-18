@@ -12,6 +12,8 @@ v1.8 PR 5 additions:
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from flask import (
     Blueprint,
     Response,
@@ -382,48 +384,193 @@ def intake_view(client_id: str):
     )
 
 
-@bp.route("/<client_id>/adopt-artifact/<artifact_id>", methods=["POST"])
+# Maps a service string to the corresponding PlatformType. Also used
+# by the post-submit redirect to figure out which workspace endpoint
+# to send the admin to. Kept module-level so fulfill / create-from-
+# client-detail can share it.
+_SERVICE_PLATFORM_PAIRS = (
+    ("tech_debt",      PlatformType.TECH_DEBT,      "p1.workspace"),
+    ("zero_trust",     PlatformType.ZERO_TRUST,     "p2.workspace"),
+    ("attack_surface", PlatformType.ATTACK_SURFACE, "p3.workspace"),
+)
+_PLATFORM_BY_SERVICE = {svc: plat for svc, plat, _ in _SERVICE_PLATFORM_PAIRS}
+_WORKSPACE_ENDPOINT = {plat: ep for _, plat, ep in _SERVICE_PLATFORM_PAIRS}
+
+
+def _create_project_from_form(client, form, default_service=None):
+    """Build (but don't commit) a Project from the shared create-form.
+
+    Returns (project, error) — error is a flash-able string on failure,
+    None on success. The caller commits within the request transaction.
+
+    Validates:
+      - service must be one of the three platform keys (default_service
+        overrides what's on the form, for fulfill / locked-service flows)
+      - name must be non-empty
+      - zero_trust must have a framework set
+    """
+    from ..p2_zerotrust.frameworks import FRAMEWORKS
+    service = (form.get("new_project_service") or default_service or "").strip()
+    if service not in _PLATFORM_BY_SERVICE:
+        return None, "Pick a service for the new project."
+    name = (form.get("new_project_name") or "").strip()
+    if not name:
+        return None, "Project name can't be empty."
+    framework = None
+    if service == "zero_trust":
+        framework = (form.get("new_project_framework") or "").strip() or None
+        if not framework:
+            return None, "Pick a framework for the Zero Trust assessment."
+        if framework not in FRAMEWORKS:
+            return None, "That framework isn't one of the supported options."
+    project = Project(
+        client_id=client.id,
+        platform=_PLATFORM_BY_SERVICE[service],
+        name=name,
+        stage="intake",
+        framework=framework,
+        created_by_id=current_user.id,
+    )
+    return project, None
+
+
+@bp.route("/<client_id>/adopt-artifact/<artifact_id>", methods=["GET", "POST"])
 @login_required
 @admin_only
 @require_client_for_param("client_id")
 def adopt_artifact(client_id: str, artifact_id: str):
-    """Link a client-repository artifact to a real Project.
+    """Adopt a client-repository file into a project.
 
-    The artifact stays origin=human_input (origin is immutable per the
-    integrity model — and the trigger would reject a change anyway).
-    Only project_id moves. Audited as `artifact.adopted_into_project`.
+    Round-4 refactor: GET renders a create-or-pick form so admins can
+    create the receiving project inline. POST handles both target
+    values atomically — if `target=new`, the Project is created in the
+    same transaction as the artifact's project_id update.
+
+    Origin stays HUMAN_INPUT regardless of path (origin is immutable
+    and the trigger would refuse a change anyway). Per round-4 chat
+    answer we keep stage='client_repository' to preserve the
+    provenance signal; the audit row records prior_stage either way.
     """
-    target_project_id = (request.form.get("project_id") or "").strip()
-    target_project = db.session.get(Project, target_project_id) if target_project_id else None
-    if target_project is None or target_project.client_id != client_id \
-       or target_project.is_client_repository:
-        flash("Pick a real project to adopt the file into.", "error")
-        return redirect(url_for("clients.intake_view", client_id=client_id))
-
+    from ..p2_zerotrust.frameworks import FRAMEWORKS
     art = db.session.get(Artifact, artifact_id)
     if art is None or art.client_id != client_id:
         abort(404)
+    client = db.session.get(Client, client_id)
+    if client is None:
+        abort(404)
 
-    previous_project_id = art.project_id
-    art.project_id = target_project.id
-    # Keep `stage` whatever it was when it landed — typically
-    # 'client_repository'. The route layer of the receiving project
-    # can re-stage it later via its own writers.
-    db.session.commit()
+    existing_projects = [
+        p for p in client.projects
+        if not p.is_client_repository and not p.archived
+    ]
+    existing_projects.sort(key=lambda p: p.created_at, reverse=True)
 
-    log_audit(
-        "artifact.adopted_into_project",
-        actor=current_user,
-        target_type="artifact", target_id=art.id,
-        project_id=target_project.id, client_id=client_id,
-        details={
-            "from_project_id": previous_project_id,
-            "to_project_id": target_project.id,
-            "to_project_name": target_project.name,
-        },
-    )
-    flash(f"Adopted into {target_project.name}.", "info")
-    return redirect(url_for("clients.intake_view", client_id=client_id))
+    if request.method == "GET":
+        return render_template(
+            "clients/adopt_artifact.html",
+            client=client,
+            artifact=art,
+            existing_projects=existing_projects,
+            frameworks=FRAMEWORKS,
+            # Shared-partial parameters (round-4 §3.1). The adopt
+            # picker shows both branches; default service blank so
+            # admin picks; submit POSTs back to this same route.
+            submit_url=url_for("clients.adopt_artifact",
+                               client_id=client.id, artifact_id=art.id),
+            cancel_url=url_for("clients.intake_view", client_id=client.id),
+            show_existing_radio=True,
+            lock_service=False,
+            default_service="tech_debt",
+            submit_label_new="Create project and adopt",
+            submit_label_existing="Adopt into existing project",
+            now_year=datetime.utcnow().year,
+        )
+
+    target = (request.form.get("target") or "").strip()
+
+    if target == "existing":
+        target_project_id = (request.form.get("existing_project_id") or "").strip()
+        target_project = (
+            db.session.get(Project, target_project_id)
+            if target_project_id else None
+        )
+        if target_project is None \
+                or target_project.client_id != client_id \
+                or target_project.is_client_repository \
+                or target_project.archived:
+            flash("Pick a real project to adopt the file into.", "error")
+            return redirect(url_for("clients.adopt_artifact",
+                                    client_id=client_id, artifact_id=artifact_id))
+        previous_stage = art.stage
+        art.project_id = target_project.id
+        db.session.commit()
+        log_audit(
+            "artifact.adopted_into_project",
+            actor=current_user,
+            target_type="artifact", target_id=art.id,
+            project_id=target_project.id, client_id=client_id,
+            details={
+                "prior_stage": previous_stage,
+                "to_project_id": target_project.id,
+                "to_project_name": target_project.name,
+                "via": "adopt_existing",
+            },
+        )
+        flash(f"Adopted {art.title} into {target_project.name}.", "info")
+        return redirect(url_for(
+            _WORKSPACE_ENDPOINT[target_project.platform],
+            project_id=target_project.id,
+        ))
+
+    if target == "new":
+        project, error = _create_project_from_form(client, request.form)
+        if error:
+            flash(error, "error")
+            return redirect(url_for("clients.adopt_artifact",
+                                    client_id=client_id, artifact_id=artifact_id))
+        db.session.add(project)
+        db.session.flush()   # need project.id for the artifact's FK
+
+        previous_stage = art.stage
+        art.project_id = project.id
+        # Two audit rows in the same transaction so the pairing
+        # (project.created + artifact.adopted_into_project at the same
+        # actor + ts) proves the project was born specifically to
+        # receive this file. Per round-4 §6.
+        log_audit(
+            "project.created",
+            actor=current_user,
+            target_type="project", target_id=project.id,
+            project_id=project.id, client_id=client.id,
+            details={
+                "platform": project.platform.value,
+                "created_from": "adopt_flow",
+                "source_artifact_id": art.id,
+                "framework": project.framework,
+            },
+        )
+        log_audit(
+            "artifact.adopted_into_project",
+            actor=current_user,
+            target_type="artifact", target_id=art.id,
+            project_id=project.id, client_id=client.id,
+            details={
+                "prior_stage": previous_stage,
+                "to_project_id": project.id,
+                "to_project_name": project.name,
+                "via": "adopt_create",
+            },
+        )
+        db.session.commit()
+        flash(f"Created {project.name} and adopted {art.title}.", "info")
+        return redirect(url_for(
+            _WORKSPACE_ENDPOINT[project.platform],
+            project_id=project.id,
+        ))
+
+    flash("Pick existing or new before submitting.", "error")
+    return redirect(url_for("clients.adopt_artifact",
+                            client_id=client_id, artifact_id=artifact_id))
 
 
 @bp.route("/<client_id>")

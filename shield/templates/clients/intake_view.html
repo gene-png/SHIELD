@@ -85,7 +85,7 @@
   {% if repo_uploads %}
     <table class="usa-table usa-table--striped">
       <thead>
-        <tr><th>File</th><th>Uploaded</th><th>Size</th><th>Adopt into</th></tr>
+        <tr><th>File</th><th>Uploaded</th><th>Size</th><th></th></tr>
       </thead>
       <tbody>
         {% for a in repo_uploads %}
@@ -95,23 +95,16 @@
               <br><small>{{ a.id[:8] }}</small>
             </td>
             <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-            <td>{{ a.size_bytes or '—' }}</td>
+            <td>{{ a.size_bytes or '&mdash;' }}</td>
             <td>
-              {% if real_projects %}
-                <form method="POST"
-                      action="{{ url_for('clients.adopt_artifact', client_id=client.id, artifact_id=a.id) }}"
-                      style="display:inline">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <select name="project_id" class="usa-select usa-select--small">
-                    {% for p in real_projects %}
-                      <option value="{{ p.id }}">{{ p.name }} &middot; {{ p.platform.value }}</option>
-                    {% endfor %}
-                  </select>
-                  <button class="usa-button usa-button--small" type="submit">Adopt</button>
-                </form>
-              {% else %}
-                <em class="usa-hint">no project yet</em>
-              {% endif %}
+              {# Round-4: 'Adopt' is now a navigation to the create-or-pick
+                 form, not an inline mini-form. This is what lets the admin
+                 create a project on the spot if none exist yet. #}
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('clients.adopt_artifact',
+                                  client_id=client.id, artifact_id=a.id) }}">
+                Adopt into project
+              </a>
             </td>
           </tr>
         {% endfor %}

@@ -131,7 +131,9 @@ def test_adopt_artifact_moves_file_to_real_project(
 
     r = admin_client.post(
         f"/clients/{acme.id}/adopt-artifact/{art.id}",
-        data={"project_id": target.id},
+        # Round-4: the form moved from one `project_id` field to the
+        # create-or-pick shape (target + existing_project_id / new_*).
+        data={"target": "existing", "existing_project_id": target.id},
         follow_redirects=False,
     )
     assert r.status_code == 302
@@ -156,7 +158,7 @@ def test_adopt_artifact_writes_audit(admin_client, acme, admin, acme_repo_with_f
     ).count()
     admin_client.post(
         f"/clients/{acme.id}/adopt-artifact/{art.id}",
-        data={"project_id": target.id},
+        data={"target": "existing", "existing_project_id": target.id},
     )
     assert db.session.query(AuditEntry).filter_by(
         action="artifact.adopted_into_project",
@@ -166,7 +168,7 @@ def test_adopt_artifact_writes_audit(admin_client, acme, admin, acme_repo_with_f
 def test_adopt_artifact_rejects_cross_client_target(
     admin_client, acme, admin, acme_repo_with_file,
 ):
-    """The form's project_id must belong to the same client. Refusing
+    """existing_project_id must belong to the same client. Refusing
     cross-client adoption keeps client_id consistent with project."""
     _, art = acme_repo_with_file
     beta = Client(name="Beta")
@@ -181,7 +183,7 @@ def test_adopt_artifact_rejects_cross_client_target(
 
     r = admin_client.post(
         f"/clients/{acme.id}/adopt-artifact/{art.id}",
-        data={"project_id": beta_p.id},
+        data={"target": "existing", "existing_project_id": beta_p.id},
         follow_redirects=False,
     )
     assert r.status_code == 302   # flash + redirect, not a hard error

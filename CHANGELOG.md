@@ -21,6 +21,66 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.2-rc1] — 2026-05-17 — round-4 sub-PR A: adopt becomes create-or-pick
+
+First of three round-4 sub-PRs. Replaces the existing-project-only
+adopt picker with a create-or-pick form so admins can create the
+receiving project inline from a brand-new client's repository — the
+common case the round-2/3 work didn't address.
+
+### Added — shared `_components/project_create_form.html`
+
+One Jinja partial parameterized by the caller. Used in this PR for
+adopt; in 4B for service-request fulfillment; in 4C for the
+client-detail "Start a new project" button. The partial:
+
+- Shows the "An existing project" radio when
+  `show_existing_radio=True` and the client has any non-archived,
+  non-repository projects; defaults to the most recently created.
+- Shows "A new project" radio always; defaults to it when no
+  existing projects.
+- Service select, locked (hidden) when `lock_service=True`.
+- Project-name input pre-populated with
+  `{client.legal_name or name} — {service display} {year}`.
+- Framework dropdown shown/hidden via inline JS when service ==
+  zero_trust.
+- Per round-4 chat answer: no notes field, no description column,
+  no Capability-List or AI-reuse acknowledgment at create time
+  (those defer to the relink flow).
+
+### Changed — `/clients/<id>/adopt-artifact/<artifact_id>`
+
+- Now accepts `GET` (renders the picker) + `POST` (handles both
+  `target=existing` and `target=new`).
+- `target=new` path creates the Project, links the artifact, and
+  emits **two** audit rows in the same transaction
+  (`project.created` with `created_from='adopt_flow'` +
+  `source_artifact_id`, and `artifact.adopted_into_project` with
+  `prior_stage` + `via='adopt_create'`). Round-4 §6.
+- `target=existing` path still works for v1 callers; emits one
+  audit row with `via='adopt_existing'`.
+- Zero Trust new-project path requires a framework; rejects with
+  flash + redirect-to-form otherwise. No half-state on validation
+  failure.
+- Per round-4 chat answer: stage stays `client_repository` on
+  adopt; client is **not** notified (admin housekeeping).
+- Post-submit redirect lands on the new project's workspace.
+
+### Tests
+
+- 167 → 182 passing. 15 new in
+  `tests/test_v18_round4_adopt_create.py`:
+  GET renders form, existing projects show when present, empty-state
+  hint when none, target=new creates project + adopts + audits,
+  paired audit rows, ZT-without-framework fails atomically (no
+  half-state), ZT-with-framework succeeds, empty/bogus name+service
+  reject, target=existing still works with one audit row,
+  cross-client existing target redirects, cross-client artifact
+  returns 404, missing-target redirects back, admin-only RBAC,
+  `via` audit detail distinguishes paths.
+- 3 existing PR 5 tests updated for the new form-field shape
+  (`project_id` → `target` + `existing_project_id`).
+
 ## [1.8.1] — 2026-05-17 — round-3 PR 3C: admin fulfill / decline + notifications
 
 Final of three round-3 sub-PRs. Closes the loop on the
