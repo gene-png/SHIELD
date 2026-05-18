@@ -1,0 +1,268 @@
+framework: cisa_ztmm_v2
+display_name: "CISA Zero Trust Maturity Model 2.0"
+source: "https://www.cisa.gov/zero-trust-maturity-model"
+version: "2.0"
+
+# Maturity scale (used for both current-state and target-state answers).
+answer_scale:
+  - id: traditional
+    label: "Traditional"
+    description: "Manual processes, siloed tools, static policies."
+  - id: initial
+    label: "Initial"
+    description: "Some automation and integration, basic conditional access."
+  - id: advanced
+    label: "Advanced"
+    description: "Centralized policies, automated responses, risk-aware."
+  - id: optimal
+    label: "Optimal"
+    description: "Fully dynamic, continuous adaptive, integrated across all pillars."
+
+# Document checklist hooks (TBD per the spec — kept empty until those
+# reference docs land).
+documents: []
+
+sections:
+  - id: identity
+    number: 1
+    title: "Identity"
+    questions:
+      - id: cisa.s1.q1
+        number: 1.1
+        stem: >-
+          Walk me through how identities are managed for the people who
+          access this system — from when someone joins until the moment
+          they leave, including how you confirm who they are at sign-in.
+        cues:
+          - "Are user identities centralized in one identity provider (Entra ID, Okta, ICAM, etc.) or scattered across multiple systems?"
+          - "How is MFA implemented — everyone, or just admins and privileged users? Which factor types are allowed?"
+          - "How quickly are accounts disabled when someone leaves or changes roles? Is it automated from your HR system?"
+          - "Are you using passwords still, or have you moved to passwordless / phishing-resistant credentials (FIDO2, certificates, CAC/PIV)?"
+          - "How are external collaborators (contractors, partners, agency-to-agency federation) handled?"
+          - "Is sign-in evaluated against risk signals (location, device, behavior) before access is granted?"
+        dimensions: ["authentication", "identity_stores", "access_management"]
+        ztmm_functions: ["Authentication", "Identity Stores", "Access Management", "Identity Risk Assessments"]
+      - id: cisa.s1.q2
+        number: 1.2
+        stem: >-
+          Tell me about how you manage privileged access for this
+          system — the admin accounts, the service accounts, the
+          elevated permissions that could do the most damage if
+          misused.
+        cues:
+          - "Do you use a Privileged Access Management (PAM) tool for vaulting and check-out?"
+          - "Is admin access just-in-time (granted only for a session) or standing (always available)?"
+          - "How do you monitor what privileged users do during their elevated sessions?"
+          - "Are there user behavior analytics that flag unusual activity by admins?"
+          - "How do you handle break-glass / emergency access?"
+          - "Are admin sessions recorded for audit?"
+        dimensions: ["authentication", "identity_risk_assessments"]
+        ztmm_functions: ["Authentication", "Identity Risk Assessments", "Access Management"]
+      - id: cisa.s1.q3
+        number: 1.3
+        stem: >-
+          How do you handle identities for things that aren't people —
+          service accounts, application identities, machine-to-machine
+          credentials, API keys?
+        cues:
+          - "Where are service accounts inventoried? Do you have a central list?"
+          - "Are credentials rotated automatically? On what cadence?"
+          - "Are service-to-service calls authenticated with short-lived tokens, or long-lived secrets?"
+          - "How do you detect a service identity being misused (anomalous calls, off-hours activity)?"
+          - "Are secrets and API keys stored in a secrets vault, or scattered in config files?"
+        dimensions: ["identity_stores", "authentication"]
+        ztmm_functions: ["Identity Stores", "Authentication"]
+
+  - id: devices
+    number: 2
+    title: "Devices"
+    questions:
+      - id: cisa.s2.q1
+        number: 2.1
+        stem: >-
+          Walk me through how you know what devices are on your network
+          and accessing this system — and how you decide which ones are
+          healthy enough to be allowed in.
+        cues:
+          - "What tool maintains your authoritative device inventory? How is it kept current?"
+          - "How do you discover unauthorized or unknown devices on your network?"
+          - "Do you have an EDR/XDR agent on every endpoint, or partial coverage?"
+          - "Are devices required to meet compliance baselines (OS version, patch level, encryption) before being granted access?"
+          - "How are BYOD devices handled — allowed, restricted, or blocked?"
+          - "What about non-traditional devices (IoT, OT, printers, mobile)?"
+        dimensions: ["policy_enforcement_and_compliance_monitoring", "asset_and_supply_chain_risk_management"]
+        ztmm_functions: ["Policy Enforcement & Compliance Monitoring", "Asset & Supply Chain Risk Management"]
+      - id: cisa.s2.q2
+        number: 2.2
+        stem: >-
+          Tell me how you continuously evaluate device health and
+          respond to device-based threats.
+        cues:
+          - "How frequently is device posture re-evaluated — every session, every minute, only at logon?"
+          - "Does a compromised device automatically lose access, or does it require human intervention?"
+          - "How do you detect and respond to malware on endpoints?"
+          - "Are mobile devices protected to the same standard as workstations?"
+          - "Do you have visibility into containerized workloads as 'devices' in this model?"
+          - "What does your vulnerability scanning cadence look like on endpoints and servers?"
+        dimensions: ["threat_protection", "resource_access"]
+        ztmm_functions: ["Threat Protection", "Resource Access"]
+
+  - id: networks
+    number: 3
+    title: "Networks"
+    questions:
+      - id: cisa.s3.q1
+        number: 3.1
+        stem: >-
+          Walk me through how this system's network is segmented and
+          how traffic moving across it is protected.
+        cues:
+          - "Is your network flat (one big broadcast domain), or segmented (subnets, VLANs, micro-segments)?"
+          - "How granular is your micro-segmentation? Per-application? Per-workload? Per-data-classification?"
+          - "Is east-west traffic (server-to-server inside your perimeter) encrypted?"
+          - "What about traffic to and from cloud workloads?"
+          - "Do you inspect encrypted traffic at any point (TLS decryption / re-encryption)?"
+          - "Are there air-gapped or physically isolated network segments?"
+        dimensions: ["network_segmentation", "network_traffic_management", "traffic_encryption"]
+        ztmm_functions: ["Network Segmentation", "Network Traffic Management", "Traffic Encryption"]
+      - id: cisa.s3.q2
+        number: 3.2
+        stem: >-
+          Tell me about your network's resilience and how you maintain
+          visibility across it.
+        cues:
+          - "What protections do you have against DDoS attacks?"
+          - "How redundant is your network — failover routes, alternate paths?"
+          - "Do you have deep packet inspection or encrypted traffic analytics?"
+          - "How do you detect lateral movement or unusual east-west traffic patterns?"
+          - "What's your visibility into cloud and hybrid network flows?"
+          - "Are network flows logged with sufficient detail to support incident investigation?"
+        dimensions: ["network_resilience", "visibility_and_analytics"]
+        ztmm_functions: ["Network Resilience", "Visibility & Analytics"]
+
+  - id: applications_and_workloads
+    number: 4
+    title: "Applications and Workloads"
+    questions:
+      - id: cisa.s4.q1
+        number: 4.1
+        stem: >-
+          Walk me through how you control which applications people can
+          use, and how you decide what they can do inside each application.
+        cues:
+          - "Do users authenticate once via SSO, or sign in separately to each app?"
+          - "Is access to applications role-based, attribute-based, or context-aware (considering device, location, risk)?"
+          - "How is API access authorized — keys, mutual TLS, OAuth scopes?"
+          - "Do you have an authoritative inventory of which applications are in use?"
+          - "How are SaaS and shadow-IT applications handled?"
+          - "Are app access decisions audited?"
+        dimensions: ["application_access", "application_threat_protection"]
+        ztmm_functions: ["Application Access", "Application Threat Protection"]
+      - id: cisa.s4.q2
+        number: 4.2
+        stem: >-
+          Tell me about how applications get from idea to production —
+          and how security is built into that pipeline.
+        cues:
+          - "Do developers follow a documented SDLC? Is security testing built in?"
+          - "What code analysis tools run in CI (SAST, SCA, secrets scanning)?"
+          - "How are container images scanned before deployment?"
+          - "Are infrastructure-as-code templates scanned for misconfigurations?"
+          - "Do you vet third-party libraries and components before allowing them?"
+          - "How are vulnerabilities discovered in production patched — by whom, on what cadence?"
+        dimensions: ["accessible_applications", "secure_application_development_and_deployment_workflow", "application_security_testing"]
+        ztmm_functions: ["Accessible Applications", "Secure Application Development & Deployment Workflow", "Application Security Testing"]
+
+  - id: data
+    number: 5
+    title: "Data"
+    questions:
+      - id: cisa.s5.q1
+        number: 5.1
+        stem: >-
+          Give me the picture of your data — what you have, where it
+          lives, how sensitive it is, and how you keep track of all
+          that as it changes.
+        cues:
+          - "Do you have an authoritative inventory of where sensitive data is stored?"
+          - "What classification scheme do you use (public, sensitive, controlled, etc.)?"
+          - "Is sensitive data automatically tagged on creation, or does it require human classification?"
+          - "How do you discover sensitive data that ends up in unexpected places (file shares, email, chat)?"
+          - "What's your data retention and disposal practice?"
+          - "How do you handle data sovereignty (where it can physically reside)?"
+        dimensions: ["data_inventory_management", "data_categorization", "data_availability"]
+        ztmm_functions: ["Data Inventory Management", "Data Categorization", "Data Availability"]
+      - id: cisa.s5.q2
+        number: 5.2
+        stem: >-
+          Tell me how you protect data once you know where it is and
+          how sensitive it is — and how you detect when something's
+          wrong with how it's being accessed.
+        cues:
+          - "How is data access decided — file-level permissions, group-based, attribute-based?"
+          - "Do you have DLP tools? At which layer (endpoint, network, cloud)?"
+          - "Is sensitive data encrypted at rest? In transit? In use (confidential computing)?"
+          - "Who manages encryption keys? Are they rotated?"
+          - "Do you monitor for unusual data access patterns — large downloads, off-hours access, access from unexpected locations?"
+          - "Are there data-rights-management or persistent-protection tools that follow the data?"
+        dimensions: ["data_access", "data_encryption", "visibility_and_analytics"]
+        ztmm_functions: ["Data Access", "Data Encryption", "Visibility & Analytics"]
+
+  - id: visibility_and_analytics
+    number: 6
+    title: "Visibility and Analytics"
+    questions:
+      - id: cisa.s6.q1
+        number: 6.1
+        stem: >-
+          Walk me through what you collect, what you watch, and how you
+          turn that into actionable detection.
+        cues:
+          - "What telemetry sources feed your SIEM / XDR (endpoints, network, cloud, identity, applications)?"
+          - "How long is telemetry retained? Is it sufficient for incident investigation?"
+          - "Do you have a documented detection use-case library?"
+          - "How are alerts prioritized? Who triages them?"
+          - "Do you have a threat-hunting capability that goes beyond reactive alerts?"
+          - "How are detections improved over time — red-team feedback, post-incident lessons?"
+        dimensions: ["visibility_and_analytics"]
+        ztmm_functions: ["Visibility & Analytics"]
+
+  - id: automation_and_orchestration
+    number: 7
+    title: "Automation and Orchestration"
+    questions:
+      - id: cisa.s7.q1
+        number: 7.1
+        stem: >-
+          Tell me how automation supports security operations for this
+          system — what's automated today, what's still manual, and
+          where you're heading.
+        cues:
+          - "Do you have a SOAR platform? What playbooks are automated end-to-end?"
+          - "Can your security stack automatically respond to specific alert types (isolate device, disable user, block IP)?"
+          - "How integrated are your tools — do they share signals, or operate in silos?"
+          - "Are you using AI/ML for detection or response decisions? Where?"
+          - "How is the automation itself monitored to make sure it does the right thing?"
+          - "What's your policy on human-in-the-loop for high-impact automated actions?"
+        dimensions: ["automation_and_orchestration"]
+        ztmm_functions: ["Automation & Orchestration"]
+
+  - id: governance
+    number: 8
+    title: "Governance"
+    questions:
+      - id: cisa.s8.q1
+        number: 8.1
+        stem: >-
+          How does your organization govern the Zero Trust journey for
+          this system — the strategy, the funding, the milestones, the
+          way you measure progress?
+        cues:
+          - "Is there a written Zero Trust strategy specific to this system or your agency? Who owns it?"
+          - "How is the ZT roadmap funded — dedicated budget, embedded in operational budgets?"
+          - "What KPIs do you use to measure ZT maturity progress?"
+          - "How often is the ZT plan reviewed and updated?"
+          - "Are vendor choices guided by ZT principles, or by historical relationships?"
+          - "How do you communicate ZT progress to leadership and to the workforce?"
+        dimensions: ["governance"]
+        ztmm_functions: ["Governance"]
