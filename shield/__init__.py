@@ -129,13 +129,17 @@ def create_app(config_object: type[Config] = Config) -> Flask:
         if not current_user.is_authenticated:
             return redirect(url_for("identity.login"))
         from .models import Role
-        # CLIENT users: first-time → /portal/welcome; returning → /portal/.
+        # CLIENT users:
+        #   - With a membership → /portal/welcome (intake not done) or
+        #     /portal/ (intake done) per landing_url_for.
+        #   - Without a membership (self-signups, brand new) →
+        #     /portal/start-organization to name their org.
         if current_user.role == Role.CLIENT:
             from .spine.portal import _current_client, landing_url_for
             client = _current_client()
             if client is not None:
                 return redirect(landing_url_for(client))
-            return redirect(url_for("portal.confirm"))
+            return redirect(url_for("portal.start_organization"))
         # ADMIN: the queue is the new default landing (v1.8 PR 5).
         if current_user.role == Role.ADMIN:
             return redirect(url_for("clients.queue"))

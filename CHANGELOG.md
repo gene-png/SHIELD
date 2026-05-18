@@ -21,6 +21,55 @@ Items deferred to v2 (out of v1 scope):
   the schema in v1.8 but the listing UI for superseded versions is
   a v2 follow-up.
 
+## [1.8.5] — 2026-05-17 — self-signup: anyone-can-register + org bootstrap
+
+Per user ask: the login page should let new clients create a username
+and password. The Keycloak realm now allows self-signup; the home
+redirect routes a brand-new CLIENT (no `ClientMembership`) to a
+1-field "What's your organization called?" page that atomically
+creates the Client + the user's primary_poc membership and walks
+them into `/portal/welcome`.
+
+### Changed — Keycloak realm (`keycloak/import/shield-dev-realm.json`)
+
+- `registrationAllowed: true` — Keycloak's login page now renders a
+  **Register** link.
+- `registrationEmailAsUsername: true` — signup form asks for email
+  only (no separate username field).
+- `resetPasswordAllowed: true` — Forgot-password link appears too.
+
+Existing dev volumes have to be wiped
+(`docker volume rm shield_keycloak_data`) for the import to re-run
+since Keycloak persists realm state across container restarts.
+
+### Added — `/portal/start-organization`
+
+- GET renders a single-field form (organization name).
+- POST creates the `Client` row (with `legal_name` = typed name),
+  attaches the user as `primary_poc` `ClientMembership`, audits
+  as `client.self_signup_bootstrap`, redirects to `/portal/welcome`.
+- Name collision against the existing `Client.name` UNIQUE
+  constraint is handled by suffixing the new row's `name` with a
+  short hex tag — the user can rename later from `/portal/about`.
+- An already-onboarded user hitting this route is sent to their
+  normal landing.
+
+### Changed — home redirect
+
+CLIENT users without a `ClientMembership` now go to
+`/portal/start-organization` (was `/portal/confirm`, which was a
+dead end for self-signups).
+
+### Tests
+
+- 212 → 221 passing. 9 new in `tests/test_v18_self_signup.py`:
+  home routes membershipless CLIENT to start-organization,
+  GET renders form, POST creates Client + membership + audit row,
+  empty name rejected, name-collision suffix applied, existing
+  member redirected away, post-bootstrap user can reach
+  `/portal/welcome`, realm JSON sanity-checks (`registrationAllowed`
+  + `registrationEmailAsUsername` both true).
+
 ## [1.8.4] — 2026-05-17 — roundtrip redaction: redact for AI, restore for display
 
 Per user ask: "the purpose of the redaction is to remove organization

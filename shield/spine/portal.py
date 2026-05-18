@@ -1157,6 +1157,77 @@ def landing_url_for(client: Client) -> str:
     return url_for("portal.index")
 
 
+# ====================================================================
+# Self-signup: bootstrap a Client + ClientMembership for a new user
+# ====================================================================
+# Keycloak's realm has registrationAllowed=true so anyone can create a
+# Keycloak account. That gives them a User row (role=CLIENT by default).
+# But CLIENT users with no ClientMembership are dead-ended at any
+# scoped route. This route lets them name their organization, which
+# atomically creates the Client + their primary_poc ClientMembership.
+
+@bp.route("/start-organization", methods=["GET", "POST"])
+@login_required
+def start_organization():
+    """First-login flow for self-signed-up users: name your org.
+
+    GET renders a 1-field form. POST creates the Client row, the
+    ClientMembership linking the user as primary_poc, audits, and
+    redirects to /portal/welcome so the user walks the wizard.
+
+    If the user already has an accepted membership, redirect them
+    away — this route is only for the brand-new case.
+    """
+    # If they already have a Client, send them to the right place.
+    existing_client = _current_client()
+    if existing_client is not None:
+        return redirect(landing_url_for(existing_client))
+
+    if request.method == "POST":
+        name = (request.form.get("organization_name") or "").strip()
+        if not name:
+            flash("Tell us what to call your organization.", "error")
+            return redirect(url_for("portal.start_organization"))
+        if len(name) > 255:
+            flash("That name's a bit long — keep it under 255 characters.", "error")
+            return redirect(url_for("portal.start_organization"))
+
+        # Uniqueness: Client.name is UNIQUE in the DB. If the typed
+        # name collides, append a short suffix so the create succeeds
+        # rather than 500. The user can rename later from /portal/about.
+        import uuid as _uuid
+        proposed = name
+        existing = db.session.query(Client).filter_by(name=proposed).first()
+        if existing is not None:
+            proposed = f"{name} ({_uuid.uuid4().hex[:6]})"
+
+        client = Client(name=proposed, legal_name=name)
+        db.session.add(client)
+        db.session.flush()
+
+        db.session.add(ClientMembership(
+            client_id=client.id, user_id=current_user.id,
+            membership_role="primary_poc",
+            invited_at=datetime.utcnow(),
+            accepted_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        log_audit(
+            "client.self_signup_bootstrap",
+            actor=current_user,
+            target_type="client", target_id=client.id, client_id=client.id,
+            details={
+                "legal_name": client.legal_name,
+                "name_collision_suffix_applied": proposed != name,
+            },
+        )
+        flash(f"Welcome to SHIELD, {client.legal_name}.", "info")
+        return redirect(url_for("portal.welcome"))
+
+    return render_template("portal/start_organization.html")
+
+
 __all__ = ["bp", "landing_url_for", "SERVICE_KEYS"]
 
 
