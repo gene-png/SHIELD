@@ -11,29 +11,34 @@
     really need is a contact email so we know who to reach.
   </p>
 
-  {# Per-field HTMX endpoint hits /portal/about/field with
-     name=<column>, value=<text>. On blur. Server returns a small
-     "saved" pip we drop next to the field. Server returns a small
-     "saved" pip we drop next to the field.
+  {# Per-field HTMX auto-save.
 
-     `hx-include="this"` is load-bearing: by default HTMX includes
-     every input in the enclosing form, and every input below shares
-     name="value", so the server's request.form.get("value") would
-     pick the FIRST one (legal_name) regardless of which field the
-     user is editing. "this" scopes the include to just the triggering
-     element, so each blur sends one value/name pair for that field
-     only. #}
+     v1.9.1 — fixing the form-corruption bug that survived the v1.9 fix:
+     previously every input was named `name="value"` and we relied on
+     `hx-include="this"` to scope the request. HTMX's `hx-include="this"`
+     ADDS the triggering element to the include set; it does NOT exclude
+     the form's other inputs. So when the user typed in `primary_poc_name`
+     and tabbed away, the request still carried every input named
+     "value", and `request.form.get("value")` returned the FIRST one
+     (`legal_name`). Net: every field got saved as legal_name's value.
+
+     Real fix: give each input a unique name (the column name itself).
+     The server reads `name` from hx-vals and then reads that named
+     column from the form. No more multi-value collisions.
+
+     `hx-params="csrf_token,name,{{ name }}"` is belt-and-suspenders so
+     the request only carries the three params we care about. #}
   {% macro field(name, label, type="text", placeholder="") %}
     <label class="usa-label" for="f-{{ name }}">{{ label }}</label>
     <div class="shield-portal-field">
       <input class="usa-input" id="f-{{ name }}" type="{{ type }}"
-             name="value"
+             name="{{ name }}"
              value="{{ (client[name] if client[name] is not none else '') }}"
              placeholder="{{ placeholder }}"
              hx-post="{{ url_for('portal.about_field') }}"
              hx-trigger="blur changed"
-             hx-include="this"
              hx-vals='{"name": "{{ name }}"}'
+             hx-params="csrf_token,name,{{ name }}"
              hx-target="next .shield-portal-saved-host"
              hx-swap="innerHTML">
       <span class="shield-portal-saved-host" aria-live="polite"></span>
@@ -50,10 +55,11 @@
       {{ field("website",    "Website", placeholder="https://...") }}
       <label class="usa-label" for="f-size_band">Approximate size</label>
       <select class="usa-select" id="f-size_band"
-              name="value"
+              name="size_band"
               hx-post="{{ url_for('portal.about_field') }}"
               hx-trigger="change"
               hx-vals='{"name": "size_band"}'
+              hx-params="csrf_token,name,size_band"
               hx-target="next .shield-portal-saved-host"
               hx-swap="innerHTML">
         <option value="">&mdash; pick one &mdash;</option>
@@ -95,10 +101,11 @@
       </label>
       <div class="shield-portal-field">
         <textarea class="usa-textarea" id="f-prompting_context"
-                  name="value" rows="4"
+                  name="prompting_context" rows="4"
                   hx-post="{{ url_for('portal.about_field') }}"
                   hx-trigger="blur changed"
                   hx-vals='{"name": "prompting_context"}'
+                  hx-params="csrf_token,name,prompting_context"
                   hx-target="next .shield-portal-saved-host"
                   hx-swap="innerHTML">{{ client.prompting_context or "" }}</textarea>
         <span class="shield-portal-saved-host" aria-live="polite"></span>

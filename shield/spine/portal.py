@@ -80,6 +80,106 @@ bp = Blueprint("portal", __name__, template_folder="../templates/portal")
 SERVICE_KEYS = ("tech_debt", "zero_trust", "attack_surface")
 _SERVICE_KEY_SET = frozenset(SERVICE_KEYS)
 
+# Round-8 §III: auto-create a stub Project for each selected service
+# so the admin queue + platform indexes surface the engagement
+# immediately (not just the Zero Trust path).
+_SERVICE_TO_PLATFORM_TYPE = {
+    "tech_debt":      "TECH_DEBT",
+    "zero_trust":     "ZERO_TRUST",
+    "attack_surface": "ATTACK_SURFACE",
+}
+
+
+def _ensure_projects_for_services(client_obj, service_keys) -> None:
+    """For each service key in `service_keys`, make sure the client has
+    a non-archived, non-repository Project of that platform.
+
+    Idempotent; skips services that already have a project. The
+    framework default for ZT is CISA ZTMM 2.0 (we can let the admin
+    relink later from the workspace).
+    """
+    from ..models import PlatformType
+    for key in service_keys:
+        plat_name = _SERVICE_TO_PLATFORM_TYPE.get(key)
+        if plat_name is None:
+            continue
+        platform = getattr(PlatformType, plat_name)
+        existing = (
+            db.session.query(Project)
+            .filter(Project.client_id == client_obj.id,
+                    Project.platform == platform,
+                    Project.archived.is_(False),
+                    Project.is_client_repository.is_(False))
+            .first()
+        )
+        if existing is not None:
+            continue
+        label = {
+            "tech_debt":      "Tech Debt",
+            "zero_trust":     "Zero Trust",
+            "attack_surface": "Attack Surface",
+        }[key]
+        framework = "cisa_ztmm_v2" if key == "zero_trust" else None
+        p = Project(
+            client_id=client_obj.id,
+            platform=platform,
+            name=f"{client_obj.legal_name or client_obj.name} — {label}",
+            stage="intake",
+            framework=framework,
+            created_by_id=getattr(current_user, "id", None),
+        )
+        db.session.add(p)
+        db.session.flush()
+        log_audit(
+            "project.create",
+            actor=current_user if getattr(current_user, "is_authenticated", False) else None,
+            target_type="project", target_id=p.id,
+            project_id=p.id, client_id=client_obj.id,
+            details={
+                "platform": key,
+                "framework": framework,
+                "created_from": "service_selection_auto",
+                "name": p.name,
+            },
+        )
+    db.session.commit()
+
+
+def _notify_admins_of_new_client(client_obj, kind: str = "self_signup") -> None:
+    """Drop a Notification row for every active admin. Used on
+    self-signup and on the first service-interest write so admins see
+    new clients in the bell immediately.
+
+    Reviewer §III: the platform was failing to fire any notification
+    on new self-signups — the queue surfaced them, but only if an
+    admin happened to refresh /clients/queue.
+    """
+    from ..models import Notification, Role, User as _User
+    admins = (
+        db.session.query(_User)
+        .filter(_User.role == Role.ADMIN, _User.is_active_flag.is_(True))
+        .all()
+    )
+    if not admins:
+        return
+    title_word = "registered" if kind == "self_signup" else "completed intake"
+    title = f"New client {title_word}: {client_obj.legal_name or client_obj.name}"
+    body = (
+        "Open the admin queue to fulfill any service requests "
+        "and assign a reviewer."
+    )
+    link = "/clients/queue"
+    for u in admins:
+        db.session.add(Notification(
+            user_id=u.id,
+            client_id=client_obj.id,
+            event_type=f"client.{kind}",
+            title=title,
+            body=body,
+            link=link,
+        ))
+    db.session.commit()
+
 
 def _current_client() -> Client | None:
     """Resolve the Client the current user is acting as.
@@ -201,6 +301,15 @@ def welcome():
                     "consult_requested": consult,
                 },
             )
+        # Round-8 §III: auto-create a Project for each NEWLY-selected
+        # service. Previously only the Zero Trust path created a project
+        # (via /portal/zero-trust's find-or-create). The reviewer caught
+        # that Attack Surface was selected on welcome but had no
+        # project anywhere — admins saw "wants: Attack Surface" with
+        # no backing record. Now every selected service gets a stub
+        # project on welcome so the admin queue + platform indexes
+        # surface it.
+        _ensure_projects_for_services(client, new_interests)
         return redirect(url_for("portal.about"))
 
     return render_template(
@@ -231,7 +340,26 @@ _ABOUT_FIELDS = frozenset({
 @bp.route("/about", methods=["GET"])
 @login_required
 def about():
+    """Step 2 of intake — about your org.
+
+    Reviewer §IV: pre-populate the contact email from the user's
+    session so they don't enter it a third time (after registration +
+    initial sign-in). Same for name (mirrors User.display_name) +
+    phone + title where the user's profile has them. The client can
+    still override any pre-filled value.
+    """
     client = _require_client(_current_client())
+    if client.primary_poc_email is None and getattr(current_user, "email", None):
+        client.primary_poc_email = current_user.email
+    if client.primary_poc_name is None and getattr(current_user, "display_name", None):
+        client.primary_poc_name = current_user.display_name
+    user = db.session.get(User, current_user.id)
+    if user is not None:
+        if client.primary_poc_title is None and user.title:
+            client.primary_poc_title = user.title
+        if client.primary_poc_phone is None and user.phone:
+            client.primary_poc_phone = user.phone
+    db.session.commit()
     return render_template(
         "portal/about.html",
         client=client,
@@ -246,16 +374,58 @@ def about_field():
 
     The form on /portal/about wires `hx-trigger=blur changed`
     `hx-post=/portal/about/field` on every input. Body shape:
-        {name: "<col>", value: "<text>"}
-    The server updates that one column and returns a small <span> the
-    client swaps in beside the field as a "saved" indicator.
+        {name: "<col>", <col>: "<text>"}
+    The server reads `name` (which column this is) from hx-vals and
+    then reads the value from the same-named form field.
+
+    v1.9.1 fix: previously every input shared `name="value"` and the
+    server read `request.form.get("value")` — which returned the
+    FIRST "value" param in the request (always legal_name's text)
+    regardless of which input the user was editing. Result: every
+    column got saved as legal_name. The template now gives each input
+    its column name + an `hx-params` whitelist; the server reads the
+    value via lookup so collisions can't happen.
+
+    For backward compatibility we also accept the legacy
+    `request.form.get("value")` path so any client still posting in
+    the old shape doesn't 400.
+
+    AND for the §IV intake-flow review item: we mirror profile-ish
+    fields (primary_poc_name, primary_poc_title, primary_poc_phone)
+    to the current_user's User row so the Settings profile picks
+    them up without re-entry.
     """
     client = _require_client(_current_client())
     name = (request.form.get("name") or "").strip()
-    value = request.form.get("value") or ""
     if name not in _ABOUT_FIELDS:
         abort(400)
-    setattr(client, name, value.strip() or None)
+    # Read the value from the same-named field first; fall back to the
+    # legacy "value" key if the client posted in the old shape.
+    raw = request.form.get(name)
+    if raw is None:
+        raw = request.form.get("value") or ""
+    cleaned = (raw or "").strip() or None
+    setattr(client, name, cleaned)
+
+    # Mirror personal contact fields onto the User row so the Settings
+    # profile reflects the same data. Reviewer §IV called out the
+    # double-entry pain: title + phone entered on the intake form
+    # didn't show in Settings. (display_name is already populated by
+    # Keycloak; we don't overwrite that.)
+    _mirror_to_user_profile = {
+        "primary_poc_title": "title",
+        "primary_poc_phone": "phone",
+    }
+    if name in _mirror_to_user_profile:
+        try:
+            user = db.session.get(User, current_user.id)
+            if user is not None:
+                setattr(user, _mirror_to_user_profile[name], cleaned)
+        except Exception:
+            # Mirroring is best-effort; the primary write to Client is
+            # the source of truth.
+            pass
+
     db.session.commit()
     # Tiny ack the template swaps into a status pip. Per-field audit
     # would be too noisy; we log the bulk completion on /about/submit.
@@ -1722,6 +1892,11 @@ def start_organization():
                 "name_collision_suffix_applied": proposed != name,
             },
         )
+        # Round-8 §III: notify every admin that a new client has
+        # self-registered. Until this fix the audit row was the only
+        # signal — admins didn't know unless they happened to load the
+        # queue.
+        _notify_admins_of_new_client(client, kind="self_signup")
         flash(f"Welcome to SHIELD, {client.legal_name}.", "info")
         return redirect(url_for("portal.welcome"))
 

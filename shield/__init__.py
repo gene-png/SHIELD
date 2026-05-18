@@ -100,6 +100,50 @@ def create_app(config_object: type[Config] = Config) -> Flask:
         )
     app.jinja_env.filters["local_time"] = _local_time
 
+    # `friendly_label`: map raw enum/slug strings to display labels.
+    # Round-8 §III flagged "Zero_trust · intake", "attack_coverage",
+    # "admin_final" rendered raw. This filter centralizes the mapping.
+    _FRIENDLY = {
+        # platform / service
+        "tech_debt":               "Tech Debt",
+        "zero_trust":              "Zero Trust",
+        "attack_surface":          "Attack Surface",
+        # project / artifact stage
+        "intake":                  "Intake",
+        "raw_intake":              "Files uploaded",
+        "ai_extraction":           "Initial reading",
+        "extraction_review":       "Your review",
+        "overlap_analysis":        "Overlap check",
+        "conversational_interrogation": "Questions and answers",
+        "admin_final":             "Final list",
+        "current_state_assessment": "Where you are today",
+        "desired_future_state":    "Where you want to be",
+        "transition_roadmap":      "How to get there",
+        "client_repository":       "Client repository",
+        "coverage_analysis":       "Coverage analysis",
+        "attack_coverage":         "ATT&CK coverage",
+        "evidence":                "Evidence",
+        "submitted":               "Submitted",
+        # framework ids
+        "cisa_ztmm_v2":            "CISA ZTMM 2.0",
+        "dod_zt":                  "DoD ZT",
+        "nist_csf_v2":             "NIST CSF 2.0",
+        "csf_2_0_high":            "NIST CSF 2.0 (HIGH)",
+        # origin / trust tier user-facing variants are handled by the
+        # existing origin_badge component; not duplicated here.
+    }
+
+    def _friendly(s, fallback=None):
+        if s is None:
+            return fallback if fallback is not None else "—"
+        key = str(s)
+        if key in _FRIENDLY:
+            return _FRIENDLY[key]
+        # Last-ditch: replace underscores with spaces + title-case so
+        # raw values are still readable.
+        return key.replace("_", " ").title()
+    app.jinja_env.filters["friendly_label"] = _friendly
+
     # `shield_unread_notifications`: context processor that injects the
     # logged-in user's unread Notification count + first page of items
     # into every template, so the top-nav bell can render its badge.
@@ -179,6 +223,7 @@ def create_app(config_object: type[Config] = Config) -> Flask:
             path.startswith("/portal")
             or path.startswith("/auth")
             or path.startswith("/static")
+            or path.startswith("/notifications")
             or path == "/"
             or path == "/healthz"
         ):

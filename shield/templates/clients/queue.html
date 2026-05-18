@@ -2,6 +2,18 @@
 {% block title %}Action queue &mdash; SHIELD{% endblock %}
 {% block content %}
 
+{# Round-8 §III: failed-jobs alert banner. Surfaces failed background
+   analyses to the admin's primary view so they don't only find out by
+   navigating to /jobs/. #}
+{% if failed_jobs_count and failed_jobs_count > 0 %}
+  <div class="shield-jobs-alert" style="max-width:64rem;margin:1rem auto;">
+    {{ failed_jobs_count }} background analysis job{{ 's' if failed_jobs_count != 1 else '' }} failed.
+    <a href="{{ url_for('jobs.index') }}" style="color:#b50909;text-decoration:underline;">
+      Review on the Activity page &rarr;
+    </a>
+  </div>
+{% endif %}
+
 <section class="shield-page-header" style="max-width:64rem;margin:1rem auto;">
   <p class="shield-page-header__eyebrow">Admin queue</p>
   <h1>Who needs you next.</h1>
@@ -50,7 +62,14 @@
   {% if waiting %}
     <table class="usa-table usa-table--striped">
       <thead>
-        <tr><th>Client</th><th>Wants / requested</th><th>Existing projects</th><th>Unread from them</th><th></th></tr>
+        <tr>
+          <th>Client</th>
+          <th>Wants / requested</th>
+          <th>Existing projects</th>
+          <th>Waiting since</th>
+          <th>Unread from them</th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>
         {% set service_labels = {
@@ -105,6 +124,11 @@
                 <em class="usa-hint">none yet</em>
               {% endif %}
             </td>
+            <td>
+              {% if row.waiting_since %}
+                {{ row.waiting_since | local_time }}
+              {% else %}<em class="usa-hint">&mdash;</em>{% endif %}
+            </td>
             <td>{{ row.admin_replies_needed or '' }}</td>
             <td>
               <a class="usa-button usa-button--small"
@@ -123,7 +147,13 @@
   {% if active %}
     <table class="usa-table usa-table--striped">
       <thead>
-        <tr><th>Client</th><th>Projects</th><th>Unread from them</th><th></th></tr>
+        <tr>
+          <th>Client</th>
+          <th>Projects</th>
+          <th>Active since</th>
+          <th>Unread from them</th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>
         {% for row in active %}
@@ -137,6 +167,11 @@
               {% for p in row.projects %}
                 <small>{{ p.name }} &middot; {{ p.stage }}</small><br>
               {% endfor %}
+            </td>
+            <td>
+              {% if row.earliest_project_at %}
+                {{ row.earliest_project_at | local_time }}
+              {% else %}<em class="usa-hint">&mdash;</em>{% endif %}
             </td>
             <td>{{ row.admin_replies_needed or '' }}</td>
             <td>

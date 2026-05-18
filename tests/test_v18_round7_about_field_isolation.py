@@ -75,13 +75,23 @@ def test_field_endpoint_rejects_unknown_column(about_portal):
     assert r.status_code == 400
 
 
-def test_about_template_uses_hx_include_this(about_portal):
-    """The rendered template MUST include `hx-include="this"` on every
-    field so HTMX only sends the triggering input's value. Without
-    this attribute the pre-round-7 bug shape returns."""
+def test_about_template_scopes_htmx_post_per_field(about_portal):
+    """v1.9.1: each input is named after its column (legal_name,
+    primary_poc_email, etc) and uses `hx-params` to whitelist only the
+    csrf + the two relevant keys, so a blur on one input cannot ship
+    every other field's value as collateral.
+
+    The v1.9 approach was `hx-include="this"`, which was wrong —
+    HTMX `hx-include` ADDS to the include set, it doesn't replace
+    the default form-include. The whole form still shipped. The
+    user-reported regression "every field shows the org name" was
+    that bug surfacing on a fresh self-signup."""
     client, _ = about_portal
     r = client.get("/portal/about")
     assert r.status_code == 200
-    # The macro adds hx-include="this" to every input. The presence of
-    # `hx-include="this"` in the body is enough to pin the contract.
-    assert b'hx-include="this"' in r.data
+    body = r.data
+    # Each input now carries its column name + an hx-params whitelist.
+    assert b'name="legal_name"' in body
+    assert b'name="primary_poc_email"' in body
+    assert b'hx-params="csrf_token,name,legal_name"' in body
+    assert b'hx-params="csrf_token,name,primary_poc_email"' in body

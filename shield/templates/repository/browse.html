@@ -18,7 +18,7 @@
       <tr>
         <td><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></td>
         <td>{% set origin = a.origin.value %}{% set reuse = a.reuse_status.value %}{% include "_components/origin_badge.html" %}</td>
-        <td>{{ a.stage }}</td>
+        <td>{{ a.stage | friendly_label }}</td>
         <td>{{ a.project_id[:8] }}</td>
         <td>{{ a.created_at | local_time }}</td>
       </tr>

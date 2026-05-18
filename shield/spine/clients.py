@@ -133,6 +133,17 @@ def queue():
 
         open_requests = open_requests_by_client.get(c.id, [])
 
+        # Round-8 §III: "waiting since" — for the Waiting bucket, the
+        # most useful timestamp is when the client finished intake (the
+        # moment the ball moved to us); for Active, the timestamp of
+        # the earliest open project. Lets admin prioritize stale rows.
+        if open_requests:
+            waiting_since = min(sr.requested_at for sr in open_requests)
+        else:
+            waiting_since = c.intake_completed_at
+        earliest_project_at = (
+            min((p.created_at for p in real_projects), default=None)
+        )
         row = {
             "client": c,
             "gaps": sorted(gaps),
@@ -140,17 +151,33 @@ def queue():
             "consult_requested": bool(c.consult_requested),
             "admin_replies_needed": admin_replies_needed,
             "open_requests": open_requests,
+            "waiting_since": waiting_since,
+            "earliest_project_at": earliest_project_at,
         }
         if gaps or c.consult_requested or open_requests:
             waiting.append(row)
         elif real_projects:
             active.append(row)
 
+    # Round-8 §III: failed-jobs banner. Surface the count of failed RQ
+    # jobs at the top of the queue so admins notice without having to
+    # navigate to /jobs/.
+    failed_jobs_count = 0
+    try:
+        from rq.job import JobStatus
+        from ..tasks import get_queue
+        q = get_queue()
+        failed_jobs_count = q.failed_job_registry.count
+    except Exception:
+        # Best-effort — never block the queue page on Redis being down.
+        failed_jobs_count = 0
+
     return render_template(
         "clients/queue.html",
         new_leads=new_leads,
         waiting=waiting,
         active=active,
+        failed_jobs_count=failed_jobs_count,
     )
 
 
@@ -815,6 +842,43 @@ def detail(client_id: str):
         .all()
     )
     return render_template("clients/detail.html", client=client, capability_lists=lists)
+
+
+@bp.route("/<client_id>/admin-field", methods=["POST"])
+@login_required
+@admin_only
+@require_client_for_param("client_id")
+def admin_field(client_id: str):
+    """Inline-edit endpoint for admin-only fields on the client detail
+    page (industry, internal notes). HTMX-friendly: returns a small
+    "saved" pip when posted with HX-Request, otherwise redirects back
+    to /clients/<id>. Round-8 §III: industry was display-only with no
+    way to set it for self-registered clients."""
+    client = db.session.get(Client, client_id)
+    if client is None:
+        abort(404)
+    name = (request.form.get("name") or "").strip()
+    if name not in {"industry", "notes"}:
+        abort(400)
+    raw = request.form.get(name)
+    if raw is None:
+        raw = request.form.get("value")
+    setattr(client, name, (raw or "").strip() or None)
+    db.session.commit()
+    log_audit(
+        "client.admin_field_updated",
+        actor=current_user,
+        target_type="client", target_id=client.id, client_id=client.id,
+        details={"field": name},
+    )
+    if request.headers.get("HX-Request"):
+        from flask import make_response
+        return make_response(
+            '<span class="usa-hint shield-portal-saved" style="color:#1a7733;">saved &#10003;</span>',
+            200,
+        )
+    flash("Saved.", "info")
+    return redirect(url_for("clients.detail", client_id=client.id))
 
 
 @bp.route("/<client_id>/capability-list/<list_id>")

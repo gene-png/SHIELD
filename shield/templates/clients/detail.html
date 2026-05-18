@@ -18,6 +18,41 @@
       View intake
     </a>
   </p>
+
+  {# v1.9.1 §III: admin-editable fields (industry, internal notes).
+     Saves on blur via HTMX; no full-page reload. #}
+  <div class="shield-content-card" style="max-width:64rem;margin:1rem auto;">
+    <h2 class="shield-content-card__heading">Admin fields</h2>
+    <form class="usa-form usa-form--large" onsubmit="return false;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="usa-label" for="f-industry">Industry</label>
+      <input class="usa-input" id="f-industry" type="text"
+             name="industry"
+             value="{{ client.industry or '' }}"
+             placeholder="e.g. Healthcare, Financial services"
+             hx-post="{{ url_for('clients.admin_field', client_id=client.id) }}"
+             hx-trigger="blur changed"
+             hx-vals='{"name": "industry"}'
+             hx-params="csrf_token,name,industry"
+             hx-target="next .shield-portal-saved-host"
+             hx-swap="innerHTML">
+      <span class="shield-portal-saved-host" aria-live="polite"></span>
+
+      <label class="usa-label" for="f-notes" style="margin-top:.5rem;">
+        Internal notes
+      </label>
+      <textarea class="usa-textarea" id="f-notes" rows="3"
+                name="notes"
+                placeholder="Notes only admins see."
+                hx-post="{{ url_for('clients.admin_field', client_id=client.id) }}"
+                hx-trigger="blur changed"
+                hx-vals='{"name": "notes"}'
+                hx-params="csrf_token,name,notes"
+                hx-target="next .shield-portal-saved-host"
+                hx-swap="innerHTML">{{ client.notes or '' }}</textarea>
+      <span class="shield-portal-saved-host" aria-live="polite"></span>
+    </form>
+  </div>
 {% endif %}
 
 {# ============ Contact info ============ #}
