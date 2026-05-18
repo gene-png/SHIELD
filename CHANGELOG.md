@@ -12,12 +12,873 @@ Items deferred to v2 (out of v1 scope):
 
 - Cross-platform value loop (spec §9 / Decision #5) — explicitly
   deferred per the spec until v1 is validated in production.
-- Per-user Client association on `User` — the intake surface currently
-  shows every active project to every CLIENT-role user instead of
-  scoping to one client.
 - Workspace rebuild on P1/P2 in the style of P3's executive run-detail
-  (the analog is a per-project "review output" page, not a workspace
-  redesign).
+  — superseded by the round-5 step-flow + three-card dashboard
+  rebuilds (1.8.7-1.8.9). The P3-style executive page (`/summary`) is
+  still the canonical drill-down target.
+- Email-delivered invites — v1.8 ships in-app only; the inviter sees
+  a copy-pasteable invitation link.
+- Deliverable revision UI — `superseded_at` / `superseded_by` ship in
+  the schema in v1.8 but the listing UI for superseded versions is
+  a v2 follow-up.
+- PDF exports (round-5 §6.7) — XLSX exports cover the v1 deliverable
+  need. Adding PDF needs weasyprint + Cairo/Pango system libs +
+  five new exporter functions (capability list, coverage run,
+  current state, roadmap, overlap findings). The dashboards landed
+  in 1.8.6-1.8.9 are HTML-first so a future weasyprint pass will
+  reuse the same layouts.
+- Phase 5 reviewer home + walkability surfaces for P1/P3 (round-5
+  §8.2-8.3). Reviewer scoping is in place (PR 2 of round-2); the
+  dedicated reviewer landing page and per-platform walkability
+  templates are not. Today reviewers use the existing home page +
+  P2's walkability.
+- Real CISA ZTMM 2.0 + DoD ZT catalogs at full size with maturity
+  dimensions (round-5 §14). NIST CSF 2.0 is full (185 subcategories
+  from OSCAL); the other two are curated structures, ~35-44
+  controls each rather than ~150.
+
+## [1.8.9] — 2026-05-17 — P2 three artifact cards → compact dashboards (round-5 §6.4)
+
+The Zero Trust workspace's three artifact lanes (current-state /
+desired-future / roadmap) used to render the AI body as
+`<details><pre>JSON</pre></details>`. Replaced with compact dashboards.
+
+- **Card 1** (Where you are today): big % score = implemented / total,
+  per-pillar progress bars (pure CSS, no chart lib), CTA to open
+  the full assessment.
+- **Card 2** (Where you want to be): target count + Edit-targets CTA.
+- **Card 3** (How to get there): phase count + top-3 phase summaries +
+  Open-roadmap CTA.
+
+Tests: 247 → 255. 8 new in `tests/test_v18_round5_p2_dashboards.py`.
+
+## [1.8.8] — 2026-05-17 — P1 workspace step-flow rebuild (round-5 §6.1)
+
+The 3-column lane view ("Client source documentation" / "Automated
+drafts" / "Your reviewed versions") replaced with a vertical
+4-step flow:
+
+  1. **What the client gave us** — sources + Run-automated-reading CTA
+  2. **Initial reading** — AI extraction + Review-and-confirm CTA →
+     /review/<artifact> (the table editor from 1.8.7)
+  3. **Overlap and waste** — Run-overlap CTA, then Open-dashboard CTA
+     when complete → /summary (executive view from v1.7)
+  4. **Final list** — Finalize CTA → /finalize, View-final-list once done
+
+Each step shows its state (done/active/waiting) and the right CTA.
+Chat scratchpad moved below the flow; only renders once reviews exist.
+
+Tests: 236 → 247. 11 new in `tests/test_v18_round5_p1_workspace.py`.
+
+## [1.8.7] — 2026-05-17 — P1 review + finalize: table editor (round-5 §6.2-6.3)
+
+The two surfaces where admins reviewed and finalized a Tech Debt
+capability list were giant JSON `<textarea>` blocks — admins literally
+hand-edited raw JSON. Replaced with a real HTML table editor.
+
+### Added — `_components/capability_table_editor.html`
+
+Shared Jinja partial used by both review_extraction and finalize.
+Takes a parsed `items` list + a `field_name` parameter and renders
+an editable USWDS table with columns: name / vendor / category /
+function / annual cost / licenses / notes. "+ Add row" creates a
+fresh row; the × button per row removes it.
+
+An inline script (no jQuery, no external deps) serializes the
+visible table to a hidden form input named `{{ field_name }}` on
+submit, so the route layer reads the same shape it always did
+(no Python changes to the POST handlers).
+
+### Changed — `review_extraction` + `finalize`
+
+- `p1.review_extraction` GET parses `Artifact.body_text` into the
+  `items` list the partial expects; falls back to `[]` if the AI
+  body isn't valid JSON.
+- `p1.finalize` GET does the same with `confirmed.body_text`.
+- Both templates simplified: no more `<textarea>`, no JSON syntax
+  notes for the admin.
+
+### Tests
+
+- 231 → 236 passing. 5 new in `tests/test_v18_round5_p1_table_editor.py`
+  covering: review page renders the editor + both items, POST writes
+  the human_ai_informed artifact with the right JSON, malformed AI
+  body falls back to empty editor, finalize page renders the editor,
+  finalize POST creates a CapabilityList row.
+
+## [1.8.6] — 2026-05-17 — clients/detail.html rebuild (round-5 §5.4 leftover)
+
+The detail page rendered projects as `<ul><li>` one-liners with no links.
+Round-5 §5.4 wants per-project cards with service chips, stage badges,
+last-activity timestamps, and a stage-aware primary action button — same
+shape as the dashboard cards on the portal side.
+
+### Changed — `shield/templates/clients/detail.html`
+
+- **Contact section** at the top (only renders when at least one POC
+  or address field is set) with primary POC + email + phone +
+  multi-line address. Pulls from the Phase 1 Client metadata fields.
+- **Projects** rebuilt as a grid of cards:
+  - Each card has a service chip (Tech Debt / Zero Trust / Attack
+    Surface), the current stage as a hint, a title link to the
+    workspace, optional internal-name preview when
+    `client_display_name` is set, and a stage-aware action button.
+  - The action button label is keyed off `project.stage`:
+    `intake` → "Continue intake", `extraction_review` → "Continue
+    review", `overlap_analysis` → "View overlap findings",
+    `current_state_assessment` → "Open assessment",
+    `transition_roadmap` → "Open roadmap", `complete`/`archived` →
+    "View results", etc.
+  - Synthetic `is_client_repository` projects are excluded.
+  - Archived projects go in a separate `<details>` collapsible.
+- **Capability lists** table cleaned up; "Origin" header renamed to
+  "Source" to match the language pass.
+- Empty-state CTA when the client has no real projects yet (admins
+  see a link to start one).
+
+### Tests
+
+- 221 → 231 passing. 10 new tests in
+  `tests/test_v18_round5_detail_rebuild.py`:
+  - per-project cards render with names + service chips
+  - synthetic repository project is excluded from the cards
+  - archived projects go to the collapsible section
+  - stage-aware action labels appear on the right cards
+  - contact info shows when set, hidden when not
+  - empty-state copy for clients with no projects
+  - `client_display_name` takes precedence over `name`
+  - admin sees the action buttons; reviewer doesn't
+
+## [1.8.5] — 2026-05-17 — self-signup: anyone-can-register + org bootstrap
+
+Per user ask: the login page should let new clients create a username
+and password. The Keycloak realm now allows self-signup; the home
+redirect routes a brand-new CLIENT (no `ClientMembership`) to a
+1-field "What's your organization called?" page that atomically
+creates the Client + the user's primary_poc membership and walks
+them into `/portal/welcome`.
+
+### Changed — Keycloak realm (`keycloak/import/shield-dev-realm.json`)
+
+- `registrationAllowed: true` — Keycloak's login page now renders a
+  **Register** link.
+- `registrationEmailAsUsername: true` — signup form asks for email
+  only (no separate username field).
+- `resetPasswordAllowed: true` — Forgot-password link appears too.
+
+Existing dev volumes have to be wiped
+(`docker volume rm shield_keycloak_data`) for the import to re-run
+since Keycloak persists realm state across container restarts.
+
+### Added — `/portal/start-organization`
+
+- GET renders a single-field form (organization name).
+- POST creates the `Client` row (with `legal_name` = typed name),
+  attaches the user as `primary_poc` `ClientMembership`, audits
+  as `client.self_signup_bootstrap`, redirects to `/portal/welcome`.
+- Name collision against the existing `Client.name` UNIQUE
+  constraint is handled by suffixing the new row's `name` with a
+  short hex tag — the user can rename later from `/portal/about`.
+- An already-onboarded user hitting this route is sent to their
+  normal landing.
+
+### Changed — home redirect
+
+CLIENT users without a `ClientMembership` now go to
+`/portal/start-organization` (was `/portal/confirm`, which was a
+dead end for self-signups).
+
+### Tests
+
+- 212 → 221 passing. 9 new in `tests/test_v18_self_signup.py`:
+  home routes membershipless CLIENT to start-organization,
+  GET renders form, POST creates Client + membership + audit row,
+  empty name rejected, name-collision suffix applied, existing
+  member redirected away, post-bootstrap user can reach
+  `/portal/welcome`, realm JSON sanity-checks (`registrationAllowed`
+  + `registrationEmailAsUsername` both true).
+
+## [1.8.4] — 2026-05-17 — roundtrip redaction: redact for AI, restore for display
+
+Per user ask: "the purpose of the redaction is to remove organization
+information when it processes in the AI engine but everything should
+be pieced back together after the AI engine processes everything."
+
+Redaction was previously destructive — the displayed admin-final
+artifacts showed `[REDACTED_EMAIL]` / `[REDACTED_PERSON]` tokens
+even though those values originated in the user's own input. Now:
+
+- The user payload is redacted with **uniquely-numbered placeholders**
+  (`[REDACTED_EMAIL_0001]`, `[REDACTED_PERSON_0002]`, …) before going
+  to Anthropic.
+- `AIClient.complete()` holds the `{placeholder: original}` mapping
+  in memory for the duration of the call.
+- Claude's response is `unredact()`'d before being returned — the
+  originals come back wherever Claude echoed a placeholder.
+- The mapping is **never** written to the audit log, the artifact's
+  lineage, or any file. Counts are still recorded in lineage (so
+  auditors can verify the layer ran), but raw values never persist.
+
+Net effect: real org/PII never reaches Anthropic on the wire; the
+body_text persisted in our DB shows the original values. The "no
+org/personal info processed online" boundary is at the network
+egress, not at the database.
+
+### Changed — `shield.ai.redact`
+
+- `redact()` now returns `(text, RedactionReport, mapping)` instead
+  of `(text, report)`. Callers that don't roundtrip can `_` the third
+  value.
+- Placeholder format: every match now gets a unique numbered tag
+  (e.g. `[REDACTED_EMAIL_0001]`). The category prefix is unchanged.
+- New `unredact(text, mapping)` helper restores originals. Longest-
+  placeholder-first iteration is defensive against any name overlap.
+- All three layer functions (`_apply_extra_terms`, `_apply_regex`,
+  `_apply_presidio`) now populate the shared mapping dict.
+
+### Changed — `shield.ai.client.AIClient.complete()`
+
+- Captures the redaction mapping after `redact()` returns.
+- Calls `unredact()` on Claude's response text before any further
+  processing (JSON coercion, lineage assembly).
+
+### Tests
+
+- 208 → 212 passing. 4 new tests in `tests/test_redact.py`:
+  unredact roundtrips an example, unredact handles partial subsets,
+  unredact passes through text with no placeholders, each match
+  gets a unique placeholder. Existing 11 redact tests + 18
+  vendor-allowlist tests updated for the new 3-tuple return and
+  the new placeholder substring (`[REDACTED_EMAIL_` instead of
+  `[REDACTED_EMAIL]`).
+
+## [1.8.3] — 2026-05-17 — vendor allowlist: stop NER from redacting brand names
+
+User reported the admin-final v2 capability list contained
+`[REDACTED_PERSON]` / `[REDACTED_LOCATION]` / `[REDACTED_NRP]` tokens
+covering vendor names — Commvault, Cisco, Atlassian, Jamf, Zscaler,
+Tenable, Intune, Entra, Rapid7, etc. The regex layer was fine
+(those aren't emails/phones/SSN/etc.); Presidio's spaCy NER was
+misclassifying commercial brand names as named entities.
+
+### Added — `shield.ai.vendor_allowlist`
+
+Curated allowlist of ~150 well-known security / IT vendor + product
+names. Used by `_apply_presidio` to pre-mask matches with NER-invisible
+sentinels (angle-bracket form `<<k0001>>` — verified that spaCy
+classifies these as O / out-of-entity, where lowercase-identifier
+sentinels like `xshieldkeep0001x` were still being flagged as PERSON
+in subject position).
+
+### Changed — `_apply_presidio`
+
+Pipeline now:
+  1. Mask allowlisted vendor names → sentinels
+  2. Run Presidio analyzer on masked text
+  3. Apply NER replacements
+  4. Restore sentinels → original vendor names
+
+The regex layer (emails / phones / SSN / CC / IP / URLs / addresses)
+runs BEFORE the mask step and is unaffected — vendor names don't
+pattern-match real-PII regexes anyway. The per-project literal
+terms (client org name) also run before NER and take precedence
+over the allowlist, so a client-name token next to a vendor still
+gets masked.
+
+Lineage adds an `ALLOWLISTED_VENDOR_TERMS` count so audit can
+verify the allowlist actually fired.
+
+### Tests
+
+- 190 → 208 passing. 18 new tests in
+  `tests/test_v18_round4_vendor_allowlist.py`: roundtrip
+  mask/unmask, case-insensitive + word-boundary matching,
+  every reported failure case (Commvault, Cisco, Cisco Secure
+  Firewall, Atlassian, Jamf, Zscaler, Tenable, Intune, Entra,
+  Rapid7, Defender for Cloud Apps) passes through untouched,
+  email next to vendor still redacted, phone next to vendor
+  still redacted, client-name extra-term still wins over
+  vendor neighbor, real PERSON (Bob Henderson) still redacted
+  with vendor (CrowdStrike) nearby.
+
+## [1.8.2] — 2026-05-17 — round-4 sub-PR C: "Start a new project" entry point
+
+Final of three round-4 sub-PRs. Adds the third use of the shared
+`project_create_form` partial and finishes the round-4 doc's §3.
+
+### Added — client-detail entry point
+
+- `/clients/<id>/projects/new` — GET renders the shared partial
+  with `show_existing_radio=False`; POST creates the Project and
+  redirects to its workspace. Audited as `project.created` with
+  `created_from='client_detail'`. Admin-only.
+- `/clients/<id>` (client detail) page now shows a primary
+  **"+ Start a new project for this client"** button for admins,
+  alongside a secondary **View intake** link. Reviewers don't see
+  the button.
+
+### Round-4 complete
+
+Three sub-PRs stacked on `feat/v1.8-portal`:
+  `a146a66` (4A — adopt becomes create-or-pick)
+  `05f4f8e` (4B — fulfill uses the shared partial + ZT framework)
+  this commit (4C — client-detail "Start a new project")
+
+The 11-step adopt flow the doc identified is now a 1-POST flow. The
+same shared partial backs all three project-creation entry points,
+so changing copy or adding a field happens in one file. Zero Trust
+projects pick a framework at creation; Tech Debt and Attack Surface
+go straight to a named stage='intake' project. The integrity model
+(origin immutable, capability list linked later via the existing
+relink flow, no AI-reuse ack until the picker selects an AI-origin
+list) is unchanged.
+
+### Tests
+
+- 184 → 190 passing. 6 new in `tests/test_v18_round4_adopt_create.py`
+  for the client-detail entry point: GET renders form, POST creates,
+  Zero Trust without framework rejects atomically, admin-only RBAC,
+  client-detail button visible to admin / hidden from reviewer.
+
+## [1.8.2-rc2] — 2026-05-17 — round-4 sub-PR B: fulfill uses the shared partial
+
+Second of three round-4 sub-PRs. Refactors `/clients/<id>/requests/
+<id>/fulfill` to render the shared `project_create_form` partial
+with `lock_service=True` (service is fixed to the request's service)
+and `show_existing_radio=False` (this entry point creates a NEW
+project to satisfy the request).
+
+### Added — Zero Trust framework support on fulfill
+
+- Fulfilling a `zero_trust` ServiceRequest now requires picking a
+  framework (CISA ZTMM 2.0 / DoD ZT / NIST CSF 2.0). The framework
+  dropdown is conditionally shown by the partial's inline JS;
+  server-side validation rejects atomically when missing.
+
+### Changed — fulfill route shares the project-creation logic
+
+- POST now goes through `_create_project_from_form` (added in PR 4A),
+  which centralizes the service/name/framework validation. The
+  fulfill route adds the request-specific behavior on top:
+  `sr.fulfilled_project_id` linkage + notification fire.
+- Emits TWO audit rows now (matches the adopt-create-new path):
+  `project.created` (with `created_from='fulfill_flow'` +
+  `source_request_id`) and `client.service_request_fulfilled`.
+- Dropped the inline `client_display_name` field from the form;
+  admins set the optional client-facing label later from the
+  project workspace.
+
+### Tests
+
+- 182 → 184 passing. 2 new tests in
+  `tests/test_v18_round3_admin_actions.py` for the Zero Trust
+  framework requirement (without-framework rejects atomically,
+  with-framework succeeds). 5 existing fulfill tests updated for
+  the new form field name (`name` → `new_project_name`) + the
+  paired audit row.
+
+## [1.8.2-rc1] — 2026-05-17 — round-4 sub-PR A: adopt becomes create-or-pick
+
+First of three round-4 sub-PRs. Replaces the existing-project-only
+adopt picker with a create-or-pick form so admins can create the
+receiving project inline from a brand-new client's repository — the
+common case the round-2/3 work didn't address.
+
+### Added — shared `_components/project_create_form.html`
+
+One Jinja partial parameterized by the caller. Used in this PR for
+adopt; in 4B for service-request fulfillment; in 4C for the
+client-detail "Start a new project" button. The partial:
+
+- Shows the "An existing project" radio when
+  `show_existing_radio=True` and the client has any non-archived,
+  non-repository projects; defaults to the most recently created.
+- Shows "A new project" radio always; defaults to it when no
+  existing projects.
+- Service select, locked (hidden) when `lock_service=True`.
+- Project-name input pre-populated with
+  `{client.legal_name or name} — {service display} {year}`.
+- Framework dropdown shown/hidden via inline JS when service ==
+  zero_trust.
+- Per round-4 chat answer: no notes field, no description column,
+  no Capability-List or AI-reuse acknowledgment at create time
+  (those defer to the relink flow).
+
+### Changed — `/clients/<id>/adopt-artifact/<artifact_id>`
+
+- Now accepts `GET` (renders the picker) + `POST` (handles both
+  `target=existing` and `target=new`).
+- `target=new` path creates the Project, links the artifact, and
+  emits **two** audit rows in the same transaction
+  (`project.created` with `created_from='adopt_flow'` +
+  `source_artifact_id`, and `artifact.adopted_into_project` with
+  `prior_stage` + `via='adopt_create'`). Round-4 §6.
+- `target=existing` path still works for v1 callers; emits one
+  audit row with `via='adopt_existing'`.
+- Zero Trust new-project path requires a framework; rejects with
+  flash + redirect-to-form otherwise. No half-state on validation
+  failure.
+- Per round-4 chat answer: stage stays `client_repository` on
+  adopt; client is **not** notified (admin housekeeping).
+- Post-submit redirect lands on the new project's workspace.
+
+### Tests
+
+- 167 → 182 passing. 15 new in
+  `tests/test_v18_round4_adopt_create.py`:
+  GET renders form, existing projects show when present, empty-state
+  hint when none, target=new creates project + adopts + audits,
+  paired audit rows, ZT-without-framework fails atomically (no
+  half-state), ZT-with-framework succeeds, empty/bogus name+service
+  reject, target=existing still works with one audit row,
+  cross-client existing target redirects, cross-client artifact
+  returns 404, missing-target redirects back, admin-only RBAC,
+  `via` audit detail distinguishes paths.
+- 3 existing PR 5 tests updated for the new form-field shape
+  (`project_id` → `target` + `existing_project_id`).
+
+## [1.8.1] — 2026-05-17 — round-3 PR 3C: admin fulfill / decline + notifications
+
+Final of three round-3 sub-PRs. Closes the loop on the
+"client requests, admin acts" flow.
+
+### Added — admin actions on a ServiceRequest
+
+- `/clients/queue` "Waiting on us" bucket now surfaces open
+  ServiceRequests inline: service tag, request date, optional
+  deadline, notes excerpt, and per-row **Fulfill** / **Decline**
+  buttons.
+- `GET /clients/<id>/requests/<id>/fulfill` renders a small form
+  pre-populated with a suggested project name (`{label} —
+  {service} ({yyyy-mm})`) and an optional client-facing label.
+  POST creates a Project with `stage='intake'`, links
+  `ServiceRequest.fulfilled_project_id`, audits as
+  `client.service_request_fulfilled`, writes a `Notification` for
+  every accepted client member, redirects to the new project's
+  workspace. Rejects `unsure` requests (admin should reply in
+  messages first).
+- `GET /clients/<id>/requests/<id>/decline` renders a reason form;
+  POST sets `declined_at`/`declined_reason`, audits as
+  `client.service_request_declined`, notifies client members.
+  Reason must be ≥10 chars.
+
+### Tests
+
+- 157 → 167 passing. 10 new in
+  `tests/test_v18_round3_admin_actions.py` covering: queue surfaces
+  open requests; fulfill creates the project, links the request,
+  writes audit + notification, requires a name, rejects `unsure`,
+  idempotent on already-fulfilled; decline records reason + state,
+  writes audit + notification, requires a 10-char reason; reviewers
+  blocked from fulfill (admin-only).
+
+### Round-3 complete
+
+Three sub-PRs stacked on `feat/v1.8-portal`:
+  `eed3d97` (PR 3A — schema + leak fix)
+  `9db62a6` (PR 3B — state machine + request form)
+  this commit (PR 3C — admin fulfill / decline + notifications)
+
+The bug the user reported on the v1.8 walkthrough is closed:
+the dashboard now renders cards as legitimate state transitions
+(seed Acme projects show as `in_review` / `ready_to_view` because
+the migration backfilled fulfilled ServiceRequests for them), and
+every portal screen renders the client's typed legal_name rather
+than the seed name.
+
+## [1.8.1-rc2] — 2026-05-17 — round-3 PR 3B: dashboard state machine + request-a-service
+
+Second of three round-3 sub-PRs. Replaces the round-2 dashboard's
+three-state cards (`awaiting`/`active`/`delivered`) with the round-3
+§5 seven-state machine, and adds the `/portal/services/request` form
+that creates a `ServiceRequest` row admins can act on.
+
+### Changed — dashboard card resolver
+
+Round-3 §5 state machine, in precedence order:
+
+  `ready_to_view` — at least one non-superseded Deliverable
+  `complete`      — Project.stage in (archived, complete)
+  `awaiting_docs` — Project.stage in (intake, raw_intake)
+  `in_review`     — any other not-yet-delivered Project.stage
+  `requested`     — open ServiceRequest, no Project
+  `declined`      — declined ServiceRequest, no Project
+  `setup`         — service in client.service_interests, no Project, no request
+  (no card)       — none of the above
+
+The round-3 rule "project state takes precedence over request state"
+is enforced: if a fulfilled Project exists, the open request is shown
+only as informational context, not as the card's state.
+
+Cards use `Project.client_display_name` when set, otherwise the
+service label (`Tech Debt` / `Zero Trust` / `Attack Surface`). The
+admin's internal Project.name never leaks to the client surface.
+
+### Added — `/portal/services/request`
+
+- GET renders the round-3 §4.2 form (one required service radio,
+  optional notes textarea, optional deadline date).
+- POST writes a `ServiceRequest` row, appends the service to
+  `client.service_interests` (skipping `unsure`), writes a
+  `client.service_requested` audit row, and creates a
+  `Notification` for every active ADMIN.
+- The dashboard's empty-state CTA and the new "+ Add another service"
+  button both point here.
+- Re-request button on a `declined` card POSTs to this endpoint with
+  the service prefilled.
+
+### Tests
+
+- 139 → 157 passing. 18 new tests in
+  `tests/test_v18_round3_state_machine.py` covering every card state
+  (no-card / requested / declined / setup / awaiting_docs / in_review
+  / ready_to_view / complete), project-precedence-over-request, the
+  `client_display_name` substitution, and the request POST flow:
+  audit-row, service-interests append, `unsure` doesn't append,
+  admin notification, bogus-service rejection, bad-deadline graceful
+  handling, deadline capture.
+- 2 existing PR 4 tests updated for the new state copy
+  ("In progress"→"In review", "Deliverables ready"→"Ready to view").
+
+## [1.8.1-rc1] — 2026-05-17 — round-3 PR 3A: ServiceRequest schema + leak fix
+
+Round-3 of the UX work, split into three sub-PRs stacked on
+`feat/v1.8-portal`. This is sub-PR 3A — schema and leak fix only;
+the dashboard state machine + request-a-service flow land in 3B,
+admin fulfill/decline in 3C.
+
+### Added — `ServiceRequest` model + `Project.client_display_name`
+
+- `service_requests` table. The "client REQUESTS a service" pattern
+  the doc replaces a "Start a new Project" button with. Three
+  derivable states: `is_open`, `is_fulfilled`, `is_declined`.
+- `projects.client_display_name` — optional friendly label. When set,
+  the portal renders this; admin screens always render `name`.
+- Migration `0003_v18r3_service_requests` round-trips cleanly. The
+  backfill creates one fulfilled ServiceRequest per existing
+  non-repository project on every Client — Acme's three demo projects
+  become "legitimate" cards in the round-3 state machine (PR 3B)
+  instead of mystery cards.
+
+### Fixed — "Acme Co" leak across portal templates
+
+- New `client_label` Jinja filter: returns
+  `client.legal_name or client.name`, falling back through
+  whitespace-only values.
+- Every `{{ client.name }}` in `shield/templates/portal/*.html`
+  switched to `{{ client | client_label }}` so a client who typed
+  "My Real Org" during /portal/about sees their typed name, not the
+  seed-assigned "Acme Co". Legacy `intake/index.html` template also
+  patched.
+- Flash on the legacy intake upload no longer names the project's
+  client.
+
+### Changed — role gate retires /intake/ for CLIENT
+
+- The v1.8 PR 3 role gate kept `/intake/` accessible to CLIENT users
+  for backward compatibility. Round-3 §2.3 calls this out as a leak
+  path; the gate now redirects CLIENT off `/intake/` to `/portal/`
+  regardless of URL. The legacy blueprint stays mounted for
+  ADMIN/REVIEWER who may still use it for testing.
+
+### Tests
+
+- 120 → 139 passing. 19 new tests in
+  `tests/test_v18_round3_schema_and_leak.py`:
+  ServiceRequest open/fulfilled/declined branches, optional metadata,
+  Project.client_display_name nullability, `client_label` filter
+  precedence (legal_name → name → empty), parametrized portal-page
+  legal-name renders (no "Acme Co" leak across 9 portal URLs), legacy
+  `/intake/` redirect.
+- Updated 2 existing tests that asserted `/intake/` was reachable for
+  CLIENT.
+
+## [1.8.0] — 2026-05-17 — client-portal redesign complete (PR 6 of 6)
+
+PR 6 is the wrap-up: documentation, threat-model rows, and a small
+audit-viewer convenience. No new behavior on existing routes.
+
+### Added — threat model rows (`docs/security/THREAT_MODEL.md`)
+
+- **Cross-client read by a multi-tenant user.** The `access_denied`
+  audit pattern, 404-not-403 failure mode, and the membership /
+  assignment scoping that backs it.
+- **Phishing / social engineering inside message threads.** Append-only,
+  audited, no peer-to-peer DM, `/admin/messages/` makes every
+  conversation part of the audit surface.
+- **Invitation-token replay or theft.** SHA-256-hashed storage,
+  email-match enforcement, 7-day expiry, revocation, audit trail.
+
+### Added — audit viewer quick filters
+
+- `/audit/` page gains a row of one-click chips for the v1.8 event
+  families: client intake, artifact adoption, deliverables,
+  messages, cross-client denied, client uploads. Each chip
+  prefills the existing free-text action filter — no new query
+  parameters, no schema change.
+
+### Status
+
+- 120 tests passing across 1.0 → 1.8 (was 58/58 at v1.7 ship).
+- Six PR commits on `feat/v1.8-portal`:
+  `6889d7f` (PR 1 — schema + migration)
+  `3e2aa31` (PR 2 — access control overhaul)
+  `99abc9f` (PR 3 — welcome + intake wizard)
+  `8520bb8` (PR 4 — dashboard + deliverables + messages + invites)
+  `99cb03a` (PR 5 — admin queue + intake-view + adopt + finalize + inbox)
+  this commit (PR 6 — docs + threat model + audit quick filters)
+- Existing flows unchanged: integrity model + origin immutability
+  + audit append-only + AI-egress redaction all carry through. The
+  rework is purely additive around the v1.0 → v1.7 spine.
+
+## [1.8.0-rc5] — 2026-05-17 — admin surfaces: queue, intake-view, adopt, finalize, inbox (PR 5 of 6)
+
+### Added — admin landing + workflow
+
+- `/` (home) now redirects ADMIN users to `/clients/queue`.
+  CLIENT and REVIEWER redirects unchanged.
+- `/clients/queue` — three-bucket action queue:
+    - **New leads** (intake_completed_at NULL)
+    - **Waiting on us** (intake done, service interests with no
+      matching Project, or consult requested)
+    - **Active** (at least one non-repository Project)
+  Plus a per-client "unread from them" count so conversational work
+  surfaces alongside intake work.
+
+- `/clients/<id>/intake` — admin's read-only view of every Client
+  metadata field the client submitted via `/portal/welcome` →
+  `/portal/about`, plus the documents in the synthetic Client
+  Repository project.
+- `POST /clients/<id>/adopt-artifact/<artifact_id>` — link a
+  repository artifact to a real Project. The artifact stays
+  origin=human_input (origin is immutable); only `project_id`
+  moves. Cross-client targets are refused. Audited as
+  `artifact.adopted_into_project`.
+
+### Added — finalize artifacts as Deliverables
+
+- `POST /projects/<id>/finalize-artifact/<artifact_id>` creates a
+  `Deliverable` snapshot the client sees in `/portal/deliverables/`.
+  Re-running for the same `(project, artifact)` marks the previous
+  Deliverable superseded (`superseded_at` + `superseded_by`).
+- Audited as `deliverable.finalized` (+ `deliverable.superseded`
+  when applicable).
+
+### Added — admin cross-client messages
+
+- New `shield.spine.admin_views` blueprint mounted at `/admin/*`.
+- `/admin/messages/` — inbox of every accessible thread, sorted by
+  unread-first then newest-first. Reviewers see only their assigned
+  clients' threads (scope_query); admins see everything.
+- `/admin/messages/<client_id>/<thread_key>` — admin view of one
+  thread + reply form. GET marks read; POST appends with the same
+  `message.posted` audit row the portal side writes.
+
+### Changed — clients list + nav
+
+- `/clients/` adds **Services** + **Intake** columns showing each
+  client's service_interests + intake state.
+- Admin nav adds **Queue** (first) and **Inbox**.
+
+### Tests
+
+- 109 → 120 passing. 11 new tests in `tests/test_v18_admin.py`:
+  admin home → queue redirect, queue bucketing, intake-view renders
+  client metadata, adopt-artifact moves the project_id + audits +
+  rejects cross-client targets, finalize creates a Deliverable +
+  supersedes the previous, admin messages inbox lists threads, admin
+  thread POST writes the reply.
+
+## [1.8.0-rc4] — 2026-05-17 — client portal: dashboard, messages, deliverables, invites (PR 4 of 6)
+
+### Added — returning-client surfaces
+
+- `/portal/` is now the **real dashboard**, not a placeholder.
+  Renders one service card per `client.service_interests` entry,
+  each in one of three states: `awaiting` (no Project yet),
+  `active` (Project exists, no Deliverable), `delivered`
+  (at least one Deliverable). Right-rail shows recent deliverables +
+  recent messages with unread counts.
+- `/portal/services` — manage service interests after initial intake.
+- `/portal/deliverables/` — finalized reports grouped by project.
+- `/portal/deliverables/<id>` — single deliverable with summary +
+  readable body (uses the v1.7 `readable_body` partial so JSON
+  bodies render as structured content, not raw `<pre>` dumps).
+- `/portal/messages/` — thread list. One general thread (project_id
+  NULL) plus one per non-archived project. Each row shows latest
+  message preview + unread count for the viewer.
+- `/portal/messages/<thread_key>` — single thread chronologically.
+  GET marks every message the viewer hadn't read; POST appends a
+  new message and writes a `message.posted` audit row.
+- `/portal/settings/` — profile (display name / title / phone) +
+  team listing + invite-a-colleague (primary-POC only).
+- `/portal/settings/invite` — creates a `ClientInvitation` row with
+  a SHA-256-hashed token; the plaintext token only ever exists
+  during the response and is shown to the inviter as a
+  copy-pasteable URL (per round-2 §10 answer — no SMTP).
+- `/portal/settings/invite/<id>/revoke` — primary-POC can revoke
+  a pending invite.
+- `/portal/invitations/accept/<token>` — invitee accepts. Validates
+  expiry + revocation + email-match (the logged-in user's email
+  must match the invited email; mismatch returns 403 — fail closed).
+
+### Added — audit events
+
+- `message.posted`
+- `client.invited_user`
+- `client.user_joined`
+- `client.invitation_revoked`
+
+### Tests
+
+- 92 → 109 passing. 17 new tests in
+  `tests/test_v18_portal_dashboard.py` covering: dashboard service
+  cards per interest, state transitions (awaiting/active/delivered),
+  services-page interest change, deliverables list grouping +
+  empty state + cross-client 404, messages list/thread/post + read-
+  tracking, settings profile update, invite-create writes hashed
+  token + returns the URL, member (non-PM) can't invite, accept
+  links membership and writes audit, mismatched email is 403,
+  expired/revoked tokens are 404.
+
+## [1.8.0-rc3] — 2026-05-17 — client portal: welcome + intake wizard (PR 3 of 6)
+
+### Added — `shield.spine.portal` blueprint
+
+- `/portal/welcome` — service-selection. Three big cards (Tech Debt /
+  Zero Trust / Attack Surface) plus an "I'm not sure" option that
+  co-exists (per round-2 §8.1 answer) with the service checkboxes
+  rather than being mutually exclusive.
+- `/portal/about` — org/POC/address/compliance/prompt form with
+  per-field HTMX auto-save. Each input wires `hx-post=/portal/about/field`
+  on blur; the endpoint accepts only a whitelist of column names so
+  it can't be used as a write-anything Client.update.
+- `/portal/documents` — drag-and-drop upload to the synthetic
+  per-client repository project (Option B for storage paths). Files
+  land with `origin=human_input`, `stage='client_repository'`, and
+  the existing redaction-on-AI-egress chain stays intact.
+- `/portal/confirm` — final step; sets `intake_completed_at` and
+  writes a `client.intake_completed` audit row.
+- `/portal/` — placeholder dashboard (PR 4 replaces this with the
+  real per-service card view + message threads + activity feed).
+
+### Changed — entry points
+
+- `/` (home) redirects CLIENT users to `/portal/welcome` if their
+  client's `intake_completed_at` is NULL, otherwise to `/portal/`.
+- The role gate `_restrict_client_to_portal` (renamed from
+  `_restrict_client_to_intake`) now allows `/portal/*` for CLIENT
+  users. `/intake/*` stays accessible for backward compatibility
+  but the redirect target for everything else is `/portal/`.
+- CLIENT nav rebuilt: Home / My documents / My services / Settings,
+  all pointing into `/portal/*`.
+
+### Added — audit event types (writes only; PR 6 wires the viewer filter)
+
+- `client.service_interest_changed` — welcome form save with diff.
+- `client.about_saved` — `/portal/about/submit` checkpoint.
+- `client.intake_completed` — `/portal/confirm` finalize.
+- `file_uploaded_to_repository` — every client-tier upload.
+- `project.create_client_repository` — on-demand backfill of the
+  synthetic project (rare; the migration creates it for existing
+  clients, but a future client created outside the seed path hits
+  this code path on first portal visit).
+
+### Tests
+
+- 78 → 92 passing. 14 new tests in `tests/test_v18_portal_wizard.py`:
+  home redirects (welcome vs dashboard), welcome form save +
+  service-interest audit, service-key whitelist filter,
+  about-field per-column save, about-field rejects unknown columns,
+  about-submit requires POC email, documents upload lands in the
+  synthetic project + writes audit, confirm sets `intake_completed_at`,
+  CLIENT users still 302 from non-portal URLs.
+
+## [1.8.0-rc2] — 2026-05-17 — client portal: access control (PR 2 of 6)
+
+### Added — `shield.spine.access`
+
+- `client_ids_for_user(user)` resolves which client_ids a given user
+  may read. Sentinel `None` for unrestricted (admin and un-assigned
+  reviewer per round-2 §10 answer); list for finite scope (CLIENT's
+  accepted memberships, REVIEWER's non-revoked assignments).
+- `require_client_access(client_id)` aborts 404 (not 403) and writes
+  an `access_denied` audit row on failure — existence of another
+  client's resource never leaks through the error code.
+- `@require_client_for_param("client_id")` decorator for routes
+  whose URL parameter is the client id.
+- `scope_query(stmt, model)` adds the client-scope WHERE to a Select.
+- `user_clients()` returns the resolved Client rows for nav/dashboard.
+
+### Changed — every cross-client-readable route is now scoped
+
+- `/repository/` and `/repository/artifact/<id>` filter by access;
+  synthetic client_repository projects are excluded from the global
+  browse (they'll surface on the portal in PR 3).
+- `/clients/`, `/clients/<id>`, `/clients/<id>/capability-list/*`
+  apply `@require_client_for_param`.
+- `/platform/{tech-debt,zero-trust,attack-surface}/` index pages
+  scope-filter the project list.
+- The shared `_get_project_or_404` in each platform now calls
+  `require_client_access(project.client_id)` so every project-scoped
+  route inherits the check (workspaces, all POST actions,
+  project_summary, finalize, walkability, run_detail).
+- `/projects/<id>/relink-capability-list` adds the same check.
+- `/audit/` scopes its query and the client filter to the user's
+  resolved clients.
+
+### Tests
+
+- 66 → 78 passing. 12 new tests in `tests/test_v18_access.py`
+  covering: admin unrestricted, unauthenticated empty, CLIENT
+  resolves to accepted memberships only (pending invitations don't
+  grant access), REVIEWER with zero assignments preserves
+  see-everything, revoked assignments don't count, cross-client
+  reads return 404, access_denied audit row is written.
+
+## [1.8.0-rc1] — 2026-05-17 — client portal: schema only (PR 1 of 6)
+
+This release is the first of six PRs implementing the v1.8 client
+portal redesign (see `docs/v1.8-portal-spec.md`, to be added). It is
+schema-only: no new routes, no template changes, no behavior change
+for existing flows.
+
+### Added — data model
+
+- `Client` extended with intake metadata: legal/dba name, website,
+  size band, primary POC name/title/email/phone, full address,
+  compliance frameworks (JSON list), compliance deadline, prompting
+  context, `service_interests` (JSON list of `tech_debt` /
+  `zero_trust` / `attack_surface`), `consult_requested` flag,
+  `intake_completed_at` timestamp.
+- `User` extended with optional `title` and `phone` (Keycloak still
+  owns email + sub).
+- `Project` gains `is_client_repository` flag. Exactly one synthetic
+  "Client Repository" project per client; client-tier uploads land
+  there with `stage='client_repository'`.
+- `Artifact` gains a denormalized `client_id` column (NOT NULL).
+  Writers auto-fill it from `project.client_id`; every per-client
+  scoping query reads this directly.
+- Six new tables: `client_memberships`, `client_invitations`,
+  `messages`, `notifications`, `deliverables`, `reviewer_assignments`.
+
+### Added — migration
+
+- `0002_v18_client_portal` with backfill: existing artifacts get
+  `client_id` set from their project; the demo Acme client gets all
+  three service interests with `intake_completed_at = NULL` so
+  `client@demo` walks the new welcome flow on next login; a synthetic
+  "Client Repository" project is created per client; `client@demo`
+  becomes a `primary_poc` of Acme. Round-trips cleanly via
+  `flask db downgrade 0001_initial && flask db upgrade`.
+
+### Tests
+
+- 58 → 66 passing. 8 new schema-invariant tests in
+  `tests/test_v18_models.py` covering Artifact.client_id wiring,
+  ClientMembership uniqueness, ReviewerAssignment uniqueness,
+  ClientInvitation token-hash uniqueness, and basic instantiation of
+  Message / Notification / Deliverable.
 
 ## [1.7] — 2026-05-17 — UX pass against the field-review doc
 

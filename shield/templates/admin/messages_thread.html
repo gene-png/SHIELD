@@ -1,0 +1,49 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ project.name if project else 'General' }} &mdash; {{ client.name }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:48rem;margin:0 auto;">
+  <a href="{{ url_for('admin_views.messages_inbox') }}">&larr; Inbox</a>
+  &middot; <a href="{{ url_for('clients.detail', client_id=client.id) }}">{{ client.name }}</a>
+</p>
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <h1 class="shield-exec__headline">
+    {{ project.name if project else 'General conversation' }}
+  </h1>
+
+  <ol class="shield-message-list" style="list-style:none;padding-left:0;">
+    {% if messages %}
+      {% for m in messages %}
+        {% set author = authors.get(m.author_id) %}
+        <li class="shield-message" style="margin-bottom:1rem;padding:.75rem;border-left:3px solid #ccc;">
+          <p>
+            <strong>{{ author.display_name if author else 'Someone' }}</strong>
+            {% if author and author.role.value != 'client' %}
+              <small class="usa-hint">(consultant)</small>
+            {% else %}
+              <small class="usa-hint">(client)</small>
+            {% endif %}
+            &middot; <small>{{ m.created_at | local_time }}</small>
+          </p>
+          <p class="usa-prose">{{ m.body }}</p>
+        </li>
+      {% endfor %}
+    {% else %}
+      <li><em>No messages in this thread yet.</em></li>
+    {% endif %}
+  </ol>
+
+  <form method="POST"
+        action="{{ url_for('admin_views.messages_thread', client_id=client.id, thread_key=thread_key) }}"
+        class="usa-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="usa-label" for="msg-body">Reply</label>
+    <textarea class="usa-textarea" id="msg-body" name="body" rows="4"
+              placeholder="Reply to the client&hellip;" required></textarea>
+    <button class="usa-button" type="submit" style="margin-top:.5rem;">Post message</button>
+  </form>
+</section>
+
+{% endblock %}

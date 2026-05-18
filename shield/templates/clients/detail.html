@@ -1,29 +1,360 @@
 {% extends "_layout/base.html" %}
-{% block title %}{{ client.name }} · SHIELD{% endblock %}
+{% block title %}{{ client | client_label }} &middot; SHIELD{% endblock %}
 {% block content %}
-<h1>{{ client.name }}</h1>
-<p>{{ client.industry or '' }}</p>
 
-<h2>Capability lists</h2>
-<table class="usa-table usa-table--striped">
-  <thead><tr><th>Version</th><th>Label</th><th>Origin</th><th>Items</th><th>Created</th></tr></thead>
-  <tbody>
-    {% for cl in capability_lists %}
-      <tr>
-        <td><a href="{{ url_for('clients.capability_list_detail', client_id=client.id, list_id=cl.id) }}">v{{ cl.version }}</a></td>
-        <td>{{ cl.label }}</td>
-        <td>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %}</td>
-        <td>{{ cl.items | length }}</td>
-        <td>{{ cl.created_at.strftime('%Y-%m-%d') }}</td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<section class="shield-exec" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.industry or 'Client' }}</p>
+  <h1 class="shield-exec__headline">{{ client | client_label }}</h1>
+</section>
 
-<h2>Projects</h2>
-<ul>
-  {% for p in client.projects %}
-    <li>{{ p.platform.value }} — {{ p.name }} — stage: {{ p.stage }}</li>
-  {% endfor %}
-</ul>
+{% if current_user.role.value == 'admin' and looks_corrupted %}
+  <div class="shield-jobs-alert" style="max-width:64rem;margin:1rem auto;">
+    <strong>This client's intake looks corrupted.</strong>
+    Several contact / address fields share the same value — the
+    pre-v1.9.1 <code>/portal/about</code> form bug. Open the intake
+    view to use the reset action.
+    <br>
+    <a class="usa-button" style="background:#b50909;margin-top:.5rem;"
+       href="{{ url_for('clients.intake_view', client_id=client.id) }}">
+      Open intake to reset &rarr;
+    </a>
+  </div>
+{% endif %}
+
+{% if current_user.role.value == 'admin' %}
+  <p style="max-width:64rem;margin:0 auto;">
+    <a class="usa-button"
+       href="{{ url_for('clients.new_project_for_client', client_id=client.id) }}">
+      + Start a new project for this client
+    </a>
+    <a class="usa-button usa-button--outline"
+       href="{{ url_for('clients.intake_view', client_id=client.id) }}">
+      View intake
+    </a>
+  </p>
+
+  {# v1.9.1 §III: admin-editable fields (industry, internal notes).
+     Saves on blur via HTMX; no full-page reload. #}
+  <div class="shield-content-card" style="max-width:64rem;margin:1rem auto;">
+    <h2 class="shield-content-card__heading">Admin fields</h2>
+    <form class="usa-form usa-form--large" onsubmit="return false;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="usa-label" for="f-industry">Industry</label>
+      <input class="usa-input" id="f-industry" type="text"
+             name="industry"
+             value="{{ client.industry or '' }}"
+             placeholder="e.g. Healthcare, Financial services"
+             hx-post="{{ url_for('clients.admin_field', client_id=client.id) }}"
+             hx-trigger="blur changed"
+             hx-vals='{"name": "industry"}'
+             hx-params="csrf_token,name,industry"
+             hx-target="next .shield-portal-saved-host"
+             hx-swap="innerHTML">
+      <span class="shield-portal-saved-host" aria-live="polite"></span>
+
+      <label class="usa-label" for="f-notes" style="margin-top:.5rem;">
+        Internal notes
+      </label>
+      <textarea class="usa-textarea" id="f-notes" rows="3"
+                name="notes"
+                placeholder="Notes only admins see."
+                hx-post="{{ url_for('clients.admin_field', client_id=client.id) }}"
+                hx-trigger="blur changed"
+                hx-vals='{"name": "notes"}'
+                hx-params="csrf_token,name,notes"
+                hx-target="next .shield-portal-saved-host"
+                hx-swap="innerHTML">{{ client.notes or '' }}</textarea>
+      <span class="shield-portal-saved-host" aria-live="polite"></span>
+    </form>
+  </div>
+{% endif %}
+
+{# ============ Contact info ============ #}
+{% if client.primary_poc_name or client.primary_poc_email or client.address_line1 %}
+<section style="max-width:64rem;margin:1.5rem auto;">
+  <h2>Contact</h2>
+  <div class="grid-row grid-gap">
+    <div class="tablet:grid-col-6">
+      <dl class="shield-walkability__provenance">
+        <dt>Primary point of contact</dt>
+        <dd>
+          {{ client.primary_poc_name or '&mdash;' | safe }}
+          {% if client.primary_poc_title %}<br><small>{{ client.primary_poc_title }}</small>{% endif %}
+        </dd>
+        {% if client.primary_poc_email %}<dt>Email</dt><dd>{{ client.primary_poc_email }}</dd>{% endif %}
+        {% if client.primary_poc_phone %}<dt>Phone</dt><dd>{{ client.primary_poc_phone }}</dd>{% endif %}
+      </dl>
+    </div>
+    <div class="tablet:grid-col-6">
+      {% if client.address_line1 %}
+        <dl class="shield-walkability__provenance">
+          <dt>Address</dt>
+          <dd>
+            {{ client.address_line1 }}{% if client.address_line2 %}<br>{{ client.address_line2 }}{% endif %}<br>
+            {{ client.city or '' }}{% if client.state %}, {{ client.state }}{% endif %} {{ client.postal_code or '' }}<br>
+            {{ client.country or '' }}
+          </dd>
+        </dl>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ============ Projects ============ #}
+{# Per round-5 §5.4: each project is a card with service chip, stage, last
+   activity, and a primary action button whose label varies by stage. We
+   exclude the synthetic client-repository project (is_client_repository=True). #}
+{% set real_projects = client.projects | rejectattr('is_client_repository') | rejectattr('archived') | list %}
+{% set archived_projects = client.projects | rejectattr('is_client_repository') | selectattr('archived') | list %}
+{% set service_labels = {
+    'tech_debt':      'Tech Debt',
+    'zero_trust':     'Zero Trust',
+    'attack_surface': 'Attack Surface',
+} %}
+{% set stage_to_label_and_endpoint = {
+    'intake':                       ('Continue intake',         'workspace'),
+    'raw_intake':                   ('Continue intake',         'workspace'),
+    'ai_extraction':                ('Review extraction',       'workspace'),
+    'extraction_review':            ('Continue review',         'workspace'),
+    'overlap_analysis':             ('View overlap findings',   'project_summary'),
+    'conversational_interrogation': ('Open chat',               'workspace'),
+    'admin_final':                  ('View final list',         'finalize'),
+    'current_state_assessment':     ('Open assessment',         'project_summary'),
+    'desired_future_state':         ('Set targets',             'workspace'),
+    'transition_roadmap':           ('Open roadmap',            'project_summary'),
+    'attack_coverage':              ('View coverage',           'workspace'),
+    'submitted':                    ('Open project',            'workspace'),
+    'archived':                     ('View results',            'workspace'),
+    'complete':                     ('View results',            'workspace'),
+} %}
+{% set platform_blueprint = {
+    'tech_debt':      'p1',
+    'zero_trust':     'p2',
+    'attack_surface': 'p3',
+} %}
+
+<section style="max-width:64rem;margin:1.5rem auto;">
+  <h2>Projects</h2>
+  {% if real_projects %}
+    <div class="grid-row grid-gap shield-portal-cards">
+      {% for p in real_projects %}
+        {% set service_key = p.platform.value %}
+        {% set action_pair = stage_to_label_and_endpoint.get(p.stage, ('Open project', 'workspace')) %}
+        {% set action_label = action_pair[0] %}
+        {% set action_endpoint = action_pair[1] %}
+        {% set blueprint = platform_blueprint.get(service_key, 'p1') %}
+        <div class="tablet:grid-col-6" style="margin-bottom:1rem;">
+          <div class="usa-card shield-portal-service-card">
+            <p class="shield-card__tag">
+              <span class="usa-tag">{{ service_labels.get(service_key, service_key) }}</span>
+              <small class="usa-hint">&middot; {{ p.stage }}</small>
+            </p>
+            <h3>
+              <a href="{{ url_for(blueprint ~ '.workspace', project_id=p.id) }}">
+                {{ p.client_display_name or p.name }}
+              </a>
+            </h3>
+            {% if p.client_display_name %}
+              <p class="usa-hint"><small>Internal: {{ p.name }}</small></p>
+            {% endif %}
+            <p class="usa-hint">
+              <small>Created {{ p.created_at | local_time(fmt='date') }}.</small>
+            </p>
+            <p style="margin-top:.5rem;">
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for(blueprint ~ '.' ~ action_endpoint, project_id=p.id) }}">
+                {{ action_label }}
+              </a>
+              {% if current_user.role.value == 'admin' %}
+                {# Round-7 §17 archive button — outline / small so it
+                   doesn't compete with the primary verb. Purge lives
+                   on the archived list to make it a deliberate move. #}
+                <form method="POST"
+                      action="{{ url_for('lifecycle.project_archive', project_id=p.id) }}"
+                      style="display:inline;margin-left:.5rem;"
+                      onsubmit="return confirm('Archive “{{ p.name }}”? You can restore it from the Archived list below.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="reason" value="archived via client-detail page">
+                  <button class="usa-button usa-button--small usa-button--outline"
+                          title="Soft-delete; reversible from the Archived list">
+                    Archive
+                  </button>
+                </form>
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="usa-hint"><em>No active projects yet.</em>
+      {% if current_user.role.value == 'admin' %}
+        <a href="{{ url_for('clients.new_project_for_client', client_id=client.id) }}">Start one &rarr;</a>
+      {% endif %}
+    </p>
+  {% endif %}
+
+  {% if archived_projects %}
+    <details style="margin-top:1rem;">
+      <summary><small>Archived projects ({{ archived_projects | length }})</small></summary>
+      <table class="usa-table usa-table--striped" style="margin-top:.5rem;">
+        <thead>
+          <tr>
+            <th>Project</th><th>Service</th><th>Status</th>
+            {% if current_user.role.value == 'admin' %}<th>Admin</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in archived_projects %}
+            <tr>
+              <td>
+                <a href="{{ url_for(platform_blueprint.get(p.platform.value, 'p1') ~ '.workspace', project_id=p.id) }}">
+                  {{ p.client_display_name or p.name }}
+                </a>
+              </td>
+              <td>{{ service_labels.get(p.platform.value, p.platform.value) }}</td>
+              <td>
+                {% if p.lifecycle_state == 'purged' %}
+                  <span class="usa-tag" style="background:#5c5c5c;">Purged</span>
+                  {% if p.purged_reason %}<small class="usa-hint">{{ p.purged_reason }}</small>{% endif %}
+                {% else %}
+                  <span class="usa-tag">Archived</span>
+                {% endif %}
+              </td>
+              {% if current_user.role.value == 'admin' %}
+                <td>
+                  {% if p.lifecycle_state == 'archived' %}
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.project_unarchive', project_id=p.id) }}"
+                          style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="usa-button usa-button--small usa-button--outline">Restore</button>
+                    </form>
+                    {# Purge is the high-friction admin verb — confirmation
+                       phrase must match the project name. We surface it as
+                       a small inline form rather than a button so the
+                       typed-confirmation is unavoidable. #}
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.project_purge', project_id=p.id) }}"
+                          style="display:inline;margin-left:.5rem;"
+                          onsubmit="return confirm('PURGE permanently removes “{{ p.name }}” and every file in it from disk. Audit history stays. Continue?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input class="usa-input usa-input--small" type="text"
+                             name="confirmation_phrase"
+                             placeholder='Type "{{ p.name }}" to purge'
+                             style="width:14rem;display:inline-block;vertical-align:middle;">
+                      <input type="hidden" name="reason" value="purged via client-detail page">
+                      <button class="usa-button usa-button--small usa-button--secondary"
+                              style="background:#b50909;">Purge</button>
+                    </form>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+</section>
+
+{# ============ Capability lists ============ #}
+{% set active_lists   = capability_lists | rejectattr('archived') | list %}
+{% set archived_lists = capability_lists | selectattr('archived') | list %}
+<section style="max-width:64rem;margin:1.5rem auto;">
+  <h2>Capability lists</h2>
+  {% if active_lists %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr>
+          <th>Version</th><th>Label</th><th>Source</th><th>Items</th><th>Created</th>
+          {% if current_user.role.value == 'admin' %}<th>Admin</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for cl in active_lists %}
+          <tr>
+            <td><a href="{{ url_for('clients.capability_list_detail', client_id=client.id, list_id=cl.id) }}">v{{ cl.version }}</a></td>
+            <td>{{ cl.label }}</td>
+            <td>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %}</td>
+            <td>{{ cl.items | length }}</td>
+            <td>{{ cl.created_at | local_time(fmt='date') }}</td>
+            {% if current_user.role.value == 'admin' %}
+              <td>
+                <form method="POST"
+                      action="{{ url_for('lifecycle.capability_list_archive', list_id=cl.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Archive capability list v{{ cl.version }}? Reversible from the Archived section below.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="reason" value="archived via client-detail page">
+                  <button class="usa-button usa-button--small usa-button--outline">Archive</button>
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No active capability lists yet.</em></p>
+  {% endif %}
+
+  {% if archived_lists %}
+    <details style="margin-top:1rem;">
+      <summary><small>Archived capability lists ({{ archived_lists | length }})</small></summary>
+      <table class="usa-table usa-table--striped" style="margin-top:.5rem;">
+        <thead>
+          <tr>
+            <th>Version</th><th>Label</th><th>Status</th><th>Items</th>
+            {% if current_user.role.value == 'admin' %}<th>Admin</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for cl in archived_lists %}
+            <tr>
+              <td>v{{ cl.version }}</td>
+              <td>{{ cl.label }}</td>
+              <td>
+                {% if cl.lifecycle_state == 'purged' %}
+                  <span class="usa-tag" style="background:#5c5c5c;">Purged</span>
+                  {% if cl.purged_reason %}<small class="usa-hint">{{ cl.purged_reason }}</small>{% endif %}
+                {% else %}
+                  <span class="usa-tag">Archived</span>
+                {% endif %}
+              </td>
+              <td>{{ cl.items | length }}</td>
+              {% if current_user.role.value == 'admin' %}
+                <td>
+                  {% if cl.lifecycle_state == 'archived' %}
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.capability_list_unarchive', list_id=cl.id) }}"
+                          style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="usa-button usa-button--small usa-button--outline">Restore</button>
+                    </form>
+                    <form method="POST"
+                          action="{{ url_for('lifecycle.capability_list_purge', list_id=cl.id) }}"
+                          style="display:inline;margin-left:.5rem;"
+                          onsubmit="return confirm('PURGE permanently tombstones capability list v{{ cl.version }}. Audit history stays. Continue?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input class="usa-input usa-input--small" type="text"
+                             name="confirmation_phrase"
+                             placeholder='Type "v{{ cl.version }}" to purge'
+                             style="width:10rem;display:inline-block;vertical-align:middle;">
+                      <input type="hidden" name="reason" value="purged via client-detail page">
+                      <button class="usa-button usa-button--small usa-button--secondary"
+                              style="background:#b50909;">Purge</button>
+                    </form>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+</section>
+
 {% endblock %}

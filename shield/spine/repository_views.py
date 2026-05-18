@@ -20,6 +20,7 @@ from sqlalchemy import select
 
 from ..extensions import db
 from ..models import Artifact, Origin, Project
+from .access import require_client_access, scope_query
 from .rbac import admin_or_reviewer
 from .repository import promote_artifact
 
@@ -30,17 +31,33 @@ bp = Blueprint("repository", __name__, template_folder="../templates/repository"
 @login_required
 def browse():
     origin_filter = request.args.get("origin", "all")
+    show_archived = request.args.get("show_archived") == "1"
     stmt = select(Artifact).order_by(Artifact.created_at.desc()).limit(200)
     if origin_filter != "all":
         try:
             stmt = stmt.where(Artifact.origin == Origin(origin_filter))
         except ValueError:
             pass
+    # Per-client scoping (v1.8): admins see everything; reviewers see
+    # everything if un-assigned, otherwise their assigned clients;
+    # clients see only their own. Synthetic "Client Repository" projects
+    # are filtered out of the global browse — they belong on the
+    # client's intake_view and the portal /portal/documents page.
+    stmt = scope_query(stmt, Artifact)
+    stmt = stmt.join(Project, Artifact.project_id == Project.id).where(
+        Project.is_client_repository.is_(False)
+    )
+    if not show_archived:
+        # Round-7 §17: hide archived artifacts (and the tombstones from
+        # purges, which share the archived=True flag) from the default
+        # browse. The toggle re-exposes them with their lifecycle pill.
+        stmt = stmt.where(Artifact.archived.is_(False))
     artifacts = list(db.session.scalars(stmt))
     return render_template(
         "repository/browse.html",
         artifacts=artifacts,
         origin_filter=origin_filter,
+        show_archived=show_archived,
     )
 
 
@@ -48,6 +65,11 @@ def browse():
 @login_required
 def artifact_detail(artifact_id: str):
     art = db.session.get(Artifact, artifact_id)
+    if art is not None:
+        # Cross-client read protection. 404 (not 403) before any
+        # other handling so existence of another client's artifact
+        # never leaks through the error code.
+        require_client_access(art.client_id)
     if art is None:
         return ("Not found", 404)
     project = db.session.get(Project, art.project_id)

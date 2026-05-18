@@ -1,0 +1,244 @@
+framework: dod_zt
+display_name: "DoD Zero Trust Reference Architecture"
+source: "https://dodcio.defense.gov/Library/"
+version: "1.0"
+
+# DoD ZT uses two phases (Target / Advanced) as the maturity axis.
+answer_scale:
+  - id: not_yet
+    label: "Not yet implemented"
+    description: "Capability is not yet in place."
+  - id: target
+    label: "Target phase"
+    description: "Foundational ZT capabilities expected by FY27."
+  - id: advanced
+    label: "Advanced phase"
+    description: "Mature, integrated, continuously adaptive ZT."
+
+documents: []
+
+# DoD context: questions assume CAC/PIV as primary credential, mission
+# partner federation considerations, classified vs unclassified vs CUI
+# data handling, DISA STIGs, and ICAM as the identity management
+# framework.
+
+sections:
+  - id: user
+    number: 1
+    title: "User"
+    questions:
+      - id: dod.s1.q1
+        number: 1.1
+        stem: >-
+          Walk me through how users authenticate to this system —
+          from the credential they present to how you make sure they're
+          authorized for what they're doing.
+        cues:
+          - "Is CAC/PIV the primary authentication credential? Are there exceptions? How are those exceptions governed?"
+          - "For mission partners or non-DoD users, what's the authentication path — PIV-I, IdAM federation, agency-to-agency trust?"
+          - "Have you moved beyond username/password fallbacks entirely?"
+          - "How is identity governed — through ICAM, through Active Directory, through a unified IdP?"
+          - "What's your MFA story beyond the smart card factor?"
+          - "Are sign-in decisions context-aware (location, device, behavior) or static role-based?"
+        dimensions: ["user"]
+        dod_activities: ["User Inventory", "Conditional User Access", "Multi-Factor Authentication", "Privileged Access Management"]
+        phases: ["target", "advanced"]
+      - id: dod.s1.q2
+        number: 1.2
+        stem: >-
+          Tell me about how privileged access is managed for this
+          system, especially the controls that distinguish Target-phase
+          from Advanced-phase capability.
+        cues:
+          - "Do you use a PAM tool for vaulted check-out, session recording, and just-in-time elevation?"
+          - "Are admin sessions monitored with User and Entity Behavior Analytics (UEBA)?"
+          - "How quickly is a compromised privileged account detected and contained?"
+          - "Are non-person privileged identities (service accounts, automation accounts) governed the same way as person privileged identities?"
+          - "How do you handle break-glass / emergency credentials?"
+          - "What's the audit trail for every privileged action?"
+        dimensions: ["user"]
+        dod_activities: ["Privileged Access Management", "Behavioral, Contextual ID, and Biometrics"]
+        phases: ["advanced"]
+
+  - id: device
+    number: 2
+    title: "Device"
+    questions:
+      - id: dod.s2.q1
+        number: 2.1
+        stem: >-
+          Walk me through how you know what devices touch this system
+          and how you decide which ones are trusted enough to allow
+          access.
+        cues:
+          - "Where is your authoritative device inventory maintained? How are non-person entities (NPEs) tracked?"
+          - "Are devices fingerprinted on every authentication?"
+          - "Do you have continuous compliance checking (DISA STIG compliance, encryption status, patch level)?"
+          - "How do you handle devices that don't meet baseline — blocked entirely, quarantined, given limited access?"
+          - "What about IoT, OT, and embedded devices in mission contexts?"
+          - "Is your CMDB integrated with your access policies, or are they separate systems?"
+        dimensions: ["device"]
+        dod_activities: ["Device Inventory", "Device Detection & Compliance", "Device Authorization"]
+        phases: ["target"]
+      - id: dod.s2.q2
+        number: 2.2
+        stem: >-
+          Tell me how continuously you re-evaluate device health and
+          how the device's signal feeds into access decisions for this
+          system.
+        cues:
+          - "Is device posture re-checked at every session, every hour, every authentication, or continuously?"
+          - "Does a posture change (vulnerability discovered, malware detected) automatically revoke access?"
+          - "How does endpoint EDR/XDR coverage extend to mobile devices, BYOD (where permitted), and cloud workloads?"
+          - "Are you detecting and responding to unusual device behavior in real time?"
+          - "How do you handle remote and disconnected operations where continuous evaluation isn't possible?"
+        dimensions: ["device"]
+        dod_activities: ["Remote Access", "Device Authentication", "Real-Time Inspection"]
+        phases: ["advanced"]
+
+  - id: network_environment
+    number: 3
+    title: "Network / Environment"
+    questions:
+      - id: dod.s3.q1
+        number: 3.1
+        stem: >-
+          Walk me through how this system's network is segmented and
+          how traffic flowing across it is protected.
+        cues:
+          - "Is your network segmented at the perimeter, internally, or both?"
+          - "Have you moved toward micro-segmentation or software-defined networking?"
+          - "Is east-west traffic encrypted (server-to-server, container-to-container)?"
+          - "What about traffic in and out of cloud environments and mission partner networks?"
+          - "Do you inspect TLS-encrypted traffic, and how do you handle the visibility-vs-privacy tradeoff?"
+          - "For classified environments, what's the segregation between security domains?"
+        dimensions: ["network_environment"]
+        dod_activities: ["Data Flow Mapping", "Software Defined Networking", "Macro-Segmentation", "Micro-Segmentation"]
+        phases: ["target"]
+      - id: dod.s3.q2
+        number: 3.2
+        stem: >-
+          Tell me how you maintain visibility across this network and
+          how the system holds up under stress.
+        cues:
+          - "What's your network telemetry coverage — on-prem, cloud, mission partner?"
+          - "How quickly can you detect lateral movement or anomalous east-west traffic?"
+          - "Do you have DDoS protection and redundant network paths?"
+          - "For hybrid and multi-cloud environments, how do you correlate network signals across providers?"
+          - "What's your network's resilience posture against degraded or contested environments?"
+        dimensions: ["network_environment", "visibility"]
+        dod_activities: ["Network Analytics"]
+        phases: ["advanced"]
+
+  - id: application_workload
+    number: 4
+    title: "Application / Workload"
+    questions:
+      - id: dod.s4.q1
+        number: 4.1
+        stem: >-
+          Walk me through how applications are protected for this
+          system — both how access is granted and how the applications
+          themselves are secured.
+        cues:
+          - "Where is your application inventory maintained? Does it include both first-party and SaaS applications?"
+          - "Is application access controlled centrally (SSO, IdAM-driven) or per-application?"
+          - "What's your story for API security — authentication, rate limiting, vulnerability testing?"
+          - "For container and Kubernetes workloads, what runtime protections are in place?"
+          - "How are application threats (injection, malicious payloads) detected and blocked?"
+        dimensions: ["application_workload"]
+        dod_activities: ["Application Inventory", "Secure Software Development", "Software Risk Management", "Resource Authorization"]
+        phases: ["target"]
+      - id: dod.s4.q2
+        number: 4.2
+        stem: >-
+          Tell me about the path applications take from development
+          through deployment — and how you're catching issues at each
+          step.
+        cues:
+          - "Is your SDLC documented and followed? Does it include security gates?"
+          - "What's running in CI — SAST, DAST, SCA, secrets scanning?"
+          - "How are container images vetted — signed, scanned, attested?"
+          - "Is software-bill-of-materials (SBOM) tracked for every workload?"
+          - "What runtime monitoring is in place for workloads (RASP, eBPF observability)?"
+          - "How do you handle third-party and supply-chain risk in software?"
+        dimensions: ["application_workload"]
+        dod_activities: ["DevSecOps", "Software Risk Management"]
+        phases: ["advanced"]
+
+  - id: data
+    number: 5
+    title: "Data"
+    questions:
+      - id: dod.s5.q1
+        number: 5.1
+        stem: >-
+          Give me the picture of how data is tagged, where it lives,
+          and how its sensitivity drives the controls around it.
+        cues:
+          - "Is data tagged at creation — by the author, by automated discovery, or both?"
+          - "What classification scheme is used (Public / CUI / Confidential / Secret / Top Secret as applicable)?"
+          - "Are tags persistent across storage systems, or applied per-location?"
+          - "Where does sensitive data physically reside — on-prem, FedRAMP-authorized cloud, mission partner systems?"
+          - "How is encryption applied at rest, in transit, and in use?"
+          - "Who manages encryption keys, and are they rotated automatically?"
+        dimensions: ["data"]
+        dod_activities: ["Data Catalog Risk Alignment", "Data Tagging", "Data Classification", "Data Encryption & Rights Management"]
+        phases: ["target"]
+      - id: dod.s5.q2
+        number: 5.2
+        stem: >-
+          Tell me how you protect data once it's been classified —
+          both who can access it and how you prevent it from going
+          where it shouldn't.
+        cues:
+          - "How are data access decisions made — role-based, attribute-based, mission-context-based?"
+          - "Do you use Data Rights Management (DRM) to follow data outside the original system?"
+          - "Where is DLP applied — endpoint, network, cloud APIs, email?"
+          - "How do you monitor for anomalous data access patterns (large downloads, off-hours, unfamiliar locations)?"
+          - "What's your data egress story — approved destinations, blocked exfiltration channels?"
+          - "For mission partner data sharing, how is need-to-know enforced?"
+        dimensions: ["data"]
+        dod_activities: ["Data Loss Prevention", "Data Access Control", "Data Monitoring & Sensing"]
+        phases: ["advanced"]
+
+  - id: visibility_analytics
+    number: 6
+    title: "Visibility and Analytics"
+    questions:
+      - id: dod.s6.q1
+        number: 6.1
+        stem: >-
+          Walk me through what you collect, how it gets to your
+          analysts, and how you turn signals into action.
+        cues:
+          - "What telemetry sources feed your SIEM / XDR (endpoints, network, identity, applications, cloud)?"
+          - "For DoD specifically, what's your integration with JFHQ-DODIN, USCYBERCOM, or other shared sensing?"
+          - "How long is data retained? Sufficient for incident response and forensics?"
+          - "Are threat intelligence feeds integrated and operationalized?"
+          - "What's your detection development lifecycle — building, tuning, retiring detections?"
+          - "How are AI/ML models used for anomaly detection? How are they monitored for drift?"
+        dimensions: ["visibility_analytics"]
+        dod_activities: ["Log All Traffic", "SIEM", "Common Security & Risk Analytics", "UEBA", "Threat Intelligence Integration"]
+        phases: ["target", "advanced"]
+
+  - id: automation_orchestration
+    number: 7
+    title: "Automation and Orchestration"
+    questions:
+      - id: dod.s7.q1
+        number: 7.1
+        stem: >-
+          Tell me how automation supports security operations for this
+          system — what's automated today, what's still manual, and
+          where you're heading.
+        cues:
+          - "Is there a SOAR platform? What playbooks are fully automated end-to-end?"
+          - "Can your security stack automatically respond — isolate device, disable user, block IP, quarantine email?"
+          - "How integrated are your tools — shared signals or silos?"
+          - "Are AI/ML models used for detection, response decisions, or both? What's the human-in-the-loop policy?"
+          - "How do you monitor the automation itself to ensure correct behavior?"
+          - "For DoD operational tempo, what role does automation play in incident response time?"
+        dimensions: ["automation_orchestration"]
+        dod_activities: ["Policy Decision Point", "Threat Alerting", "Security Orchestration", "AI/ML", "Security Operations Center"]
+        phases: ["target", "advanced"]

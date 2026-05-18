@@ -1,62 +1,56 @@
 {% extends "_layout/base.html" %}
-{% block title %}Finalize · {{ project.name }} · SHIELD{% endblock %}
+{% block title %}Finalize &middot; {{ project.name }} &middot; SHIELD{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('p1.workspace', project_id=project.id) }}">&larr; {{ project.name }}</a></p>
-<h1>Finalize — admin-final reconciled list</h1>
 
-<p class="usa-prose">
-  This produces the project's headline output: a new
-  <strong>capability list version</strong> for
-  <em>{{ project.client.name }}</em>, labeled as <em>your reviewed
-  version</em>. The earlier states (raw upload, automated extraction,
-  admin-confirmed extraction) are retained, never overwritten &mdash;
-  the integrity model requires distinct, separately-labeled states.
-</p>
+<section class="shield-exec" style="max-width:72rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ project.name }}</p>
+  <h1 class="shield-exec__headline">Final list for {{ project.client | client_label }}.</h1>
+  <p class="usa-prose">
+    This produces the project's headline output: a new
+    <strong>capability list version</strong> for
+    <em>{{ project.client | client_label }}</em>, labeled as your
+    reviewed version. The earlier states (raw upload, automatic
+    reading, your reviewed version) are kept alongside it &mdash; they
+    aren't overwritten.
+  </p>
+</section>
 
-<form method="POST" action="{{ url_for('p1.finalize', project_id=project.id) }}" class="usa-form usa-form--large">
+<form method="POST" action="{{ url_for('p1.finalize', project_id=project.id) }}"
+      class="usa-form usa-form--large" style="max-width:72rem;margin:0 auto;">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <p class="usa-prose">
-    <strong>Source:</strong> admin-confirmed extraction
-    "<a href="{{ url_for('repository.artifact_detail', artifact_id=confirmed.id) }}">{{ confirmed.title }}</a>"
-    ({{ confirmed.created_at.strftime('%Y-%m-%d %H:%M') }})
+    <strong>Source:</strong>
+    <a href="{{ url_for('repository.artifact_detail', artifact_id=confirmed.id) }}">{{ confirmed.title }}</a>
+    ({{ confirmed.created_at | local_time }})
   </p>
 
   {% if chat_commits %}
-    <details>
-      <summary><strong>{{ chat_commits | length }} committed chat exchange(s)</strong> — referenced in lineage but not auto-merged into the list</summary>
-      <ul>
+    <details style="margin-bottom:1rem;">
+      <summary>
+        <strong>{{ chat_commits | length }} committed chat exchange(s)</strong>
+        &mdash; cited in lineage; fold any chat-derived rows in below by hand.
+      </summary>
+      <ul class="usa-prose">
         {% for c in chat_commits %}
-          <li><a href="{{ url_for('repository.artifact_detail', artifact_id=c.id) }}">{{ c.title }}</a> ({{ c.created_at.strftime('%Y-%m-%d %H:%M') }})</li>
+          <li><a href="{{ url_for('repository.artifact_detail', artifact_id=c.id) }}">{{ c.title }}</a>
+              <small>({{ c.created_at | local_time }})</small></li>
         {% endfor %}
       </ul>
-      <p class="usa-hint">Per spec §8.1, chat content does not silently
-      leak into the final list. Fold any chat-derived rows into the JSON
-      below yourself; the system will cite the chat artifacts in lineage.</p>
     </details>
   {% endif %}
 
-  <label class="usa-label" for="items_json">
-    Items (JSON array)
-    <span class="usa-hint">— pre-filled from the confirmed extraction; edit in place</span>
-  </label>
-  <textarea class="usa-textarea shield-json-edit" id="items_json" name="items_json"
-            rows="20" spellcheck="false">{{ items_json }}</textarea>
-
-  <p class="usa-hint">
-    Each item should have: <code>name</code> (required),
-    <code>vendor</code>, <code>category</code>, <code>function</code>,
-    <code>annual_cost_usd</code> (integer), <code>license_count</code>
-    (integer), <code>notes</code>. Rows missing <code>name</code> are
-    silently dropped.
-  </p>
+  {# Reusable table editor; serializes to a hidden `items_json` field. #}
+  {% set field_name = 'items_json' %}
+  {% include "_components/capability_table_editor.html" %}
 
   <label class="usa-label" for="notes">Notes (optional)</label>
   <textarea class="usa-textarea" id="notes" name="notes" rows="3"
-            placeholder="What changed vs. the confirmed extraction; rationale; outstanding caveats.">{{ notes }}</textarea>
+            placeholder="What changed vs. the reviewed version; rationale; outstanding caveats.">{{ notes }}</textarea>
 
-  <div class="usa-button-group">
-    <button class="usa-button" type="submit">Create admin-final capability list</button>
+  <div class="usa-button-group" style="margin-top:1rem;">
+    <button class="usa-button" type="submit">Create final capability list</button>
     <a class="usa-button usa-button--outline"
        href="{{ url_for('p1.workspace', project_id=project.id) }}">Cancel</a>
   </div>

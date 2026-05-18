@@ -1,0 +1,84 @@
+{# Editable capability-list table.
+
+   Replaces the giant JSON <textarea> on /platform/tech-debt/.../review
+   and /platform/tech-debt/.../finalize with a real HTML form. The
+   underlying storage stays JSON-shaped; this partial is purely a UI
+   for editing it.
+
+   Caller passes:
+     items        list of dicts (from json.loads of the input string)
+     field_name   form-field name for the hidden serialized JSON
+                  (e.g. "confirmed_text" or "items_json")
+     editable     bool — when False, render read-only (Phase 3 dashboards)
+
+   Form submit serializes the visible table back to one JSON-array
+   hidden input named `{{ field_name }}` so the server route reads it
+   exactly the way it did with the textarea.
+#}
+{%- set editable = editable if editable is defined else True -%}
+{%- set items = items if items is defined else [] -%}
+
+<div class="shield-capability-table-editor"
+     data-field-name="{{ field_name }}"
+     {% if editable %}data-editable="1"{% endif %}>
+
+  <table class="usa-table usa-table--striped shield-capability-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Vendor</th>
+        <th>Category</th>
+        <th>Function</th>
+        <th>Annual cost (USD)</th>
+        <th>Licenses</th>
+        <th>Notes</th>
+        {% if editable %}<th aria-label="actions"></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody class="shield-capability-table__body">
+      {% for item in items %}
+        <tr class="shield-capability-row">
+          <td><input type="text" class="usa-input usa-input--small" data-col="name"
+                     value="{{ item.get('name', '') }}" {% if not editable %}readonly{% endif %}></td>
+          <td><input type="text" class="usa-input usa-input--small" data-col="vendor"
+                     value="{{ item.get('vendor', '') }}" {% if not editable %}readonly{% endif %}></td>
+          <td><input type="text" class="usa-input usa-input--small" data-col="category"
+                     value="{{ item.get('category', '') }}" {% if not editable %}readonly{% endif %}></td>
+          <td><input type="text" class="usa-input usa-input--small" data-col="function"
+                     value="{{ item.get('function', '') }}" {% if not editable %}readonly{% endif %}></td>
+          <td><input type="number" class="usa-input usa-input--small" data-col="annual_cost_usd"
+                     value="{{ item.get('annual_cost_usd', '') }}" {% if not editable %}readonly{% endif %}></td>
+          <td><input type="number" class="usa-input usa-input--small" data-col="license_count"
+                     value="{{ item.get('license_count', '') }}" {% if not editable %}readonly{% endif %}></td>
+          <td><input type="text" class="usa-input usa-input--small" data-col="notes"
+                     value="{{ item.get('notes', '') }}" {% if not editable %}readonly{% endif %}></td>
+          {% if editable %}
+            <td><button type="button" class="usa-button usa-button--unstyled shield-capability-row__remove"
+                        aria-label="Remove row">&times;</button></td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if editable %}
+    <p>
+      <button type="button" class="usa-button usa-button--outline usa-button--small shield-capability-table__add">
+        + Add row
+      </button>
+      <small class="usa-hint">Empty rows (no name) are dropped on save.</small>
+    </p>
+  {% endif %}
+
+  {# Hidden field the server reads. Serialized just-in-time on form
+     submit by the inline script below. #}
+  <input type="hidden" name="{{ field_name }}" class="shield-capability-table__json" value="">
+</div>
+
+{% if editable %}
+{# CSP is `script-src 'self'` (no `unsafe-inline`) — the JS lives in
+   a static file so it actually executes. Without this, the hidden
+   `{{ field_name }}` field stayed empty and finalize POSTed an empty
+   string, surfacing as "Items JSON is malformed: char 0". #}
+<script src="{{ url_for('static', filename='shield/capability_table_editor.js') }}" defer></script>
+{% endif %}

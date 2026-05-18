@@ -159,7 +159,12 @@ def test_attribution_can_only_be_downgraded(admin_client, admin, p2_project):
 # --------------------------------------------------------------------
 
 def test_client_role_redirected_from_platform_routes(client_role_client):
-    """Any non-intake/auth URL must redirect a CLIENT-role user to /intake."""
+    """Any non-portal/auth URL must redirect a CLIENT-role user to /portal/.
+
+    v1.8: target changed from /intake/ to /portal/ as the portal blueprint
+    replaces the thin intake surface. /intake/ is still allowed for
+    backward compatibility but the redirect target is the new portal.
+    """
     for path in (
         "/platform/tech-debt/",
         "/platform/zero-trust/",
@@ -169,15 +174,22 @@ def test_client_role_redirected_from_platform_routes(client_role_client):
     ):
         r = client_role_client.get(path, follow_redirects=False)
         assert r.status_code == 302, f"{path!r} did not redirect"
-        assert r.headers["Location"].endswith("/intake/"), (
-            f"{path!r} redirected to {r.headers['Location']!r}, not /intake/"
+        assert r.headers["Location"].endswith("/portal/"), (
+            f"{path!r} redirected to {r.headers['Location']!r}, not /portal/"
         )
 
 
-def test_client_role_can_reach_intake(client_role_client):
-    """The intake surface itself is allowed for CLIENT-role users."""
-    r = client_role_client.get("/intake/")
-    assert r.status_code == 200
+def test_client_role_redirected_off_legacy_intake(client_role_client):
+    """v1.8 round-3 closes the /intake/ backward-compat loophole.
+
+    Before: /intake/ was allowed for CLIENT users so the v1.0 surface
+    kept working. Round-3 §2.3 calls out that the legacy template
+    leaks the seed-assigned name ("Acme Co") and tightens the role
+    gate to redirect CLIENT off /intake/ entirely.
+    """
+    r = client_role_client.get("/intake/", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["Location"].endswith("/portal/")
 
 
 # --------------------------------------------------------------------
@@ -295,7 +307,13 @@ def test_capability_list_xlsx_export(admin_client, acme):
     r = admin_client.get(f"/clients/{acme.id}/capability-list/{cl.id}/export.xlsx")
     assert r.status_code == 200
     assert "spreadsheetml" in r.headers["Content-Type"]
-    assert 'attachment; filename="' in r.headers["Content-Disposition"]
+    # Flask's send_file emits `attachment; filename=...` (and may add a
+    # `filename*=UTF-8''...` RFC 5987 form for non-ASCII filenames).
+    # Either way the disposition is an attachment with a filename.
+    cd = r.headers["Content-Disposition"]
+    assert cd.startswith("attachment")
+    assert "filename" in cd
+    assert ".xlsx" in cd
 
     wb = openpyxl.load_workbook(io.BytesIO(r.data))
     assert "Overview" in wb.sheetnames
@@ -306,10 +324,13 @@ def test_capability_list_xlsx_export(admin_client, acme):
 
 
 def test_client_blocked_from_audit_log(client_role_client):
-    """CLIENT role should never see the audit log."""
+    """CLIENT role should never see the audit log.
+
+    v1.8: CLIENT users are redirected to /portal/ (was /intake/).
+    """
     r = client_role_client.get("/audit/", follow_redirects=False)
     assert r.status_code == 302
-    assert r.headers["Location"].endswith("/intake/")
+    assert r.headers["Location"].endswith("/portal/")
 
 
 def test_reviewer_can_promote_ai_artifacts(reviewer_client, admin, p2_project):

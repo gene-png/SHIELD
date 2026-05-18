@@ -30,7 +30,7 @@ from ..spine.picker import (
     link_capability_list_to_project,
     list_capability_lists_for_client,
 )
-from ..spine.rbac import admin_only
+from ..spine.rbac import admin_only, admin_or_reviewer
 from ..spine.repository import (
     write_human_ai_informed_artifact,
     write_human_artifact,
@@ -42,12 +42,18 @@ from . import bp
 @bp.route("/")
 @login_required
 def index():
-    projects = (
-        db.session.query(Project)
-        .filter_by(platform=PlatformType.TECH_DEBT, archived=False)
+    from sqlalchemy import select
+
+    from ..spine.access import scope_query
+    stmt = (
+        select(Project)
+        .where(Project.platform == PlatformType.TECH_DEBT,
+               Project.archived.is_(False),
+               Project.is_client_repository.is_(False))
         .order_by(Project.created_at.desc())
-        .all()
     )
+    stmt = scope_query(stmt, Project)
+    projects = list(db.session.scalars(stmt))
     return render_template("p1/index.html", projects=projects)
 
 
@@ -148,6 +154,10 @@ def _get_project_or_404(project_id: str) -> Project:
     p = db.session.get(Project, project_id)
     if p is None or p.platform != PlatformType.TECH_DEBT:
         abort(404)
+    # v1.8: cross-client read protection. 404 (not 403) for callers
+    # without access — see shield.spine.access.require_client_access.
+    from ..spine.access import require_client_access
+    require_client_access(p.client_id)
     return p
 
 
@@ -225,11 +235,23 @@ def upload(project_id: str):
     if not f:
         flash("No file selected.", "error")
         return redirect(url_for("p1.workspace", project_id=project.id))
-    write_human_artifact(
+    src = write_human_artifact(
         project=project, stage="raw_intake", title=title,
         file_stream=f.stream, filename=f.filename, mime_type=f.mimetype,
         actor=current_user,
     )
+    # Round-7 §19: auto-queue extraction unless the admin has opted out.
+    from ..spine.auto_progress import maybe_auto_progress_p1_after_upload
+    job = maybe_auto_progress_p1_after_upload(project, src, actor=current_user)
+    if job is not None:
+        flash(
+            f"Uploaded {title}. Reading it automatically — refreshing as it runs.",
+            "info",
+        )
+        return redirect(url_for(
+            "jobs.wait", job_id=job.id,
+            next=url_for("p1.workspace", project_id=project.id),
+        ))
     flash(f"Uploaded {title} to the human lane.", "info")
     return redirect(url_for("p1.workspace", project_id=project.id))
 
@@ -267,17 +289,49 @@ def review_extraction(project_id: str, ai_artifact_id: str):
     if src is None or src.origin != Origin.AI_GENERATED:
         abort(404)
     if request.method == "POST":
-        confirmed = request.form.get("confirmed_text", "")
-        write_human_ai_informed_artifact(
+        confirmed = (request.form.get("confirmed_text") or "").strip()
+        # Defensive: empty hidden field (static JS didn't run, browser
+        # bug, etc.) is still recorded as an empty JSON array rather
+        # than an empty string — downstream readers expect a JSON shape.
+        if not confirmed:
+            confirmed = "[]"
+        review = write_human_ai_informed_artifact(
             project=project, stage="extraction_review",
             title=f"Admin-confirmed extraction (from {src.title})",
             body_text=confirmed,
             cites_artifact_ids=[src.id],
             actor=current_user,
         )
+        # Round-7 §19: auto-queue overlap analysis on the new review.
+        from ..spine.auto_progress import maybe_auto_progress_p1_after_review
+        job = maybe_auto_progress_p1_after_review(project, review, actor=current_user)
+        if job is not None:
+            flash(
+                "Saved the reviewed extraction. Running overlap analysis "
+                "automatically — refreshing as it runs.",
+                "info",
+            )
+            return redirect(url_for(
+                "jobs.wait", job_id=job.id,
+                next=url_for("p1.workspace", project_id=project.id),
+            ))
         flash("Admin-confirmed extraction recorded.", "info")
         return redirect(url_for("p1.workspace", project_id=project.id))
-    return render_template("p1/review_extraction.html", project=project, src=src)
+
+    # Round-5 §6.2: the page used to be a giant JSON textarea. Now it's
+    # a real table editor. Parse the AI body_text into a list of dicts
+    # the partial can render; fall back to an empty list on malformed
+    # input so the admin can still add rows manually.
+    try:
+        items = json.loads(src.body_text or "[]")
+        if not isinstance(items, list):
+            items = []
+    except (ValueError, TypeError):
+        items = []
+    return render_template(
+        "p1/review_extraction.html",
+        project=project, src=src, items=items,
+    )
 
 
 # ----- AI overlap analysis -----
@@ -309,6 +363,36 @@ def overlap(project_id: str):
 # Committing anything to the authoritative list is a separate, explicit
 # act (see `commit_chat` below). The conversation must never silently
 # leak into the final artifact.
+
+# ----- Reviewer audit-walkability (round-7 §8.3) -----
+#
+# Per-overlap walk: the capability-list items in each overlap group
+# (client's claim — what they say they have) -> the automated overlap
+# finding -> the cost estimate -> the recommendation.
+
+@bp.route("/project/<project_id>/walkability")
+@login_required
+@admin_or_reviewer
+def walkability(project_id: str):
+    project = _get_project_or_404(project_id)
+    overlap_art = _find_latest(project, Origin.AI_GENERATED, "overlap_analysis")
+    overlap = None
+    if overlap_art is not None and overlap_art.body_text:
+        try:
+            overlap = json.loads(overlap_art.body_text)
+        except (ValueError, TypeError):
+            overlap = None
+    confirmed = _find_latest(project, Origin.HUMAN_AI_INFORMED, "extraction_review")
+    snapshot = project.capability_snapshot
+    return render_template(
+        "p1/walkability.html",
+        project=project,
+        overlap=overlap,
+        overlap_art=overlap_art,
+        confirmed=confirmed,
+        snapshot=snapshot,
+    )
+
 
 def _find_latest(project: Project, origin: Origin, stage: str) -> Artifact | None:
     return (
@@ -427,6 +511,13 @@ def finalize(project_id: str):
         items_json = (request.form.get("items_json") or "").strip()
         notes = (request.form.get("notes") or "").strip()
 
+        # Defensive: an empty hidden field (e.g. if the static JS didn't
+        # load) means "no items", not a parse error. The original code
+        # called json.loads("") which raised. Treat empty as [] so the
+        # later "no items" branch handles it cleanly.
+        if not items_json:
+            items_json = "[]"
+
         try:
             items = json.loads(items_json)
         except json.JSONDecodeError as e:
@@ -515,11 +606,20 @@ def finalize(project_id: str):
             client_id=client.id, list_id=new_cl.id,
         ))
 
+    # Round-5 §6.3: render the confirmed extraction as a table the
+    # admin can edit inline, not a raw JSON textarea. Server still
+    # reads `items_json` from the form; the partial's JS serializes
+    # the table back into that hidden field on submit.
+    try:
+        items = json.loads(confirmed.body_text or "[]")
+        if not isinstance(items, list):
+            items = []
+    except (ValueError, TypeError):
+        items = []
     return render_template(
         "p1/finalize.html", project=project,
         confirmed=confirmed, chat_commits=chat_commits,
-        items_json=confirmed.body_text or "[]",
-        notes="",
+        items=items, notes="",
     )
 
 

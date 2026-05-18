@@ -1,25 +1,36 @@
 {% extends "_layout/base.html" %}
 {% block title %}Zero Trust · SHIELD{% endblock %}
 {% block content %}
-<h1>Zero Trust</h1>
-<p>Assess compliance posture against one chosen framework. Establish desired state. Produce a roadmap.</p>
+<section class="shield-page-header">
+  <p class="shield-page-header__eyebrow">Zero Trust</p>
+  <h1>Zero Trust projects.</h1>
+  <p class="shield-page-header__intro">
+    Assess compliance posture against one chosen framework. Establish
+    desired state. Produce a roadmap.
+  </p>
+</section>
 
 <p>
   <a class="usa-button" href="{{ url_for('p2.new_project') }}">+ New project</a>
 </p>
 
-<table class="usa-table usa-table--striped">
+{% set filter_key = 'p2' %}
+{% set stages = ['intake','submitted','current_state_assessment','desired_future_state','transition_roadmap'] %}
+{% include '_components/list_filter.html' %}
+
+<table class="usa-table usa-table--striped" data-shield-filter="p2">
   <thead><tr><th>Project</th><th>Client</th><th>Framework</th><th>Stage</th><th>Created</th></tr></thead>
   <tbody>
     {% for p in projects %}
-      <tr>
+      <tr data-stage="{{ p.stage }}">
         <td><a href="{{ url_for('p2.workspace', project_id=p.id) }}">{{ p.name }}</a></td>
         <td>{{ p.client.name }}</td>
         <td>{{ frameworks[p.framework].name if p.framework in frameworks else p.framework or '—' }}</td>
         <td>{{ p.stage }}</td>
-        <td>{{ p.created_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ p.created_at | local_time(fmt='date') }}</td>
       </tr>
     {% endfor %}
   </tbody>
 </table>
+<p data-shield-filter-empty="p2" style="display:none;"><em>No projects match the filter.</em></p>
 {% endblock %}

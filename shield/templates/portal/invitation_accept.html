@@ -1,0 +1,28 @@
+{% extends "_layout/base.html" %}
+{% block title %}Accept invitation &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:40rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">Invitation</p>
+  <h1 class="shield-exec__headline">Join {{ client | client_label }} on SHIELD.</h1>
+  <p class="usa-prose">
+    You've been invited to join <strong>{{ client | client_label }}</strong> as a
+    colleague. Accepting gives you access to the same documents,
+    deliverables, and conversations the rest of your team sees.
+  </p>
+
+  <form method="POST" action="{{ url_for('portal.invitation_accept', token=request.view_args.token) }}"
+        class="usa-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="usa-button-group">
+      <button class="usa-button" type="submit">Accept and continue</button>
+      <a class="usa-button usa-button--outline" href="{{ url_for('portal.index') }}">Not now</a>
+    </div>
+  </form>
+
+  <p class="usa-hint" style="margin-top:1rem;">
+    This invitation expires {{ inv.expires_at | local_time(fmt='date') }}.
+  </p>
+</section>
+
+{% endblock %}

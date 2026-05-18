@@ -35,18 +35,26 @@ def _get_project_or_404(project_id: str) -> Project:
     p = db.session.get(Project, project_id)
     if p is None or p.platform != PlatformType.ZERO_TRUST:
         abort(404)
+    from ..spine.access import require_client_access
+    require_client_access(p.client_id)
     return p
 
 
 @bp.route("/")
 @login_required
 def index():
-    projects = (
-        db.session.query(Project)
-        .filter_by(platform=PlatformType.ZERO_TRUST, archived=False)
+    from sqlalchemy import select
+
+    from ..spine.access import scope_query
+    stmt = (
+        select(Project)
+        .where(Project.platform == PlatformType.ZERO_TRUST,
+               Project.archived.is_(False),
+               Project.is_client_repository.is_(False))
         .order_by(Project.created_at.desc())
-        .all()
     )
+    stmt = scope_query(stmt, Project)
+    projects = list(db.session.scalars(stmt))
     return render_template("p2/index.html", projects=projects, frameworks=FRAMEWORKS)
 
 
@@ -219,8 +227,26 @@ def project_summary(project_id: str):
 @login_required
 @admin_only
 def answer(project_id: str):
+    """Save a single answer.
+
+    v1.9 auto-save: when the request carries the HX-Request header
+    (HTMX), return a small "saved ✓" fragment instead of flash+redirect.
+    The workspace template auto-saves each row on change/blur so the
+    admin doesn't have to click Save per row.
+    """
+    from flask import make_response
+    is_htmx = bool(request.headers.get("HX-Request"))
+
+    def _fragment(msg: str, color: str) -> object:
+        return make_response(
+            f'<span class="usa-hint" style="color:{color};">{msg}</span>',
+            200,
+        )
+
     project = _get_project_or_404(project_id)
     if project.stage == "submitted":
+        if is_htmx:
+            return _fragment("locked", "#b50909")
         flash(
             "This project has been submitted. Per spec decision #3, "
             "attribution is immutable once submitted — reopen via a "
@@ -233,6 +259,8 @@ def answer(project_id: str):
     ans = request.form.get("answer", "").strip()
     rationale = request.form.get("rationale", "").strip()
     if not control_id or ans not in ("implemented", "partial", "not_implemented", "na"):
+        if is_htmx:
+            return _fragment("pick an answer", "#b50909")
         flash("Invalid answer.", "error")
         return redirect(url_for("p2.workspace", project_id=project.id))
 
@@ -251,6 +279,8 @@ def answer(project_id: str):
         .one_or_none()
     )
     if existing and existing.locked:
+        if is_htmx:
+            return _fragment("locked", "#b50909")
         flash("Answer is locked.", "error")
         return redirect(url_for("p2.workspace", project_id=project.id))
 
@@ -270,6 +300,8 @@ def answer(project_id: str):
             attributed_user_id=current_user.id,
         ))
     db.session.commit()
+    if is_htmx:
+        return _fragment("saved ✓", "#1a7733")
     flash(f"Answer saved for {control_id}.", "info")
     return redirect(url_for("p2.workspace", project_id=project.id) + f"#c-{control_id}")
 
@@ -349,6 +381,20 @@ def set_target(project_id: str):
             actor=current_user,
             body_text=json.dumps(payload, indent=2),
         )
+        # v1.9: auto-progress roadmap if both current-state + target now
+        # exist and the admin has the flag on.
+        from ..spine.auto_progress import maybe_auto_progress_p2_after_target
+        job = maybe_auto_progress_p2_after_target(project, actor=current_user)
+        if job is not None:
+            flash(
+                "Target recorded. Running transition roadmap automatically — "
+                "refreshing as it runs.",
+                "info",
+            )
+            return redirect(url_for(
+                "jobs.wait", job_id=job.id,
+                next=url_for("p2.workspace", project_id=project.id),
+            ))
         flash("Desired future-state target recorded (human-input).", "info")
         return redirect(url_for("p2.workspace", project_id=project.id))
 
@@ -501,6 +547,9 @@ def submit(project_id: str):
         project_id=project.id, client_id=project.client_id,
         details={"locked_responses": locked_count},
     )
+    # v1.9: auto-queue the current-state assessment.
+    from ..spine.auto_progress import maybe_auto_progress_p2_after_submit
+    maybe_auto_progress_p2_after_submit(project, actor=current_user)
     flash(
         f"Submitted: locked {locked_count} response(s). Per the spec, "
         f"attribution is now immutable.",

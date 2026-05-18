@@ -1,0 +1,191 @@
+{% extends "_layout/base.html" %}
+{% block title %}Action queue &mdash; SHIELD{% endblock %}
+{% block content %}
+
+{# Round-8 §III: failed-jobs alert banner. Surfaces failed background
+   analyses to the admin's primary view so they don't only find out by
+   navigating to /jobs/. #}
+{% if failed_jobs_count and failed_jobs_count > 0 %}
+  <div class="shield-jobs-alert" style="max-width:64rem;margin:1rem auto;">
+    {{ failed_jobs_count }} background analysis job{{ 's' if failed_jobs_count != 1 else '' }} failed.
+    <a href="{{ url_for('jobs.index') }}" style="color:#b50909;text-decoration:underline;">
+      Review on the Activity page &rarr;
+    </a>
+  </div>
+{% endif %}
+
+<section class="shield-page-header" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">Admin queue</p>
+  <h1>Who needs you next.</h1>
+  <details class="shield-page-header__intro">
+    <summary><small>What's in each bucket</small></summary>
+    <p class="usa-prose">
+      Three buckets &mdash; new leads (intake not finished), waiting on
+      us (intake done, services requested, no project yet), and active
+      (work in flight). The unread-message count surfaces conversational
+      work that needs a reply.
+    </p>
+  </details>
+</section>
+
+<div style="max-width:64rem;margin:0 auto;">
+
+  {# ============ New leads ============ #}
+  <h2>New leads <small class="usa-hint">({{ new_leads | length }})</small></h2>
+  {% if new_leads %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr><th>Client</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for c in new_leads %}
+          <tr>
+            <td>
+              <strong>
+                <a href="{{ url_for('clients.detail', client_id=c.id) }}">{{ c.name }}</a>
+              </strong>
+              {% if c.industry %}<br><small>{{ c.industry }}</small>{% endif %}
+            </td>
+            <td>{{ c.created_at | local_time(fmt='date') }}</td>
+            <td><a class="usa-button usa-button--small"
+                   href="{{ url_for('clients.intake_view', client_id=c.id) }}">Open intake</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No new leads.</em></p>
+  {% endif %}
+
+  {# ============ Waiting on us ============ #}
+  <h2 style="margin-top:2rem;">Waiting on us <small class="usa-hint">({{ waiting | length }})</small></h2>
+  {% if waiting %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Wants / requested</th>
+          <th>Existing projects</th>
+          <th>Waiting since</th>
+          <th>Unread from them</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set service_labels = {
+            'tech_debt':'Tech Debt',
+            'zero_trust':'Zero Trust',
+            'attack_surface':'Attack Surface',
+            'unsure':'Unsure (talk to them)'} %}
+        {% for row in waiting %}
+          <tr>
+            <td>
+              <strong>
+                <a href="{{ url_for('clients.detail', client_id=row.client.id) }}">{{ row.client | client_label }}</a>
+              </strong>
+            </td>
+            <td>
+              {% for g in row.gaps %}
+                <span class="usa-tag">{{ service_labels.get(g, g) }}</span>
+              {% endfor %}
+              {% if row.consult_requested %}
+                <br><small><em>also requested a consult call</em></small>
+              {% endif %}
+              {% if row.open_requests %}
+                <br><strong>Open requests:</strong>
+                <ul class="usa-prose" style="margin:.25rem 0 0 0;">
+                {% for sr in row.open_requests %}
+                  <li>
+                    <span class="usa-tag">{{ service_labels.get(sr.service, sr.service) }}</span>
+                    <small>requested {{ sr.requested_at | local_time(fmt='date') }}</small>
+                    {% if sr.deadline %}&middot; <small>deadline {{ sr.deadline | local_time(fmt='date') }}</small>{% endif %}
+                    {% if sr.notes %}<br><small><em>{{ sr.notes[:80] }}{% if sr.notes|length > 80 %}&hellip;{% endif %}</em></small>{% endif %}
+                    {% if sr.service != 'unsure' %}
+                      <a class="usa-button usa-button--small"
+                         href="{{ url_for('clients.fulfill_request',
+                                          client_id=row.client.id,
+                                          request_id=sr.id) }}">Fulfill</a>
+                    {% endif %}
+                    <a class="usa-button usa-button--small usa-button--outline"
+                       href="{{ url_for('clients.decline_request',
+                                        client_id=row.client.id,
+                                        request_id=sr.id) }}">Decline</a>
+                  </li>
+                {% endfor %}
+                </ul>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.projects %}
+                {% for p in row.projects %}
+                  <small>{{ p.name }} &middot; {{ p.stage }}</small><br>
+                {% endfor %}
+              {% else %}
+                <em class="usa-hint">none yet</em>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.waiting_since %}
+                {{ row.waiting_since | local_time }}
+              {% else %}<em class="usa-hint">&mdash;</em>{% endif %}
+            </td>
+            <td>{{ row.admin_replies_needed or '' }}</td>
+            <td>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('clients.intake_view', client_id=row.client.id) }}">Open intake</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>Nothing waiting.</em></p>
+  {% endif %}
+
+  {# ============ Active ============ #}
+  <h2 style="margin-top:2rem;">Active <small class="usa-hint">({{ active | length }})</small></h2>
+  {% if active %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Projects</th>
+          <th>Active since</th>
+          <th>Unread from them</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in active %}
+          <tr>
+            <td>
+              <strong>
+                <a href="{{ url_for('clients.detail', client_id=row.client.id) }}">{{ row.client | client_label }}</a>
+              </strong>
+            </td>
+            <td>
+              {% for p in row.projects %}
+                <small>{{ p.name }} &middot; {{ p.stage }}</small><br>
+              {% endfor %}
+            </td>
+            <td>
+              {% if row.earliest_project_at %}
+                {{ row.earliest_project_at | local_time }}
+              {% else %}<em class="usa-hint">&mdash;</em>{% endif %}
+            </td>
+            <td>{{ row.admin_replies_needed or '' }}</td>
+            <td>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('clients.detail', client_id=row.client.id) }}">Open client</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No active engagements.</em></p>
+  {% endif %}
+
+</div>
+
+{% endblock %}

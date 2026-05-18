@@ -1,0 +1,195 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ client | client_label }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-page-header" style="max-width:56rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">{{ client | client_label }}</p>
+  <h1>Welcome back.</h1>
+  <p class="shield-page-header__intro">
+    Each service you've engaged on shows up below with its current
+    status and the next thing waiting on you (or on us).
+  </p>
+</section>
+
+{# ============ Service cards — round-3 §5 state machine + v1.9 badges ============
+   States rendered here:
+     requested      — open ServiceRequest, no project yet
+     declined       — declined ServiceRequest, no replacement project
+     setup          — picked on welcome, no request, no project yet
+     awaiting_docs  — project exists, stage is intake-ish, awaiting upload
+     in_review      — project exists, work in progress, no deliverable
+     ready_to_view  — at least one non-superseded Deliverable
+     complete       — project archived/complete
+
+   Each card now carries a colored status badge (v1.9 §1) and a
+   "Next:" line that tells the operator what's expected of them. #}
+{% set state_to_badge = {
+    'requested':     ('requested', 'Requested'),
+    'declined':      ('declined',  'Declined'),
+    'setup':         ('setup',     'Setting up'),
+    'awaiting_docs': ('waiting',   'Waiting on you'),
+    'in_review':     ('in_review', 'In review'),
+    'ready_to_view': ('ready',     'Ready to view'),
+    'complete':      ('complete',  'Complete'),
+} %}
+
+{% if cards %}
+  <h2 style="max-width:56rem;margin:0 auto 1rem;">Your services</h2>
+  <div class="grid-row grid-gap" style="max-width:56rem;margin:0 auto;">
+    {% for card in cards %}
+      {% set badge = state_to_badge.get(card.state, ('setup', card.state)) %}
+      <div class="tablet:grid-col-4">
+        <div class="shield-service-card">
+          <p style="margin:0 0 .25rem 0;">
+            <span class="shield-status-badge shield-status-badge--{{ badge[0] }}">
+              {{ badge[1] }}
+            </span>
+          </p>
+          <h3>
+            {% if card.project and card.project.client_display_name %}
+              {{ card.project.client_display_name }}
+            {% else %}
+              {{ card.label }}
+            {% endif %}
+          </h3>
+
+          {% if card.state == 'requested' %}
+            <p class="usa-prose"><strong>Requested.</strong></p>
+            <p class="usa-hint">
+              Waiting on your consultant &mdash; we'll reach out within
+              one business day.
+              {% if card.request.requested_at %}
+                <br><small>Requested {{ card.request.requested_at | local_time(fmt='date') }}.</small>
+              {% endif %}
+            </p>
+            <p class="shield-service-card__next"><strong>Next:</strong> nothing — we'll be in touch.</p>
+
+          {% elif card.state == 'declined' %}
+            <p class="usa-prose"><strong>Not a fit right now.</strong></p>
+            {% if card.request.declined_reason %}
+              <blockquote class="usa-prose"><em>{{ card.request.declined_reason }}</em></blockquote>
+            {% endif %}
+            <p class="shield-service-card__next"><strong>Next:</strong> re-request when ready.</p>
+            <form method="POST" action="{{ url_for('portal.services_request') }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="service" value="{{ card.key }}">
+              <button class="usa-button usa-button--small" type="submit">Re-request</button>
+            </form>
+
+          {% elif card.state == 'setup' %}
+            <p class="usa-prose"><strong>Getting set up.</strong></p>
+            {% if card.key == 'zero_trust' %}
+              <p class="shield-service-card__next"><strong>Next:</strong> answer the Zero Trust questionnaire.</p>
+              <p>
+                <a class="usa-button usa-button--small"
+                   href="{{ url_for('portal.zero_trust') }}">Start questionnaire</a>
+              </p>
+            {% else %}
+              <p class="shield-service-card__next"><strong>Next:</strong> your consultant will reach out about kickoff.</p>
+            {% endif %}
+
+          {% elif card.state == 'awaiting_docs' %}
+            <p class="usa-prose"><strong>Waiting on your documents.</strong></p>
+            <p class="shield-service-card__next"><strong>Next:</strong> upload what's relevant so we can start.</p>
+            <p>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('portal.documents') }}">Upload documents</a>
+            </p>
+
+          {% elif card.state == 'in_review' %}
+            <p class="usa-prose"><strong>In review.</strong></p>
+            <p class="shield-service-card__next"><strong>Next:</strong> we're working through what you sent.</p>
+
+          {% elif card.state == 'ready_to_view' %}
+            <p class="usa-prose"><strong>Ready to view.</strong></p>
+            <p class="shield-service-card__next"><strong>Next:</strong> open the deliverable.</p>
+            {% if card.deliverable %}
+              <p>
+                <a class="usa-button usa-button--small"
+                   href="{{ url_for('portal.deliverable_detail', deliverable_id=card.deliverable.id) }}">
+                  View {{ card.deliverable.title }}
+                </a>
+              </p>
+            {% else %}
+              <p>
+                <a class="usa-button usa-button--small"
+                   href="{{ url_for('portal.deliverables_list') }}">View deliverables</a>
+              </p>
+            {% endif %}
+
+          {% elif card.state == 'complete' %}
+            <p class="usa-prose"><strong>Complete.</strong></p>
+            <p class="shield-service-card__next"><strong>Next:</strong> deliverables stay available.</p>
+            <p>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('portal.deliverables_list') }}">View deliverables</a>
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="usa-prose" style="max-width:56rem;margin:0 auto;">
+    You haven't requested any services yet.
+    <a href="{{ url_for('portal.services_request') }}">Tell us what you need &rarr;</a>
+  </p>
+{% endif %}
+
+<p style="max-width:56rem;margin:1rem auto;">
+  <a class="usa-button usa-button--outline"
+     href="{{ url_for('portal.services_request') }}">+ Add another service</a>
+</p>
+
+{# ============ Recent activity — v1.9 stacks on narrow viewports ============ #}
+<div class="grid-row grid-gap" style="max-width:56rem;margin:2rem auto;">
+  <div class="tablet:grid-col-6">
+    <div class="shield-content-card">
+      <h2 class="shield-content-card__heading">Recent deliverables</h2>
+      {% if recent_deliverables %}
+        <ul class="usa-prose">
+          {% for d in recent_deliverables %}
+            <li>
+              <a href="{{ url_for('portal.deliverable_detail', deliverable_id=d.id) }}">{{ d.title }}</a>
+              <br><small>{{ d.finalized_at | local_time }}</small>
+            </li>
+          {% endfor %}
+        </ul>
+        <p><a href="{{ url_for('portal.deliverables_list') }}">View all &rarr;</a></p>
+      {% else %}
+        <p class="usa-hint"><em>Nothing finalized yet.</em>
+          Typical deliverables are an executive PDF and an XLSX
+          workbook with the full analysis &mdash; they show up here
+          when your consultant marks them final.
+        </p>
+        <p><a href="{{ url_for('portal.deliverables_list') }}">View all &rarr;</a></p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="tablet:grid-col-6">
+    <div class="shield-content-card">
+      <h2 class="shield-content-card__heading">
+        Recent messages{% if unread_total %} ({{ unread_total }} unread){% endif %}
+      </h2>
+      {% if recent_messages %}
+        <ul class="usa-prose">
+          {% for m in recent_messages %}
+            <li>
+              <small>{{ m.created_at | local_time }}</small> &mdash;
+              {{ m.body[:120] }}{% if m.body|length > 120 %}&hellip;{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        <p><a href="{{ url_for('portal.messages_list') }}">View all &rarr;</a></p>
+      {% else %}
+        <p class="usa-hint"><em>No messages yet.</em>
+          <a href="{{ url_for('portal.messages_thread', thread_key='general') }}">Start a thread &rarr;</a>
+        </p>
+        <p><a href="{{ url_for('portal.messages_list') }}">View all &rarr;</a></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

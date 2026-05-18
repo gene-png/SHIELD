@@ -1,0 +1,324 @@
+framework: csf_2_0_high
+display_name: "NIST Cybersecurity Framework 2.0 — HIGH Impact"
+source: "https://www.nist.gov/cyberframework"
+version: "2.0"
+impact_level: high
+
+answer_scale:
+  - id: not_implemented
+    label: "Not in place"
+  - id: partial
+    label: "Partly in place"
+  - id: largely_implemented
+    label: "Largely in place"
+  - id: fully_implemented
+    label: "Fully in place"
+
+# Reference docs the consultant collects up front. For HIGH-impact CSF
+# systems the 16-document list per round-7 §21.3.
+documents:
+  - "System Security Plan (SSP)"
+  - "Security Assessment Report (SAR)"
+  - "POA&M Export (from CSAM)"
+  - "ATO Letter / Memorandum"
+  - "Risk Assessment Report"
+  - "Incident Response Plan"
+  - "Disaster Recovery / COOP Plan"
+  - "Configuration Management Plan / Baselines"
+  - "Access Control Policy & Procedures"
+  - "Continuous Monitoring Strategy / Plan"
+  - "Security Awareness Training Records"
+  - "Audit Log Samples / SIEM Integration Docs"
+  - "Network Architecture Diagram"
+  - "Data Flow Diagram"
+  - "Supply Chain Risk Documentation (if applicable)"
+  - "Previous FISMA Audit Findings (system-specific)"
+
+# Per-system intake fields collected before the questionnaire. Schema
+# matches the SystemProfile fields in §21.2.
+system_profile_fields:
+  - {key: system_name,            type: string, label: "System name"}
+  - {key: csam_system_id,         type: string, label: "CSAM system ID"}
+  - {key: fips199_categorization, type: enum,   label: "FIPS-199 categorization",
+     options: ["high", "moderate", "low"]}
+  - {key: system_owner_name,      type: string, label: "System owner — name"}
+  - {key: system_owner_title,     type: string, label: "System owner — title"}
+  - {key: isso_name,              type: string, label: "ISSO — name"}
+  - {key: isso_title,             type: string, label: "ISSO — title"}
+  - {key: system_description,     type: text,   label: "System description (1–2 sentences)"}
+  - {key: hosting,                type: enum,   label: "Hosting",
+     options: ["on_prem", "cloud_doc_managed", "cloud_third_party"]}
+  - {key: authorization_status,   type: enum,   label: "Authorization status",
+     options: ["ato", "ato_c", "dato", "pending"]}
+  - {key: ato_expiration_date,    type: date,   label: "ATO expiration date"}
+  - {key: poams_total,            type: integer,label: "POA&Ms — total"}
+  - {key: poams_high_critical,    type: integer,label: "POA&Ms — high / critical"}
+
+sections:
+  - id: governance
+    number: 1
+    title: "Governance, Leadership & Oversight"
+    questions:
+      - id: csf2.high.s1.q1
+        number: 1.1
+        stem: >-
+          Walk me through how cybersecurity is governed for this
+          system. Who is ultimately accountable, how are decisions
+          made, and how does the organization make sure the right
+          people are in the right roles?
+        cues:
+          - "Who has formal ownership of cyber risk for this system?"
+          - "How are cybersecurity roles and responsibilities communicated and reviewed?"
+          - "What governance bodies (steering committee, risk council, board) review the program?"
+        csf_subcategories: ["GV.OC-01", "GV.OC-02", "GV.RR-01", "GV.RR-02", "GV.RR-03", "GV.RR-04"]
+        implementation_groups: [1, 3]
+        dimensions: ["governance", "policy", "implementation"]
+      - id: csf2.high.s1.q2
+        number: 1.2
+        stem: >-
+          Tell me about the policies that govern cybersecurity for this
+          system. How are they created, how do people find them, and
+          how do you know they stay current?
+        cues:
+          - "Is there a documented information-security policy specific to this system?"
+          - "How often is each policy reviewed? Who approves changes?"
+          - "How do new staff onboard to the policy set?"
+        csf_subcategories: ["GV.PO-01", "GV.PO-02", "GV.OC-03"]
+        implementation_groups: [2, 3]
+        dimensions: ["governance", "policy"]
+      - id: csf2.high.s1.q3
+        number: 1.3
+        stem: >-
+          How does leadership keep a pulse on whether the cybersecurity
+          approach for this system is actually working? What does the
+          review and adjustment process look like?
+        cues:
+          - "What metrics or dashboards does leadership see, and how often?"
+          - "How are program adjustments approved and funded?"
+          - "When something goes wrong, what does the after-action loop look like?"
+        csf_subcategories: ["GV.OV-01", "GV.OV-02", "GV.OV-03", "GV.OC-04", "GV.OC-05"]
+        implementation_groups: [1, 2]
+        dimensions: ["governance", "monitoring", "continuous_improvement"]
+
+  - id: risk_management
+    number: 2
+    title: "Risk Management"
+    questions:
+      - id: csf2.high.s2.q1
+        number: 2.1
+        stem: >-
+          How does the organization think about and manage
+          cybersecurity risk for this system? Take me from the
+          big-picture strategy all the way down to how individual
+          risks get tracked and resolved.
+        cues:
+          - "Is risk appetite documented and communicated?"
+          - "How are risks captured, scored, and tracked over time?"
+          - "Who owns risk remediation, and on what cadence?"
+        csf_subcategories: ["GV.RM-01", "GV.RM-02", "GV.RM-03", "GV.RM-04", "GV.RM-05", "GV.RM-06", "GV.RM-07"]
+        implementation_groups: [2, 12]
+        dimensions: ["governance", "implementation"]
+      - id: csf2.high.s2.q2
+        number: 2.2
+        stem: >-
+          Walk me through how risk assessments work for this system.
+          How do you find threats and vulnerabilities, figure out what
+          they mean, and decide what to do about them?
+        cues:
+          - "What scanning, threat intelligence, and assessment activities feed risk decisions?"
+          - "How are findings prioritized — by impact, by likelihood, by exploitability?"
+          - "How are risks accepted, mitigated, transferred, or avoided?"
+        csf_subcategories: ["ID.RA-01", "ID.RA-02", "ID.RA-03", "ID.RA-04", "ID.RA-05", "ID.RA-06", "ID.RA-07", "ID.RA-08"]
+        implementation_groups: [11, 12, 14, 15]
+        dimensions: ["implementation", "monitoring"]
+
+  - id: supply_chain
+    number: 3
+    title: "Supply Chain & Third-Party Risk"
+    questions:
+      - id: csf2.high.s3.q1
+        number: 3.1
+        stem: >-
+          This system likely depends on products, services, or
+          components from outside vendors or partners. Tell me how the
+          organization manages that supply chain risk — from before you
+          buy something all the way through the end of the relationship.
+        cues:
+          - "Is there a documented C-SCRM program?"
+          - "How are vendors assessed before contract award? Continuously after?"
+          - "How are vendor incidents handled?"
+        csf_subcategories: ["GV.SC-01", "GV.SC-02", "GV.SC-03", "GV.SC-04", "GV.SC-05", "GV.SC-06", "GV.SC-07", "GV.SC-08", "GV.SC-09", "GV.SC-10", "ID.RA-09", "ID.RA-10"]
+        implementation_groups: [5]
+        dimensions: ["governance", "policy", "implementation"]
+
+  - id: assets
+    number: 4
+    title: "Asset & Inventory Management"
+    questions:
+      - id: csf2.high.s4.q1
+        number: 4.1
+        stem: >-
+          Give me the full picture of how assets are tracked for this
+          system — hardware, software, data, services, and network
+          connections. How confident are you that the inventory is
+          accurate and current?
+        cues:
+          - "What's the source of truth for each asset class? How is it kept current?"
+          - "How do you discover shadow assets — unknown devices, unsanctioned SaaS?"
+          - "Are data flows mapped to the asset inventory?"
+        csf_subcategories: ["ID.AM-01", "ID.AM-02", "ID.AM-03", "ID.AM-04", "ID.AM-05", "ID.AM-07", "ID.AM-08"]
+        implementation_groups: [7, 8, 9, 10]
+        dimensions: ["implementation", "monitoring"]
+
+  - id: access_control
+    number: 5
+    title: "Access Control & Identity Management"
+    questions:
+      - id: csf2.high.s5.q1
+        number: 5.1
+        stem: >-
+          Walk me through how people, services, and devices get access
+          to this system. Cover the full lifecycle — from requesting
+          access to removing it when someone leaves — and tell me how
+          you know the right people have the right level of access.
+        cues:
+          - "Is identity centralized (ICAM / single IdP) or distributed?"
+          - "How is least-privilege enforced and reviewed?"
+          - "How are non-person identities (service accounts) governed?"
+        csf_subcategories: ["PR.AA-01", "PR.AA-02", "PR.AA-03", "PR.AA-04", "PR.AA-05", "PR.AA-06"]
+        implementation_groups: [17, 18, 19]
+        dimensions: ["implementation"]
+
+  - id: data_protection
+    number: 6
+    title: "Data Protection & Privacy"
+    questions:
+      - id: csf2.high.s6.q1
+        number: 6.1
+        stem: >-
+          Tell me how data is protected on this system — whether it's
+          sitting in a database, moving across the network, or actively
+          being used by someone. Also tell me about your backup
+          strategy.
+        cues:
+          - "How is data classified and tagged?"
+          - "What encryption is in place at rest and in transit?"
+          - "How are backups protected against ransomware and tested for restorability?"
+        csf_subcategories: ["PR.DS-01", "PR.DS-02", "PR.DS-10", "PR.DS-11"]
+        implementation_groups: [21, 22, 33]
+        dimensions: ["implementation"]
+
+  - id: configuration_platform
+    number: 7
+    title: "Configuration & Platform Security"
+    questions:
+      - id: csf2.high.s7.q1
+        number: 7.1
+        stem: >-
+          Tell me about how this system is hardened and kept secure at
+          the platform level — configurations, patching, software
+          controls, and the overall security of the environment it
+          runs in.
+        cues:
+          - "What hardening baselines do you follow (DISA STIGs, CIS, vendor)?"
+          - "How is patching prioritized, tracked, and validated?"
+          - "How do you handle software allowlisting / application control?"
+        csf_subcategories: ["PR.PS-01", "PR.PS-02", "PR.PS-03", "PR.PS-04", "PR.PS-05", "PR.PS-06", "PR.IR-01", "PR.IR-02", "PR.IR-03", "PR.IR-04"]
+        implementation_groups: [14, 15, 33, 34]
+        dimensions: ["implementation"]
+
+  - id: training
+    number: 8
+    title: "Training & Workforce Development"
+    questions:
+      - id: csf2.high.s8.q1
+        number: 8.1
+        stem: >-
+          How does the organization make sure that people supporting
+          this system — from general users to specialized security
+          staff — have the knowledge and skills they need?
+        cues:
+          - "What general security awareness training is required and how is completion tracked?"
+          - "What specialized training do security staff and developers get?"
+          - "How do role changes drive training updates?"
+        csf_subcategories: ["PR.AT-01", "PR.AT-02", "GV.RR-04"]
+        implementation_groups: [24]
+        dimensions: ["implementation"]
+
+  - id: monitoring_detection
+    number: 9
+    title: "Monitoring & Detection"
+    questions:
+      - id: csf2.high.s9.q1
+        number: 9.1
+        stem: >-
+          Walk me through how this system is monitored for security
+          events — from what tools are watching to how alerts get to
+          the right people and what happens when something looks wrong.
+        cues:
+          - "What's the telemetry coverage across endpoints, network, identity, and cloud?"
+          - "How are detections prioritized and triaged?"
+          - "How are false positives and missed detections fed back into the system?"
+        csf_subcategories: ["DE.CM-01", "DE.CM-02", "DE.CM-03", "DE.CM-06", "DE.CM-09", "DE.AE-01", "DE.AE-02", "DE.AE-03", "DE.AE-04", "DE.AE-05", "DE.AE-06", "DE.AE-07", "DE.AE-08"]
+        implementation_groups: [26, 27, 28, 30]
+        dimensions: ["monitoring"]
+
+  - id: incident_response
+    number: 10
+    title: "Incident Response"
+    questions:
+      - id: csf2.high.s10.q1
+        number: 10.1
+        stem: >-
+          If a security incident were declared on this system tomorrow,
+          walk me through exactly what would happen — from the moment
+          it's detected through containment, eradication, and
+          notification. Then tell me how you make sure the process
+          itself keeps getting better.
+        cues:
+          - "Who declares an incident, and how do they reach the response team?"
+          - "What's the documented IR playbook structure?"
+          - "How are tabletop exercises run, and how do lessons feed back?"
+        csf_subcategories: ["RS.MA-01", "RS.MA-02", "RS.MA-03", "RS.MA-04", "RS.MA-05", "RS.AN-03", "RS.AN-06", "RS.AN-07", "RS.AN-08", "RS.CO-02", "RS.CO-03", "RS.MI-01", "RS.MI-02"]
+        implementation_groups: [30, 31]
+        dimensions: ["implementation", "continuous_improvement"]
+
+  - id: recovery
+    number: 11
+    title: "Recovery & Continuity"
+    questions:
+      - id: csf2.high.s11.q1
+        number: 11.1
+        stem: >-
+          If this system went down due to an incident or disaster,
+          tell me how you'd bring it back — the plan, the priorities,
+          the backups, and how you'd know it's actually clean and
+          working again. Then tell me how you close out the recovery
+          and communicate progress.
+        cues:
+          - "What are the documented RTO and RPO targets?"
+          - "How are recovery exercises run, and what's the last test result?"
+          - "Who communicates status to stakeholders, and on what cadence?"
+        csf_subcategories: ["RC.RP-01", "RC.RP-02", "RC.RP-03", "RC.RP-04", "RC.RP-05", "RC.RP-06", "RC.CO-03", "RC.CO-04"]
+        implementation_groups: [33, 34]
+        dimensions: ["implementation"]
+
+  - id: continuous_improvement
+    number: 12
+    title: "Continuous Improvement"
+    questions:
+      - id: csf2.high.s12.q1
+        number: 12.1
+        stem: >-
+          How does the organization learn from what it does and make
+          things better over time for this system? I'm looking for the
+          feedback loops — how evaluations, tests, incidents, and
+          day-to-day operations feed back into improving the security
+          posture.
+        cues:
+          - "How are lessons learned captured, prioritized, and tracked to closure?"
+          - "Do red-team / purple-team exercises happen, and how do findings feed in?"
+          - "How is the program measured year-over-year?"
+        csf_subcategories: ["ID.IM-01", "ID.IM-02", "ID.IM-03", "ID.IM-04"]
+        implementation_groups: [1, 12, 26, 30, 31, 34]
+        dimensions: ["governance", "continuous_improvement"]

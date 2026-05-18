@@ -1,0 +1,191 @@
+{# Shared admin form for "pick an existing project or create a new one".
+
+   Used from three places (round-4 §3):
+
+     - /clients/<id>/adopt-artifact/<artifact_id>
+         show_existing_radio=true. The picker the admin sees when
+         linking a client-repository file into a project.
+
+     - /clients/<id>/requests/<id>/fulfill
+         show_existing_radio=false, lock_service=true. The service
+         is locked to the request's service; admin only chooses a
+         project name (and framework, for Zero Trust).
+
+     - /clients/<id>/projects/new
+         show_existing_radio=false. New project from scratch off the
+         client-detail page; no artifact to adopt.
+
+   Context the caller must provide:
+
+     client                  Client object (for the legal_name default)
+     submit_url              POST endpoint
+     csrf_token              the Flask-WTF token
+     show_existing_radio     bool; render the "pick existing" branch
+     existing_projects       list[Project]; non-archived, non-repo
+                             projects for this client. Most recent first.
+     lock_service            bool; hide the service select, send the
+                             default_service as a hidden field
+     default_service         str or None; preselect this service
+                             ('tech_debt'|'zero_trust'|'attack_surface')
+     submit_label_new        button text when target='new'
+     submit_label_existing   button text when target='existing'
+                             (only used when show_existing_radio=true)
+     frameworks              dict[str, Framework] for Zero Trust
+                             (from shield.p2_zerotrust.frameworks.FRAMEWORKS)
+#}
+
+{%- set has_existing = show_existing_radio and existing_projects -%}
+{%- set service_labels = {
+      'tech_debt':      'Tech Debt review',
+      'zero_trust':     'Zero Trust assessment',
+      'attack_surface': 'Attack Surface coverage',
+   } -%}
+{%- set default_year = (current_year | default('')) or now_year -%}
+
+<form method="POST" action="{{ submit_url }}" class="usa-form usa-form--large shield-project-create-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  {% if show_existing_radio %}
+    {# The two big radio sections only appear when the caller wants
+       the existing-or-new branch — the adopt picker. #}
+    <fieldset class="usa-fieldset">
+      <legend class="usa-legend">Adopt into&hellip;</legend>
+
+      {% if existing_projects %}
+        <div class="usa-radio">
+          <input class="usa-radio__input" type="radio"
+                 id="target-existing" name="target" value="existing"
+                 {% if has_existing %}checked{% endif %}>
+          <label class="usa-radio__label" for="target-existing">
+            <strong>An existing project</strong>
+          </label>
+        </div>
+
+        <div class="shield-project-create-form__existing-list" style="margin-left:1.5rem;">
+          {% for p in existing_projects %}
+            <div class="usa-radio">
+              <input class="usa-radio__input" type="radio"
+                     id="proj-{{ p.id }}" name="existing_project_id"
+                     value="{{ p.id }}"
+                     {% if loop.first %}checked{% endif %}>
+              <label class="usa-radio__label" for="proj-{{ p.id }}">
+                {{ p.name }}
+                <span class="usa-hint">&middot; {{ p.platform.value.replace('_', ' ') }} &middot; stage {{ p.stage }}</span>
+              </label>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="usa-hint" style="margin:.5rem 0 1rem;">
+          <em>This client has no projects yet &mdash; the file will create the first one.</em>
+        </p>
+      {% endif %}
+
+      <div class="usa-radio" style="margin-top:1rem;">
+        <input class="usa-radio__input" type="radio"
+               id="target-new" name="target" value="new"
+               {% if not has_existing %}checked{% endif %}>
+        <label class="usa-radio__label" for="target-new">
+          <strong>A new project</strong>
+        </label>
+      </div>
+    </fieldset>
+  {% else %}
+    {# Locked to the new-project branch (fulfill / client-detail
+       create). target is fixed; no toggle. #}
+    <input type="hidden" name="target" value="new">
+  {% endif %}
+
+  {# ---- New-project fields ---- #}
+  <div class="shield-project-create-form__new" style="margin-top:1rem;">
+
+    {# Service: locked (hidden) when called from fulfill flow. #}
+    {% if lock_service %}
+      <input type="hidden" name="new_project_service" value="{{ default_service }}">
+      <p class="usa-prose">
+        <strong>Service:</strong>
+        {{ service_labels.get(default_service, default_service) }}
+        <span class="usa-hint">(locked to the request)</span>
+      </p>
+    {% else %}
+      <label class="usa-label" for="new_project_service">Service</label>
+      <select class="usa-select" id="new_project_service"
+              name="new_project_service" required>
+        {% for key, label in service_labels.items() %}
+          <option value="{{ key }}"
+                  {% if key == default_service %}selected{% endif %}>
+            {{ label }}
+          </option>
+        {% endfor %}
+      </select>
+    {% endif %}
+
+    <label class="usa-label" for="new_project_name">Project name</label>
+    <input class="usa-input" id="new_project_name" name="new_project_name"
+           type="text" required
+           value="{{ (client | client_label) }} &mdash; {{ service_labels.get(default_service, '') }} {{ default_year }}">
+    <p class="usa-hint">
+      <small>What admins + reviewers see. The client sees their own
+      label (set later on the project workspace).</small>
+    </p>
+
+    {# Framework: only relevant for Zero Trust. Hidden initially
+       unless default_service=='zero_trust'. Toggled by JS below. #}
+    <div id="shield-pcf-framework-row"
+         style="display:{% if default_service == 'zero_trust' %}block{% else %}none{% endif %};">
+      <label class="usa-label" for="new_project_framework">Framework</label>
+      <select class="usa-select" id="new_project_framework" name="new_project_framework">
+        <option value="">&mdash; pick a framework &mdash;</option>
+        {% for fid, fw in (frameworks or {}).items() %}
+          <option value="{{ fid }}">{{ fw.name }}</option>
+        {% endfor %}
+      </select>
+      <p class="usa-hint">
+        <small>Permanent for this project; admins can't switch later.</small>
+      </p>
+    </div>
+  </div>
+
+  <div class="usa-button-group" style="margin-top:1.25rem;">
+    <button class="usa-button" type="submit"
+            data-label-existing="{{ submit_label_existing | default('Adopt into existing project') }}"
+            data-label-new="{{ submit_label_new | default('Create project') }}"
+            id="shield-pcf-submit">
+      {% if has_existing %}{{ submit_label_existing | default('Adopt into existing project') }}
+      {% else %}{{ submit_label_new | default('Create project') }}{% endif %}
+    </button>
+    {% if cancel_url %}
+      <a class="usa-button usa-button--outline" href="{{ cancel_url }}">Cancel</a>
+    {% endif %}
+  </div>
+</form>
+
+{# Tiny inline script:
+     - Show/hide the framework row when the service select changes.
+     - Swap the submit-button label when the target radio changes.
+     Both wrapped in a guard so they're no-ops if the elements
+     don't exist (locked-service callers skip the service select). #}
+<script>
+(function () {
+  var svc = document.getElementById('new_project_service');
+  var fwRow = document.getElementById('shield-pcf-framework-row');
+  if (svc && fwRow) {
+    svc.addEventListener('change', function () {
+      fwRow.style.display = (svc.value === 'zero_trust') ? 'block' : 'none';
+    });
+  }
+  var btn = document.getElementById('shield-pcf-submit');
+  var radios = document.querySelectorAll('input[name="target"]');
+  if (btn && radios.length) {
+    function refreshLabel() {
+      var picked = document.querySelector('input[name="target"]:checked');
+      var v = picked ? picked.value : 'new';
+      btn.textContent = (v === 'existing')
+        ? btn.dataset.labelExisting
+        : btn.dataset.labelNew;
+    }
+    radios.forEach(function (r) { r.addEventListener('change', refreshLabel); });
+    refreshLabel();
+  }
+})();
+</script>

@@ -1,24 +1,35 @@
 {% extends "_layout/base.html" %}
 {% block title %}Tech Debt · SHIELD{% endblock %}
 {% block content %}
-<h1>Tech Debt</h1>
-<p>Identify overlapping, redundant, and shadow-IT tooling. Redirect waste to priorities.</p>
+<section class="shield-page-header">
+  <p class="shield-page-header__eyebrow">Tech Debt</p>
+  <h1>Tech Debt projects.</h1>
+  <p class="shield-page-header__intro">
+    Identify overlapping, redundant, and shadow-IT tooling. Redirect
+    waste to priorities.
+  </p>
+</section>
 
 <p>
   <a class="usa-button" href="{{ url_for('p1.new_project') }}">+ New project</a>
 </p>
 
-<table class="usa-table usa-table--striped">
+{% set filter_key = 'p1' %}
+{% set stages = ['intake','raw_intake','ai_extraction','extraction_review','overlap_analysis','admin_final'] %}
+{% include '_components/list_filter.html' %}
+
+<table class="usa-table usa-table--striped" data-shield-filter="p1">
   <thead><tr><th>Project</th><th>Client</th><th>Stage</th><th>Created</th></tr></thead>
   <tbody>
     {% for p in projects %}
-      <tr>
+      <tr data-stage="{{ p.stage }}">
         <td><a href="{{ url_for('p1.workspace', project_id=p.id) }}">{{ p.name }}</a></td>
         <td>{{ p.client.name }}</td>
         <td>{{ p.stage }}</td>
-        <td>{{ p.created_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ p.created_at | local_time(fmt='date') }}</td>
       </tr>
     {% endfor %}
   </tbody>
 </table>
+<p data-shield-filter-empty="p1" style="display:none;"><em>No projects match the filter.</em></p>
 {% endblock %}

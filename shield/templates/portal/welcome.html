@@ -1,0 +1,72 @@
+{% extends "_layout/base.html" %}
+{% block title %}Welcome to SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-page-header" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">Step 1 of 4 &mdash; {{ client | client_label }}</p>
+  <h1>Tell us what you're here for.</h1>
+  <p class="usa-prose">
+    Pick the services you're most interested in. You can pick more
+    than one. If you're not sure which fits, check the bottom box and
+    a consultant will help you figure it out.
+  </p>
+
+  <form method="POST" action="{{ url_for('portal.welcome') }}" class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="grid-row grid-gap">
+
+      {% set descriptions = {
+        'tech_debt': {
+          'title': 'Find software you\'re paying for twice.',
+          'body':  'Used by organizations that suspect they\'re overspending on overlapping security and IT tools. We help you find what to consolidate so you can redirect that spend.'
+        },
+        'zero_trust': {
+          'title': 'Measure where you stand against your security framework.',
+          'body':  'Pick one framework &mdash; CISA Zero Trust Maturity Model, the DoD Zero Trust strategy, or NIST CSF 2.0 &mdash; and get a current-state assessment, a target you\'re aiming for, and a step-by-step plan to get there.'
+        },
+        'attack_surface': {
+          'title': 'See which attacker techniques you can detect and respond to.',
+          'body':  'We map your existing security tools against the MITRE ATT&amp;CK matrix and show you, in plain English, which adversary techniques you\'re blind to today.'
+        },
+      } %}
+      {% set labels = {
+        'tech_debt': 'Tech Debt',
+        'zero_trust': 'Zero Trust',
+        'attack_surface': 'Attack Surface',
+      } %}
+
+      {% for key in service_keys %}
+        <div class="tablet:grid-col-4">
+          <label class="shield-portal-card {% if key in current_selection %}shield-portal-card--selected{% endif %}">
+            <input type="checkbox" name="services" value="{{ key }}"
+                   {% if key in current_selection %}checked{% endif %}>
+            <h2>{{ labels[key] }}</h2>
+            <p class="usa-prose"><strong>{{ descriptions[key].title }}</strong></p>
+            <p class="usa-prose">{{ descriptions[key].body | safe }}</p>
+          </label>
+        </div>
+      {% endfor %}
+    </div>
+
+    <fieldset class="usa-fieldset" style="margin-top:2rem;">
+      <legend class="usa-legend">I'm not sure</legend>
+      <div class="usa-checkbox">
+        <input class="usa-checkbox__input" id="consult" type="checkbox"
+               name="consult_requested" value="yes"
+               {% if consult_requested %}checked{% endif %}>
+        <label class="usa-checkbox__label" for="consult">
+          <strong>Talk to a consultant first.</strong>
+          Tell us a bit about what's prompting you to look at this, and one of
+          our consultants will reach out to help figure out which services fit.
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="usa-button-group" style="margin-top:2rem;">
+      <button class="usa-button" type="submit">Continue &rarr;</button>
+    </div>
+  </form>
+</section>
+
+{% endblock %}

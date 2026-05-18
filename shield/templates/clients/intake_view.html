@@ -1,0 +1,172 @@
+{% extends "_layout/base.html" %}
+{% block title %}{{ client.name }} &mdash; intake &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:56rem;margin:0 auto;">
+  <a href="{{ url_for('clients.queue') }}">&larr; Queue</a>
+  &middot; <a href="{{ url_for('clients.detail', client_id=client.id) }}">Client detail</a>
+</p>
+
+{# v1.9.2: prominent banner when the intake fields look corrupted by
+   the pre-v1.9.1 form bug (3+ fields share the same value). #}
+{% if current_user.role.value == 'admin' and looks_corrupted %}
+  <div class="shield-jobs-alert" style="max-width:56rem;margin:1rem auto;">
+    <strong>This client's intake looks corrupted.</strong>
+    Several contact / address fields share the same value &mdash; the
+    pre-v1.9.1 <code>/portal/about</code> form bug saved one input's
+    text into every column on each blur. Use the reset action below
+    to clear the corrupted fields so {{ client.name }} can re-fill
+    <code>/portal/about</code> cleanly.
+    <br>
+    <form method="POST"
+          action="{{ url_for('clients.reset_intake_fields', client_id=client.id) }}"
+          class="usa-form usa-form--inline"
+          style="margin-top:.5rem;"
+          onsubmit="return confirm('Reset “{{ client.name }}” intake fields? Contact + address data will be cleared. Uploads stay.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="usa-input" type="text"
+             name="confirmation_phrase"
+             placeholder='Type "{{ client.name }}" to confirm'
+             style="min-width:22rem;">
+      <button class="usa-button"
+              style="background:#b50909;">Reset intake fields</button>
+    </form>
+  </div>
+{% endif %}
+
+<section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client.name }}</p>
+  <h1 class="shield-exec__headline">What they shared on intake.</h1>
+  <p class="usa-prose">
+    Everything the client submitted via /portal/welcome → /portal/about
+    → /portal/documents. Read-only &mdash; admins can adopt files
+    into a project below.
+  </p>
+
+  <h2>Status</h2>
+  <ul class="usa-prose">
+    <li>
+      <strong>Intake completed:</strong>
+      {% if client.intake_completed_at %}
+        {{ client.intake_completed_at.strftime('%Y-%m-%d %H:%M UTC') }}
+      {% else %}
+        <em>not yet</em>
+      {% endif %}
+    </li>
+    <li>
+      <strong>Services interested in:</strong>
+      {% set service_labels = {
+          'tech_debt':'Tech Debt',
+          'zero_trust':'Zero Trust',
+          'attack_surface':'Attack Surface'} %}
+      {% if client.service_interests %}
+        {% for s in client.service_interests %}
+          <span class="usa-tag">{{ service_labels.get(s, s) }}</span>
+        {% endfor %}
+      {% else %}
+        <em>none picked</em>
+      {% endif %}
+      {% if client.consult_requested %}
+        &middot; <strong>also requested a consult call.</strong>
+      {% endif %}
+    </li>
+    <li>
+      <strong>Compliance:</strong>
+      {% if client.compliance_frameworks %}
+        {{ client.compliance_frameworks | join(', ') }}
+      {% else %}
+        <em>not specified</em>
+      {% endif %}
+      {% if client.compliance_deadline %}
+        &middot; deadline {{ client.compliance_deadline | local_time(fmt='date') }}
+      {% endif %}
+    </li>
+  </ul>
+
+  <h2>Primary point of contact</h2>
+  <dl class="shield-walkability__provenance">
+    <dt>Name</dt>    <dd>{{ client.primary_poc_name or '—' }}</dd>
+    <dt>Title</dt>   <dd>{{ client.primary_poc_title or '—' }}</dd>
+    <dt>Email</dt>   <dd>{{ client.primary_poc_email or '—' }}</dd>
+    <dt>Phone</dt>   <dd>{{ client.primary_poc_phone or '—' }}</dd>
+  </dl>
+
+  <h2>Organization</h2>
+  <dl class="shield-walkability__provenance">
+    <dt>Legal name</dt> <dd>{{ client.legal_name or '—' }}</dd>
+    <dt>DBA</dt>        <dd>{{ client.dba_name or '—' }}</dd>
+    <dt>Website</dt>    <dd>{{ client.website or '—' }}</dd>
+    <dt>Size</dt>       <dd>{{ client.size_band or '—' }}</dd>
+    <dt>Address</dt>
+    <dd>
+      {{ client.address_line1 or '' }}{% if client.address_line2 %}, {{ client.address_line2 }}{% endif %}<br>
+      {{ client.city or '' }}{% if client.state %}, {{ client.state }}{% endif %} {{ client.postal_code or '' }}<br>
+      {{ client.country or '' }}
+    </dd>
+  </dl>
+
+  <h2>What's prompting this</h2>
+  <p class="usa-prose">{{ client.prompting_context or '—' }}</p>
+
+  {% if current_user.role.value == 'admin' %}
+    <details style="margin-top:1rem;border-top:1px solid #dfe1e2;padding-top:.5rem;">
+      <summary><small>Admin: reset intake fields</small></summary>
+      <p class="usa-prose">
+        Use this if every contact / address field shows the same value —
+        a symptom of the pre-v1.9 /portal/about form bug. Clears the
+        contact + organization + address fields back to NULL so the
+        client can re-fill <code>/portal/about</code> cleanly. Doesn't
+        touch services, consult flag, intake-completion stamp, or any
+        uploaded documents.
+      </p>
+      <form method="POST"
+            action="{{ url_for('clients.reset_intake_fields', client_id=client.id) }}"
+            class="usa-form usa-form--inline"
+            onsubmit="return confirm('Reset “{{ client.name }}” intake fields? Their submitted contact + address data will be cleared. Uploads stay.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="usa-input usa-input--small" type="text"
+               name="confirmation_phrase"
+               placeholder='Type "{{ client.name }}" to confirm'
+               style="min-width:20rem;">
+        <button class="usa-button usa-button--small usa-button--secondary"
+                style="background:#b50909;">Reset intake fields</button>
+      </form>
+    </details>
+  {% endif %}
+
+  <h2>Uploaded documents <small class="usa-hint">({{ repo_uploads | length }})</small></h2>
+  {% if repo_uploads %}
+    <table class="usa-table usa-table--striped">
+      <thead>
+        <tr><th>File</th><th>Uploaded</th><th>Size</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in repo_uploads %}
+          <tr>
+            <td>
+              <strong>{{ a.title }}</strong>
+              <br><small>{{ a.id[:8] }}</small>
+            </td>
+            <td>{{ a.created_at | local_time }}</td>
+            <td>{{ a.size_bytes or '&mdash;' }}</td>
+            <td>
+              {# Round-4: 'Adopt' is now a navigation to the create-or-pick
+                 form, not an inline mini-form. This is what lets the admin
+                 create a project on the spot if none exist yet. #}
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('clients.adopt_artifact',
+                                  client_id=client.id, artifact_id=a.id) }}">
+                Adopt into project
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-hint"><em>No documents shared yet.</em></p>
+  {% endif %}
+
+</section>
+
+{% endblock %}

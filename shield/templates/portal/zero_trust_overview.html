@@ -1,0 +1,76 @@
+{% extends "_layout/base.html" %}
+{% block title %}Zero Trust questionnaire &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-page-header" style="max-width:64rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">
+    {{ questionnaire.display_name }} &middot; {{ client | client_label }}
+  </p>
+  <h1>Where you stand today, and where you want to be.</h1>
+  <p class="shield-page-header__intro">
+    {{ questionnaire.sections | length }} sections, one open-ended
+    question per row. Pick the answer that best matches today's
+    reality and the answer that's a realistic next-12-months target.
+    Answers auto-save &mdash; you can close this tab and come back.
+  </p>
+</section>
+
+<div style="max-width:64rem;margin:0 auto;">
+
+  {% if is_submitted %}
+    <div class="usa-alert usa-alert--info">
+      <div class="usa-alert__body">
+        <p class="usa-alert__text">
+          <strong>You've submitted these answers.</strong> Your
+          consultant has what they need. Reach out via Messages if
+          something's off.
+        </p>
+      </div>
+    </div>
+  {% endif %}
+
+  <h2>Sections</h2>
+  <table class="usa-table usa-table--striped">
+    <thead>
+      <tr><th>#</th><th>Section</th><th>Progress</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for section in questionnaire.sections %}
+        {% set done, total = completion[section.id] %}
+        <tr>
+          <td><strong>{{ section.number }}</strong></td>
+          <td>{{ section.title }}</td>
+          <td>
+            {{ done }} / {{ total }}
+            {% if done == total and total > 0 %}
+              <span class="shield-status-badge shield-status-badge--complete">complete</span>
+            {% elif done > 0 %}
+              <span class="shield-status-badge shield-status-badge--in_review">in progress</span>
+            {% else %}
+              <span class="shield-status-badge shield-status-badge--setup">not started</span>
+            {% endif %}
+          </td>
+          <td>
+            <a class="usa-button usa-button--small{% if done >= total %} usa-button--outline{% endif %}"
+               href="{{ url_for('portal.zero_trust_section', section_number=section.number) }}">
+              {% if done >= total %}Review &rarr;{% else %}Open &rarr;{% endif %}
+            </a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if not is_submitted %}
+    <p style="margin-top:1.5rem;">
+      <a class="usa-button"
+         href="{{ url_for('portal.zero_trust_section', section_number=resume_number) }}">
+        Resume at section {{ resume_number }} &rarr;
+      </a>
+      <a class="usa-button usa-button--outline"
+         href="{{ url_for('portal.zero_trust') }}">Use the one-page view</a>
+    </p>
+  {% endif %}
+</div>
+
+{% endblock %}

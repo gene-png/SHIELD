@@ -1,8 +1,8 @@
 {% extends "_layout/base.html" %}
-{% block title %}Walkability · {{ project.name }} · SHIELD{% endblock %}
+{% block title %}Audit walk · {{ project.name }} · SHIELD{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('p2.workspace', project_id=project.id) }}">&larr; {{ project.name }}</a></p>
-<h1>Reviewer walkability — {{ project.name }}</h1>
+<h1>Audit walk &mdash; {{ project.name }}</h1>
 <p class="usa-prose">
   For each control: framework definition &rarr; client&rsquo;s claim
   &rarr; evidence provided &rarr; the automated assessment &rarr;
@@ -21,7 +21,7 @@
     {% if current_state %}
       <a href="{{ url_for('repository.artifact_detail', artifact_id=current_state.id) }}">
         {{ current_state.title }}
-      </a> &middot; {{ current_state.created_at.strftime('%Y-%m-%d %H:%M') }}
+      </a> &middot; {{ current_state.created_at | local_time }}
       &middot; {% set origin = 'ai_generated' %}{% set reuse = current_state.reuse_status.value %}
       {% include "_components/origin_badge.html" %}
     {% else %}<em>not yet produced</em>{% endif %}
@@ -31,7 +31,7 @@
     {% if roadmap %}
       <a href="{{ url_for('repository.artifact_detail', artifact_id=roadmap.id) }}">
         {{ roadmap.title }}
-      </a> &middot; {{ roadmap.created_at.strftime('%Y-%m-%d %H:%M') }}
+      </a> &middot; {{ roadmap.created_at | local_time }}
     {% else %}<em>not yet produced</em>{% endif %}
   </dd>
   {% if project.capability_snapshot %}
@@ -67,7 +67,7 @@
           </p>
           {% if r.rationale %}<blockquote class="usa-prose">{{ r.rationale }}</blockquote>{% endif %}
           {% if r.submitted_at %}
-            <p class="usa-hint">Submitted {{ r.submitted_at.strftime('%Y-%m-%d %H:%M') }}.</p>
+            <p class="usa-hint">Submitted {{ r.submitted_at | local_time }}.</p>
           {% endif %}
         {% else %}
           <p><em>No client claim recorded.</em></p>

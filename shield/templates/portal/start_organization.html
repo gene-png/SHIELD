@@ -1,0 +1,31 @@
+{% extends "_layout/base.html" %}
+{% block title %}Welcome to SHIELD &mdash; tell us your organization{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:40rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">First time on SHIELD</p>
+  <h1 class="shield-exec__headline">What's your organization called?</h1>
+  <p class="usa-prose">
+    This is the only thing we need to get you set up. Everything
+    else &mdash; contacts, services you're interested in, documents
+    you want to share &mdash; comes after.
+  </p>
+
+  <form method="POST" action="{{ url_for('portal.start_organization') }}"
+        class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="usa-label" for="organization_name">Organization name</label>
+    <input class="usa-input" id="organization_name"
+           name="organization_name" type="text" required autofocus
+           placeholder="Acme Industries Inc.">
+    <p class="usa-hint">
+      <small>You can refine the legal name and other details on the
+      next step. This becomes your client tenant in SHIELD.</small>
+    </p>
+    <button class="usa-button" type="submit" style="margin-top:.75rem;">
+      Continue &rarr;
+    </button>
+  </form>
+</section>
+
+{% endblock %}

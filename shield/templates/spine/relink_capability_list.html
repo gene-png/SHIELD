@@ -1,11 +1,11 @@
 {% extends "_layout/base.html" %}
-{% block title %}Relink capability list · {{ project.name }} · SHIELD{% endblock %}
+{% block title %}Change capability list · {{ project.name }} · SHIELD{% endblock %}
 {% block content %}
 <p>
   <a href="{{ url_for('clients.detail', client_id=project.client_id) }}">{{ project.client.name }}</a>
   &middot; <em>{{ project.name }}</em>
 </p>
-<h1>Relink capability list</h1>
+<h1>Use a different capability list</h1>
 
 <p class="usa-prose">
   Pick a different version of <strong>{{ project.client.name }}</strong>'s
@@ -51,7 +51,7 @@
                  {% if form.get('capability_list_id') == cl.id %}checked{% endif %}>
           <label class="usa-radio__label" for="cl-{{ cl.id }}">
             v{{ cl.version }} — {{ cl.label }}
-            ({{ cl.items | length }} items, {{ cl.created_at.strftime('%Y-%m-%d') }})
+            ({{ cl.items | length }} items, {{ cl.created_at | local_time(fmt='date') }})
             {% set origin = cl.origin.value %}
             {% set reuse = 'draft' %}
             {% include "_components/origin_badge.html" %}
@@ -79,7 +79,7 @@
     </fieldset>
 
     <div class="usa-button-group">
-      <button class="usa-button" type="submit">Relink</button>
+      <button class="usa-button" type="submit">Use this list</button>
       <a class="usa-button usa-button--outline"
          href="{{ url_for('clients.detail', client_id=project.client_id) }}">Cancel</a>
     </div>

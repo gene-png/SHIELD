@@ -1,0 +1,21 @@
+{% extends "_layout/base.html" %}
+{% block title %}Adopt {{ artifact.title }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:48rem;margin:0 auto;">
+  <a href="{{ url_for('clients.intake_view', client_id=client.id) }}">&larr; {{ client | client_label }} intake</a>
+</p>
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client | client_label }} &middot; File: {{ artifact.title }}</p>
+  <h1 class="shield-exec__headline">Adopt file into project</h1>
+  <p class="usa-prose">
+    Either link this file to a project that already exists for
+    {{ client | client_label }}, or create the project right here and
+    adopt the file into it in one step.
+  </p>
+
+  {% include "_components/project_create_form.html" with context %}
+</section>
+
+{% endblock %}

@@ -15,7 +15,7 @@
 
   <label class="usa-label" for="client_id">Client</label>
   <select class="usa-select" id="client_id" name="client_id">
-    <option value="">— any —</option>
+    <option value="">&mdash; any &mdash;</option>
     {% for c in clients %}
       <option value="{{ c.id }}" {% if client_id == c.id %}selected{% endif %}>{{ c.name }}</option>
     {% endfor %}
@@ -31,6 +31,25 @@
   <button class="usa-button" type="submit">Filter</button>
   <a class="usa-button usa-button--outline" href="{{ url_for('audit.index') }}">Reset</a>
 </form>
+
+{# Quick-filter chips for the v1.8 portal action families. These are
+   convenience presets over the free-text Action filter — clicking
+   one prefills the same `action` query parameter. #}
+<p class="usa-hint" style="margin-bottom:1rem;">
+  <small><strong>v1.8 quick filters:</strong></small>
+  {% set quick = [
+    ('client.', 'Client intake'),
+    ('artifact.adopted_into_project', 'Artifact adoption'),
+    ('deliverable.', 'Deliverables'),
+    ('message.posted', 'Messages'),
+    ('access_denied', 'Cross-client denied'),
+    ('file_uploaded_to_repository', 'Client uploads'),
+  ] %}
+  {% for prefix, label in quick %}
+    <a class="usa-button usa-button--outline usa-button--small"
+       href="{{ url_for('audit.index', action=prefix, since=since) }}">{{ label }}</a>
+  {% endfor %}
+</p>
 
 <p><small>Page {{ page }} &middot; {{ entries | length }} entries</small></p>
 
@@ -48,7 +67,10 @@
   <tbody>
     {% for e in entries %}
       <tr>
-        <td><code>{{ e.at.strftime('%Y-%m-%d %H:%M:%S') }}</code></td>
+        <td>
+          {{ e.at | local_time }}
+          <br><small class="usa-hint" style="color:#5c5c5c;">UTC: <code>{{ e.at.strftime('%Y-%m-%dT%H:%M:%SZ') }}</code></small>
+        </td>
         <td>{{ e.actor_email or '—' }}</td>
         <td><code>{{ e.action }}</code></td>
         <td>
@@ -62,12 +84,16 @@
           {% if e.project_id %}<br><small>proj <code>{{ e.project_id[:8] }}</code></small>{% endif %}
         </td>
         <td>
+          {# Round-7 §6.6: lead with a one-sentence plain-English summary
+             so the column is readable. Raw JSON stays available behind
+             a "Show raw JSON" toggle for compliance auditors. #}
+          {{ e | audit_summary }}
           {% if e.details %}
-            <details>
-              <summary>{{ (e.details | tojson)[:60] }}…</summary>
+            <details style="margin-top:0.25rem;">
+              <summary><small>Show raw JSON</small></summary>
               <pre class="shield-body-text">{{ e.details | tojson(indent=2) }}</pre>
             </details>
-          {% else %}—{% endif %}
+          {% endif %}
         </td>
       </tr>
     {% else %}

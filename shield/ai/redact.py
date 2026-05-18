@@ -8,11 +8,21 @@ Defense-in-depth. Two stacked layers, applied in order:
    library being importable. Catches free-form names, organizations,
    and locations that the regex layer can't reasonably express.
 
-Every match is replaced with a typed placeholder (e.g. `[REDACTED_EMAIL]`)
-so the model still sees that a value *was* there. The redaction report
-returned alongside the cleaned text is structured for lineage — counts
-by category, never raw values — so the audit log records what was
-withheld without re-leaking the secret.
+**Round-tripping** (the round-4 follow-up). Every match is replaced
+with a uniquely-numbered placeholder (e.g. `[REDACTED_EMAIL_0001]`)
+and the original value is captured in a per-call mapping dict. The
+caller (typically `AIClient.complete`) sends the redacted text to
+Anthropic, gets a response back, and runs `unredact()` to restore
+the originals. The mapping lives in memory for the duration of the
+AI call only; it is never persisted to the lineage or audit log.
+
+Net effect: real PII (and organization names) never reaches the
+Anthropic API on the wire, but the response stored in our DB shows
+the original values — which is what an admin actually wants to read.
+
+The redaction report (counts by category) IS still persisted on the
+artifact's lineage so the audit log shows what was withheld during
+transit, without re-leaking the secret.
 
 Configurable via app config:
     AI_REDACTION_MODE             = off | regex | full    (default: full)
@@ -110,16 +120,34 @@ class RedactionReport:
         self.counts[label] = self.counts.get(label, 0) + n
 
 
-def _apply_regex(text: str, report: RedactionReport) -> str:
+def _next_placeholder(label: str, mapping: dict[str, str]) -> str:
+    """Return a uniquely-numbered placeholder for the given category.
+
+    The number is `len(mapping)` so every placeholder across every
+    category is globally unique within one call — `[REDACTED_EMAIL_0017]`
+    is different from `[REDACTED_PHONE_0017]` even though they share
+    the index. That guarantee matters for round-tripping: each
+    placeholder maps back to exactly one original.
+    """
+    return f"[REDACTED_{label}_{len(mapping):04d}]"
+
+
+def _apply_regex(text: str, report: RedactionReport,
+                 mapping: dict[str, str]) -> str:
     for label, pat in _PATTERNS:
-        def _sub(_m: re.Match[str], _label: str = label) -> str:
+        def _sub(m: re.Match[str], _label: str = label) -> str:
+            original = m.group(0)
             report._bump(_label)
-            return f"[REDACTED_{_label}]"
+            placeholder = _next_placeholder(_label, mapping)
+            mapping[placeholder] = original
+            return placeholder
         text = pat.sub(_sub, text)
     return text
 
 
-def _apply_extra_terms(text: str, terms: Iterable[str], report: RedactionReport) -> str:
+def _apply_extra_terms(text: str, terms: Iterable[str],
+                       report: RedactionReport,
+                       mapping: dict[str, str]) -> str:
     for raw in terms:
         term = raw.strip()
         if not term or len(term) < 3:
@@ -128,10 +156,19 @@ def _apply_extra_terms(text: str, terms: Iterable[str], report: RedactionReport)
         # Case-insensitive whole-word-ish match. We don't use \b on both
         # sides because client names often include "&" / "," etc.
         pat = re.compile(r"(?<!\w)" + re.escape(term) + r"(?!\w)", re.IGNORECASE)
-        new_text, n = pat.subn("[REDACTED_TERM]", text)
-        if n > 0:
+
+        n_found = 0
+        def _sub(m: re.Match[str]) -> str:
+            nonlocal n_found
+            original = m.group(0)
+            n_found += 1
+            placeholder = _next_placeholder("TERM", mapping)
+            mapping[placeholder] = original
+            return placeholder
+        new_text = pat.sub(_sub, text)
+        if n_found > 0:
             report.extra_terms_applied.append(term)
-            report._bump("TERM", n)
+            report._bump("TERM", n_found)
             text = new_text
     return text
 
@@ -188,22 +225,45 @@ def _get_presidio_analyzer():
 _PRESIDIO_ENTITIES = ["PERSON", "LOCATION", "ORGANIZATION", "NRP"]
 
 
-def _apply_presidio(text: str, report: RedactionReport) -> str:
+def _apply_presidio(text: str, report: RedactionReport,
+                    mapping: dict[str, str]) -> str:
     analyzer = _get_presidio_analyzer()
     if analyzer is None:
         return text
     report.presidio_available = True
+
+    # Vendor-name pre-mask: replace any known commercial vendor /
+    # product name with a sentinel BEFORE Presidio sees the text.
+    # Without this, spaCy's PERSON / LOCATION / NRP / ORG detectors
+    # routinely flag brand names (Commvault, Cisco, Atlassian, Jamf,
+    # Zscaler, Tenable, etc.) as named entities and the redactor
+    # destroys legitimate commercial-software metadata.
+    from .vendor_allowlist import mask_allowlisted, unmask_allowlisted
+    masked_text, sentinel_map = mask_allowlisted(text)
+    if sentinel_map:
+        report._bump("ALLOWLISTED_VENDOR_TERMS", len(sentinel_map))
+
     results = analyzer.analyze(
-        text=text,
+        text=masked_text,
         entities=_PRESIDIO_ENTITIES,
         language="en",
     )
     # Replace right-to-left so earlier spans' character offsets stay
-    # valid as we mutate the string.
+    # valid as we mutate the string. Each NER hit gets its own
+    # uniquely-numbered placeholder + mapping entry, mirroring the
+    # regex layer's roundtrip-friendly behavior.
+    out = masked_text
     for r in sorted(results, key=lambda x: x.start, reverse=True):
         report._bump(r.entity_type)
-        text = text[:r.start] + f"[REDACTED_{r.entity_type}]" + text[r.end:]
-    return text
+        original = out[r.start:r.end]
+        placeholder = _next_placeholder(r.entity_type, mapping)
+        mapping[placeholder] = original
+        out = out[:r.start] + placeholder + out[r.end:]
+
+    # Restore vendor names. Sentinels won't survive being inside a
+    # [REDACTED_*] span because we never put a sentinel inside one
+    # (mask runs before NER), but the unmasker is defensive.
+    return unmask_allowlisted(out, sentinel_map)
 
 
 # --------------------------------------------------------------------
@@ -215,15 +275,24 @@ def redact(
     *,
     mode: str = "full",
     extra_terms: Iterable[str] = (),
-) -> tuple[str, RedactionReport]:
+) -> tuple[str, RedactionReport, dict[str, str]]:
     """Run the configured redaction layers on `text`.
 
-    Returns (cleaned_text, report). `report.to_dict()` is what callers
-    should merge into the AI artifact lineage.
+    Returns `(redacted_text, report, mapping)`:
+      - `redacted_text` has every match swapped for a uniquely-numbered
+        placeholder (`[REDACTED_EMAIL_0001]`, `[REDACTED_PERSON_0002]`,
+        ...). This is the safe-to-send-online form.
+      - `report.to_dict()` is what callers merge into the AI artifact
+        lineage. Counts only — no raw values, no mapping leak.
+      - `mapping` is `{placeholder: original}`. The caller (the AI
+        client) holds it in memory for the duration of the round-trip
+        to Anthropic so it can `unredact()` the response. Never
+        persisted to lineage or audit.
 
     `mode`:
-      - "off":   bypass redaction entirely. The report still records the
-                 mode so the audit log shows it was skipped on purpose.
+      - "off":   bypass redaction entirely. Returns text unchanged and
+                 an empty mapping. The report still records the mode
+                 so the audit log shows it was skipped on purpose.
       - "regex": regex layer only.
       - "full":  regex layer + Presidio NER if available.
 
@@ -232,13 +301,30 @@ def redact(
     default — the AI client wires it in from app config.
     """
     report = RedactionReport(mode=mode)
+    mapping: dict[str, str] = {}
     if not text:
-        return text, report
+        return text, report, mapping
     if mode == "off":
-        return text, report
+        return text, report, mapping
 
-    out = _apply_extra_terms(text, extra_terms, report)
-    out = _apply_regex(out, report)
+    out = _apply_extra_terms(text, extra_terms, report, mapping)
+    out = _apply_regex(out, report, mapping)
     if mode == "full":
-        out = _apply_presidio(out, report)
-    return out, report
+        out = _apply_presidio(out, report, mapping)
+    return out, report, mapping
+
+
+def unredact(text: str, mapping: dict[str, str]) -> str:
+    """Restore originals from a placeholder map.
+
+    The mapping is what `redact()` returned. Walking placeholders
+    longest-first protects against any chance of partial overlap
+    (e.g. a placeholder that's a prefix of another, which shouldn't
+    happen given our naming scheme but defensive doesn't cost much).
+    """
+    if not text or not mapping:
+        return text
+    for placeholder in sorted(mapping.keys(), key=len, reverse=True):
+        if placeholder in text:
+            text = text.replace(placeholder, mapping[placeholder])
+    return text

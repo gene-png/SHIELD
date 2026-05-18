@@ -119,6 +119,7 @@ def write_human_artifact(
 
     art = Artifact(
         project_id=project.id,
+        client_id=project.client_id,
         stage=stage,
         origin=Origin.HUMAN_INPUT,
         trust_tier=trust_tier,
@@ -178,6 +179,7 @@ def write_ai_artifact(
 
     art = Artifact(
         project_id=project.id,
+        client_id=project.client_id,
         stage=stage,
         origin=Origin.AI_GENERATED,
         trust_tier=TrustTier.NOT_APPLICABLE,
@@ -217,6 +219,7 @@ def write_human_ai_informed_artifact(
     """
     art = Artifact(
         project_id=project.id,
+        client_id=project.client_id,
         stage=stage,
         origin=Origin.HUMAN_AI_INFORMED,
         trust_tier=TrustTier.NOT_APPLICABLE,

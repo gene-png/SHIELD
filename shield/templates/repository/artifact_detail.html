@@ -13,7 +13,7 @@
 <p>
   {% set origin = art.origin.value %}{% set reuse = art.reuse_status.value %}{% include "_components/origin_badge.html" %}
   &middot; stage <strong>{{ art.stage }}</strong>
-  &middot; created {{ art.created_at.strftime('%Y-%m-%d %H:%M') }}
+  &middot; created {{ art.created_at | local_time }}
 </p>
 
 {% if art.body_text %}
@@ -23,14 +23,64 @@
 {% endif %}
 
 <h2>Lineage</h2>
-<pre>{{ art.lineage | tojson(indent=2) }}</pre>
+{# v1.9 §3: render lineage as readable cards, with clickable links
+   for referenced artifact ids. The raw JSON moves behind a "Show
+   technical details" toggle for compliance auditors. #}
+{% set _lineage = art.lineage or {} %}
+<div class="shield-content-card" style="background:#f8f9fa;">
+  {% if not _lineage %}
+    <p class="usa-hint"><em>No lineage recorded.</em></p>
+  {% else %}
+    <dl class="shield-walkability__provenance" style="margin:0;">
+      {% if _lineage.get('prompt_version') %}
+        <dt>Prompt version</dt>
+        <dd><code>{{ _lineage.get('prompt_version') }}</code></dd>
+      {% endif %}
+      {% if _lineage.get('model') %}
+        <dt>Model</dt><dd><code>{{ _lineage.get('model') }}</code></dd>
+      {% endif %}
+      {% if _lineage.get('redacted') is mapping %}
+        <dt>PII stripped</dt>
+        <dd>
+          {% set r = _lineage.get('redacted') %}
+          {% if r %}
+            {% for k, v in r.items() %}
+              <span class="usa-tag">{{ k }}: {{ v }}</span>
+            {% endfor %}
+          {% else %}<em>none</em>{% endif %}
+        </dd>
+      {% endif %}
+      {% set cited = _lineage.get('cites') or _lineage.get('input_artifact_ids') or [] %}
+      {% if cited %}
+        <dt>Built from</dt>
+        <dd>
+          <ul class="usa-prose" style="margin:0;">
+            {% for src_id in cited %}
+              <li>
+                <a href="{{ url_for('repository.artifact_detail', artifact_id=src_id) }}">
+                  Open source artifact <code>{{ src_id[:8] }}</code>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </dd>
+      {% endif %}
+    </dl>
+  {% endif %}
+  {% if _lineage %}
+    <details style="margin-top:0.5rem;">
+      <summary><small>Show technical details</small></summary>
+      <pre class="shield-body-text">{{ _lineage | tojson(indent=2) }}</pre>
+    </details>
+  {% endif %}
+</div>
 
 {# ============ Approval (was "Promotion") ============ #}
 {% if art.reuse_status.value == 'approved' %}
   <h2>Approval</h2>
   <p class="shield-promoted">
     Approved{% if promoter %} by <strong>{{ promoter.display_name }}</strong>{% endif %}
-    {% if art.promoted_at %}on {{ art.promoted_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}.
+    {% if art.promoted_at %}on {{ art.promoted_at | local_time }}{% endif %}.
     <br>
     <em>This is still an automated-analysis draft; only its reuse status changed.</em>
   </p>
@@ -64,5 +114,60 @@
   <p class="usa-hint">
     <em>Only admin or reviewer roles can approve drafts for reuse.</em>
   </p>
+{% endif %}
+
+{# Round-7 §17 admin lifecycle controls. Archive is the default verb;
+   purge requires a typed confirmation phrase matching the artifact's
+   title and physically removes the file from disk. Audit row stays. #}
+{% if current_user.role.value == 'admin' %}
+  <section style="margin-top:2rem;border-top:1px solid #dfe1e2;padding-top:1rem;">
+    <h2><small>Admin lifecycle</small></h2>
+    {% if art.lifecycle_state == 'purged' %}
+      <p class="usa-alert usa-alert--info usa-alert--slim">
+        <span class="usa-alert__body">
+          <span class="usa-alert__text">
+            <strong>Purged.</strong>
+            {% if art.purged_reason %}{{ art.purged_reason }}{% endif %}
+            File on disk was removed; the audit trail still references
+            this row.
+          </span>
+        </span>
+      </p>
+    {% elif art.archived %}
+      <p>This artifact is <strong>archived</strong> and hidden from the
+        default repository view.</p>
+      <form method="POST"
+            action="{{ url_for('lifecycle.artifact_unarchive', artifact_id=art.id) }}"
+            style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="usa-button usa-button--small usa-button--outline">Restore</button>
+      </form>
+      <form method="POST"
+            action="{{ url_for('lifecycle.artifact_purge', artifact_id=art.id) }}"
+            style="display:inline;margin-left:.5rem;"
+            onsubmit="return confirm('PURGE permanently removes “{{ art.title }}” and its file on disk. Audit history stays. Continue?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="usa-input usa-input--small" type="text"
+               name="confirmation_phrase"
+               placeholder='Type "{{ art.title }}" to purge'
+               style="width:18rem;display:inline-block;vertical-align:middle;">
+        <input type="hidden" name="reason" value="purged via artifact-detail">
+        <button class="usa-button usa-button--small usa-button--secondary"
+                style="background:#b50909;">Purge</button>
+      </form>
+    {% else %}
+      <form method="POST"
+            action="{{ url_for('lifecycle.artifact_archive', artifact_id=art.id) }}"
+            class="usa-form usa-form--inline"
+            onsubmit="return confirm('Archive “{{ art.title }}”? Reversible from the repository browse with show_archived=1.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="usa-input usa-input--small" type="text"
+               name="reason"
+               placeholder="Reason (optional)"
+               style="min-width:18rem;">
+        <button class="usa-button usa-button--small usa-button--outline">Archive</button>
+      </form>
+    {% endif %}
+  </section>
 {% endif %}
 {% endblock %}

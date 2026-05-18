@@ -1,0 +1,333 @@
+"""Tests for the P1 workspace step-flow rebuild (round-5 §6.1).
+
+The 3-column lane view ("Client source documentation" / "Automated drafts"
+/ "Your reviewed versions") is gone. The new layout is a vertical
+4-step flow where each step shows its status (done / active / waiting),
+a short recap, and a primary action button when relevant.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from shield.extensions import db
+from shield.models import PlatformType, Project
+from shield.spine.repository import (
+    write_ai_artifact,
+    write_human_ai_informed_artifact,
+    write_human_artifact,
+)
+
+
+@pytest.fixture()
+def p1_project(app, acme, admin):
+    p = Project(
+        client_id=acme.id, platform=PlatformType.TECH_DEBT,
+        name="P1 step-flow test", stage="intake", created_by_id=admin.id,
+    )
+    db.session.add(p)
+    db.session.commit()
+    return p
+
+
+# --------------------------------------------------------------------
+# State machine — one fixture per stage state
+# --------------------------------------------------------------------
+
+def test_workspace_renders_four_steps(admin_client, p1_project):
+    """Empty project: 4 step cards render, each with 'Step N' label."""
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    for n in (b"Step 1", b"Step 2", b"Step 3", b"Step 4"):
+        assert n in r.data
+
+
+def test_workspace_step1_waiting_when_no_source(admin_client, p1_project):
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    assert b"No client source documentation yet" in r.data
+
+
+def test_workspace_step1_active_when_source_uploaded(
+    admin_client, p1_project, admin,
+):
+    write_human_artifact(
+        project=p1_project, stage="raw_intake",
+        title="inventory.csv",
+        file_stream=None, filename=None, mime_type=None,
+        actor=admin, body_text="…",
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    # Step 1 done OR active; "Run automated reading" CTA appears.
+    assert b"Run automated reading" in r.data
+    assert b"inventory.csv" in r.data
+
+
+def test_workspace_step2_active_when_extraction_exists(
+    admin_client, p1_project, admin,
+):
+    write_human_artifact(
+        project=p1_project, stage="raw_intake",
+        title="inv.csv", file_stream=None, filename=None, mime_type=None,
+        actor=admin, body_text="x",
+    )
+    write_ai_artifact(
+        project=p1_project, stage="ai_extraction",
+        title="AI extraction",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        input_artifact_ids=[],
+        prompt_version="p1_extraction.v1", model="fixture",
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"Review and confirm" in r.data
+    # Action URL points at review_extraction.
+    assert b"/review/" in r.data
+
+
+def test_workspace_step3_active_when_review_done(
+    admin_client, p1_project, admin,
+):
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="reviewed",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        cites_artifact_ids=[], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    # Step 3 active → "Run overlap analysis" CTA.
+    assert b"Run overlap analysis" in r.data
+
+
+def test_workspace_step3_done_links_to_summary(
+    admin_client, p1_project, admin,
+):
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="r", body_text="[]", cites_artifact_ids=[], actor=admin,
+    )
+    write_ai_artifact(
+        project=p1_project, stage="overlap_analysis",
+        title="overlap",
+        body_text=json.dumps({"overlaps": [], "summary": {}}),
+        input_artifact_ids=[],
+        prompt_version="p1_overlap.v1", model="fixture",
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"Open overlap dashboard" in r.data
+    assert b"/summary" in r.data
+
+
+def test_workspace_step4_active_when_reviews_exist_no_final(
+    admin_client, p1_project, admin,
+):
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="r", body_text="[]", cites_artifact_ids=[], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"Finalize the list" in r.data
+    assert b"/finalize" in r.data
+
+
+def test_workspace_step4_done_when_final_exists(
+    admin_client, p1_project, admin,
+):
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="r", body_text="[]", cites_artifact_ids=[], actor=admin,
+    )
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="admin_final",
+        title="Final list", body_text="[]",
+        cites_artifact_ids=[], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"View final list" in r.data
+
+
+# --------------------------------------------------------------------
+# Chat panel only appears once the reviewed version exists
+# --------------------------------------------------------------------
+
+def test_chat_panel_hidden_before_review(admin_client, p1_project):
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"Questions for the overlap findings" not in r.data
+
+
+def test_chat_panel_visible_after_review(admin_client, p1_project, admin):
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="r", body_text="[]", cites_artifact_ids=[], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"Questions for the overlap findings" in r.data
+
+
+# --------------------------------------------------------------------
+# Old 3-column layout is gone
+# --------------------------------------------------------------------
+
+def test_workspace_does_not_render_old_3_column_labels(admin_client, p1_project):
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    # The old column headings shouldn't be on the new step-flow layout.
+    assert b"Automated drafts" not in r.data
+    assert b"Your reviewed versions" not in r.data
+
+
+def test_workspace_step2_done_still_offers_reopen_review(
+    admin_client, p1_project, admin,
+):
+    """Regression: when at least one review exists, Step 2 used to
+    render only the bullet list with no way back into the editor.
+    If the earlier review was wrong / empty (which happened in
+    production when the table-editor JS was CSP-blocked), the admin
+    was stuck — Step 2 looked 'done' but had no Review button.
+
+    The fix surfaces a 'Re-open the review' outline button even on
+    the done branch, as long as an AI extraction exists.
+    """
+    # Set up: AI extraction + at least one (potentially empty) review.
+    ext = write_ai_artifact(
+        project=p1_project, stage="ai_extraction",
+        title="Initial reading",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        input_artifact_ids=[],
+        prompt_version="p1_extraction.v1", model="fixture",
+    )
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(empty review)", body_text="",
+        cites_artifact_ids=[ext.id], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    # The "Re-open the review" CTA appears.
+    assert b"Re-open the review" in r.data
+    # And it points at the review_extraction route for this AI artifact.
+    expected_url = f"/platform/tech-debt/project/{p1_project.id}/review/{ext.id}".encode()
+    assert expected_url in r.data
+
+
+def test_workspace_step3_done_offers_rerun_when_review_is_newer(
+    admin_client, p1_project, admin,
+):
+    """If overlap exists but a newer review came after it (e.g. the
+    admin re-opened the review and saved), Step 3 should call the
+    overlap analysis stale and offer a re-run button against the
+    latest review."""
+    from datetime import datetime, timedelta
+
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(early empty review)", body_text="",
+        cites_artifact_ids=[], actor=admin,
+    )
+    # Overlap is older than the next review.
+    overlap = write_ai_artifact(
+        project=p1_project, stage="overlap_analysis",
+        title="overlap on the empty list",
+        body_text=json.dumps({"overlaps": [], "summary": {}}),
+        input_artifact_ids=[],
+        prompt_version="p1_overlap.v1", model="fixture",
+    )
+    # Stamp the overlap as older than the new review we're about to add.
+    overlap.created_at = datetime.utcnow() - timedelta(minutes=5)
+    db.session.commit()
+    # Newer review (real data).
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(corrected review)",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        cites_artifact_ids=[], actor=admin,
+    )
+
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    assert b"latest reviewed version is newer" in r.data
+    # Round-7 §20/22: the verb is now "Refresh overlap analysis" rather
+    # than "Re-run on latest review."
+    assert b"Refresh overlap analysis" in r.data
+
+
+def test_workspace_step4_done_offers_refinalize(
+    admin_client, p1_project, admin,
+):
+    """When a final list exists, Step 4 still surfaces a 'Refresh results'
+    button (was 'Re-finalize' until round-7 §20) so the admin can produce
+    a new version from a newer review. A stale-final warning appears when
+    there's a newer review."""
+    from datetime import datetime, timedelta
+
+    # Empty final (the production failure mode).
+    final = write_human_ai_informed_artifact(
+        project=p1_project, stage="admin_final",
+        title="Admin-final capability list v1", body_text="[]",
+        cites_artifact_ids=[], actor=admin,
+    )
+    final.created_at = datetime.utcnow() - timedelta(minutes=5)
+    db.session.commit()
+    # Newer review.
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="(corrected review)",
+        body_text=json.dumps([{"name": "Splunk"}]),
+        cites_artifact_ids=[], actor=admin,
+    )
+
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert b"Refresh results" in r.data
+    assert b"A newer reviewed version exists" in r.data
+
+
+def test_workspace_upload_form_points_at_p1_upload_route(admin_client, p1_project):
+    """Regression: the workspace embeds _components/attach.html, which
+    reads `upload_url` from context. The `{% set upload_url %}` block
+    was originally at the BOTTOM of the template — AFTER the include —
+    so the form's action attribute fell back to the current page URL.
+    POSTing the upload then hit the workspace GET handler, producing
+    'Method Not Allowed.'
+
+    The form's action MUST point at /platform/tech-debt/project/<id>/upload.
+    """
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    assert r.status_code == 200
+    expected = f'action="/platform/tech-debt/project/{p1_project.id}/upload"'.encode()
+    assert expected in r.data, (
+        "attach.html upload form action is wrong — upload_url likely "
+        "set after the include again"
+    )
+
+
+def test_workspace_does_not_leak_literal_html_tags(admin_client, p1_project, admin):
+    """Regression for the round-5 §6.1 bug where step recap text was
+    built up via Jinja {% set %} string concatenation. When `r.title`
+    was passed through `| e` and concatenated with literal '<li>'
+    fragments, Jinja autoescape kicked in on the LITERAL tags too,
+    leaking '&lt;ul&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;' as plain
+    text the user could read on screen.
+
+    The fix was to drop the string-build pattern and render the lists
+    inline in the template. This test pins that: visible body must
+    not contain literal HTML-tag fragments as escaped entities.
+    """
+    write_human_ai_informed_artifact(
+        project=p1_project, stage="extraction_review",
+        title="Admin-confirmed extraction (from AI extraction of inv.xlsx)",
+        body_text="[]", cites_artifact_ids=[], actor=admin,
+    )
+    r = admin_client.get(f"/platform/tech-debt/project/{p1_project.id}")
+    body = r.data
+    # If the bug regresses, we'd see things like:
+    #   "&lt;ul class=&#34;usa-prose&#34;&gt;&lt;li&gt;&lt;strong&gt;…"
+    for needle in (
+        b"&lt;ul",
+        b"&lt;li",
+        b"&lt;strong",
+        b"&lt;/li",
+        b"&lt;/ul",
+    ):
+        assert needle not in body, (
+            f"Literal HTML escape {needle!r} leaked into page body — "
+            "string-built recap regressed?"
+        )

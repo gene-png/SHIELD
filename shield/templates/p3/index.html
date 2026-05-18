@@ -1,24 +1,35 @@
 {% extends "_layout/base.html" %}
 {% block title %}Attack Surface · SHIELD{% endblock %}
 {% block content %}
-<h1>Attack Surface</h1>
-<p>Map your capabilities to MITRE ATT&amp;CK. Identify the techniques you cannot detect, prevent, or respond to.</p>
+<section class="shield-page-header">
+  <p class="shield-page-header__eyebrow">Attack Surface</p>
+  <h1>Attack Surface projects.</h1>
+  <p class="shield-page-header__intro">
+    Map your capabilities to MITRE ATT&amp;CK. Identify the techniques
+    you cannot detect, prevent, or respond to.
+  </p>
+</section>
 
 <p>
   <a class="usa-button" href="{{ url_for('p3.new_project') }}">+ New project</a>
 </p>
 
-<table class="usa-table usa-table--striped">
+{% set filter_key = 'p3' %}
+{% set stages = ['intake','coverage_analysis','complete'] %}
+{% include '_components/list_filter.html' %}
+
+<table class="usa-table usa-table--striped" data-shield-filter="p3">
   <thead><tr><th>Project</th><th>Client</th><th>Stage</th><th>Created</th></tr></thead>
   <tbody>
     {% for p in projects %}
-      <tr>
+      <tr data-stage="{{ p.stage }}">
         <td><a href="{{ url_for('p3.workspace', project_id=p.id) }}">{{ p.name }}</a></td>
         <td>{{ p.client.name }}</td>
         <td>{{ p.stage }}</td>
-        <td>{{ p.created_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ p.created_at | local_time(fmt='date') }}</td>
       </tr>
     {% endfor %}
   </tbody>
 </table>
+<p data-shield-filter-empty="p3" style="display:none;"><em>No projects match the filter.</em></p>
 {% endblock %}

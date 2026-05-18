@@ -1,0 +1,46 @@
+{% extends "_layout/base.html" %}
+{% block title %}Fulfill request &mdash; {{ client | client_label }} &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<p style="max-width:48rem;margin:0 auto;">
+  <a href="{{ url_for('clients.intake_view', client_id=client.id) }}">&larr; {{ client | client_label }} intake</a>
+</p>
+
+<section class="shield-exec" style="max-width:48rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">
+    {{ client | client_label }}
+    &middot; Service: <code>{{ request_.service }}</code>
+  </p>
+  <h1 class="shield-exec__headline">Create project from request</h1>
+
+  <h2>Request details</h2>
+  <dl class="shield-walkability__provenance">
+    <dt>Requested</dt> <dd>{{ request_.requested_at | local_time }}</dd>
+    {% if request_.deadline %}
+      <dt>Client deadline</dt> <dd>{{ request_.deadline | local_time(fmt='date') }}</dd>
+    {% endif %}
+    {% if request_.notes %}
+      <dt>Notes from client</dt> <dd>{{ request_.notes }}</dd>
+    {% endif %}
+  </dl>
+
+  <h2>Project</h2>
+  <p class="usa-prose">
+    Service is locked to the request. For Zero Trust you'll also pick
+    a framework here &mdash; that choice is permanent for the project.
+    The optional <em>client-facing label</em> field is what the client
+    sees on their dashboard card; the internal name is what admins
+    and reviewers see.
+  </p>
+
+  {% include "_components/project_create_form.html" with context %}
+
+  <p class="usa-hint" style="margin-top:.5rem;">
+    <small>
+      Want a friendly client-facing label too? Add one on the
+      project's workspace after creation.
+    </small>
+  </p>
+</section>
+
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "_layout/base.html" %}
+{% block title %}Reviewers · SHIELD{% endblock %}
+{% block content %}
+<section class="shield-page-header">
+  <p class="shield-page-header__eyebrow">Admin</p>
+  <h1>Reviewer access.</h1>
+  <p class="shield-page-header__intro">
+    Grant a reviewer access to a specific client, or revoke an
+    existing assignment. Reviewers with at least one assignment see
+    ONLY their assigned clients; reviewers with zero assignments
+    still see everything (the default v1.8 behavior — flipping that
+    requires a follow-up migration).
+  </p>
+</section>
+
+<div class="grid-row grid-gap" style="max-width:64rem;margin:0 auto;">
+  {# ============ Existing assignments ============ #}
+  <div class="tablet:grid-col-7">
+    <div class="shield-content-card">
+      <h2 class="shield-content-card__heading">Reviewers + their clients</h2>
+      {% if not reviewers %}
+        <p class="usa-prose"><em>No reviewers yet. Reviewer-role users
+          appear here once they've logged in once.</em></p>
+      {% endif %}
+      {% for r in reviewers %}
+        {% set rows = assignments_by_reviewer.get(r.id) or [] %}
+        <div style="border-top:1px solid #dfe1e2;padding:.6rem 0;">
+          <strong>{{ r.display_name or r.email }}</strong>
+          <br><small class="usa-hint">{{ r.email }}</small>
+          {% if rows %}
+            <ul class="usa-prose" style="margin:.4rem 0 0 0;">
+              {% for ra, c in rows %}
+                <li>
+                  {{ c.name }}
+                  <small class="usa-hint">
+                    &middot; assigned {{ ra.assigned_at | local_time(fmt='date') }}
+                  </small>
+                  <form method="POST"
+                        action="{{ url_for('admin_views.reviewers_revoke', assignment_id=ra.id) }}"
+                        style="display:inline;margin-left:.5rem;"
+                        onsubmit="return confirm('Revoke {{ r.display_name or r.email }}’s access to {{ c.name }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="usa-button usa-button--small usa-button--outline">Revoke</button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="usa-hint" style="margin:.3rem 0 0 0;">
+              <em>No assignments — currently sees every client (default).</em>
+            </p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ============ Grant form ============ #}
+  <div class="tablet:grid-col-5">
+    <div class="shield-content-card">
+      <h2 class="shield-content-card__heading">Grant access</h2>
+      <p class="usa-prose">
+        Once a reviewer has at least one assignment, they're scoped to
+        only those clients. Granting the FIRST assignment narrows their
+        scope — make sure that's what you want.
+      </p>
+      <form method="POST" action="{{ url_for('admin_views.reviewers_grant') }}" class="usa-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label class="usa-label" for="reviewer_id">Reviewer</label>
+        <select class="usa-select" id="reviewer_id" name="reviewer_id" required>
+          <option value="">— pick one —</option>
+          {% for r in reviewers %}
+            <option value="{{ r.id }}">{{ r.display_name or r.email }} &middot; {{ r.email }}</option>
+          {% endfor %}
+        </select>
+
+        <label class="usa-label" for="client_id">Client</label>
+        <select class="usa-select" id="client_id" name="client_id" required>
+          <option value="">— pick one —</option>
+          {% for c in clients %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+
+        <button class="usa-button" type="submit" style="margin-top:.75rem;">
+          Grant access
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

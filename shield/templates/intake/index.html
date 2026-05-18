@@ -23,12 +23,17 @@
   </p>
 {% endif %}
 
+{% set _platform_label = {
+    'tech_debt': 'Tech Debt review',
+    'zero_trust': 'Zero Trust assessment',
+    'attack_surface': 'Attack Surface review',
+} %}
 {% for project in projects %}
   <section class="shield-intake__project usa-card" style="margin:1rem 0;padding:1rem;border:1px solid #dfe1e2;">
-    <h2>{{ project.client.name }} — {{ project.name }}</h2>
+    <h2>{{ project.client | client_label }} &mdash; {{ project.name }}</h2>
     <p class="usa-hint">
       Stage: <strong>{{ project.stage }}</strong>
-      &middot; Platform: <code>{{ project.platform.value.replace('_', ' ') }}</code>
+      &middot; Service: {{ _platform_label.get(project.platform.value, project.platform.value.replace('_', ' ')) }}
     </p>
 
     <form method="POST"
@@ -65,7 +70,7 @@
           <td>{{ a.title }}</td>
           <td><code>{{ a.filename or '—' }}</code></td>
           <td>{{ a.project.name if a.project else '—' }}</td>
-          <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>{{ a.created_at | local_time }}</td>
         </tr>
       {% endfor %}
     </tbody>

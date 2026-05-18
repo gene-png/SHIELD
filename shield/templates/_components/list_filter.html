@@ -1,0 +1,35 @@
+{# Shared filter controls for list pages.
+   Caller sets:
+     filter_key   — string key matching `data-shield-filter` on the
+                    target table.
+     stages       — optional list of stage strings for a dropdown.
+                    Empty list = no stage dropdown rendered.
+   Usage:
+     {% set filter_key = 'p1' %}
+     {% set stages = ['intake','extraction_review','overlap_analysis','submitted','admin_final'] %}
+     {% include '_components/list_filter.html' %}
+#}
+<div class="usa-form usa-form--inline" style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;">
+  <div>
+    <label class="usa-label usa-sr-only" for="filter-{{ filter_key }}-search">Search</label>
+    <input class="usa-input"
+           id="filter-{{ filter_key }}-search"
+           type="search"
+           placeholder="Search by name, client, anything in the row…"
+           data-shield-filter-search="{{ filter_key }}"
+           style="min-width:24rem;">
+  </div>
+  {% if stages %}
+    <div>
+      <label class="usa-label usa-sr-only" for="filter-{{ filter_key }}-stage">Stage</label>
+      <select class="usa-select"
+              id="filter-{{ filter_key }}-stage"
+              data-shield-filter-stage="{{ filter_key }}">
+        <option value="">All stages</option>
+        {% for s in stages %}
+          <option value="{{ s }}">{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  {% endif %}
+</div>

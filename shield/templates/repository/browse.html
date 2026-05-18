@@ -6,9 +6,9 @@
 
 <nav class="shield-filters" aria-label="Source filter">
   <a class="usa-button usa-button--{{ 'base' if origin_filter == 'all' else 'outline' }}" href="?origin=all">All</a>
-  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_input' else 'outline' }}" href="?origin=human_input">From your team</a>
-  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'ai_generated' else 'outline' }}" href="?origin=ai_generated">Automated drafts</a>
-  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_ai_informed' else 'outline' }}" href="?origin=human_ai_informed">Reviewed versions</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_input' else 'outline' }}" href="?origin=human_input">Client Provided</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'ai_generated' else 'outline' }}" href="?origin=ai_generated">Automated Drafts</a>
+  <a class="usa-button usa-button--{{ 'base' if origin_filter == 'human_ai_informed' else 'outline' }}" href="?origin=human_ai_informed">Consultant Approved</a>
 </nav>
 
 <table class="usa-table usa-table--striped">
@@ -18,9 +18,9 @@
       <tr>
         <td><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></td>
         <td>{% set origin = a.origin.value %}{% set reuse = a.reuse_status.value %}{% include "_components/origin_badge.html" %}</td>
-        <td>{{ a.stage }}</td>
+        <td>{{ a.stage | friendly_label }}</td>
         <td>{{ a.project_id[:8] }}</td>
-        <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ a.created_at | local_time }}</td>
       </tr>
     {% endfor %}
   </tbody>

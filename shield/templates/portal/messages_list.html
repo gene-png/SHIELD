@@ -1,0 +1,45 @@
+{% extends "_layout/base.html" %}
+{% block title %}Messages &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">{{ client | client_label }}</p>
+  <h1 class="shield-exec__headline">Messages</h1>
+  <p class="usa-prose">
+    One general thread plus a thread per project. Click any thread to
+    read the conversation and post a reply.
+  </p>
+</section>
+
+<table class="usa-table usa-table--striped" style="max-width:56rem;margin:0 auto;">
+  <thead>
+    <tr>
+      <th>Thread</th><th>Latest message</th><th>Unread</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in threads %}
+      <tr>
+        <td>
+          <strong>{{ t.label }}</strong>
+          {% if t.project %}<br><small>{{ t.project.platform.value | friendly_label }} &middot; {{ t.project.stage | friendly_label }}</small>{% endif %}
+        </td>
+        <td>
+          {% if t.latest %}
+            <small>{{ t.latest.created_at | local_time }}</small><br>
+            {{ t.latest.body[:120] }}{% if t.latest.body|length > 120 %}&hellip;{% endif %}
+          {% else %}
+            <em>(no messages)</em>
+          {% endif %}
+        </td>
+        <td>{{ t.unread if t.unread else '' }}</td>
+        <td>
+          <a class="usa-button usa-button--small"
+             href="{{ url_for('portal.messages_thread', thread_key=t.key) }}">Open</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

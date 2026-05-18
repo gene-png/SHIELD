@@ -46,7 +46,7 @@
                      {% if form.get('capability_list_id') == cl.id %}checked{% endif %}>
               <label class="usa-radio__label" for="cl-{{ cl.id }}">
                 v{{ cl.version }} — {{ cl.label }}
-                ({{ cl.items | length }} items, {{ cl.created_at.strftime('%Y-%m-%d') }})
+                ({{ cl.items | length }} items, {{ cl.created_at | local_time(fmt='date') }})
                 {% set origin = cl.origin.value %}
                 {% set reuse = 'draft' %}
                 {% include "_components/origin_badge.html" %}

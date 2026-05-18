@@ -1,0 +1,136 @@
+{% extends "_layout/base.html" %}
+{% block title %}Zero Trust questions &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-exec" style="max-width:60rem;margin:1rem auto;">
+  <p class="shield-exec__eyebrow">Zero Trust assessment &mdash; {{ client | client_label }}</p>
+  <h1 class="shield-exec__headline">Tell us where you stand today.</h1>
+  <p class="usa-prose">
+    Each row below is one capability we want to measure for your
+    {{ framework.name if framework else 'Zero Trust' }} posture.
+    Pick the answer that best matches today's reality and add a short
+    note for context. <strong>Answers auto-save as you change them</strong>
+    &mdash; the green "saved ✓" tag confirms each write. You can close
+    this tab and come back later. When everything's filled in, click
+    <strong>Submit final answers</strong> at the bottom.
+  </p>
+
+  <p>
+    <a class="usa-button usa-button--outline usa-button--small"
+       href="{{ url_for('portal.zero_trust_sections') }}">
+      Switch to step-by-step view &rarr;
+    </a>
+  </p>
+
+  {% if is_submitted %}
+    <div class="usa-alert usa-alert--info">
+      <div class="usa-alert__body">
+        <p class="usa-alert__text">
+          <strong>You've already submitted these answers.</strong> Your
+          consultant has what they need. If something's wrong, message
+          them from the portal and they can reopen the questionnaire.
+        </p>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if not framework %}
+    <p class="usa-alert usa-alert--error usa-alert--slim">
+      <span class="usa-alert__body">
+        <span class="usa-alert__text">
+          The framework for this project isn't loaded. Reach out to
+          your consultant — this is on us, not you.
+        </span>
+      </span>
+    </p>
+  {% else %}
+
+  <table class="usa-table">
+    <thead>
+      <tr>
+        <th style="width:18%;">Capability</th>
+        <th style="width:32%;">What we're asking</th>
+        <th style="width:18%;">Where you stand</th>
+        <th>Notes (optional)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in framework.controls %}
+        {% set r = responses.get(c.id) %}
+        {% set locked = r and r.locked %}
+        <tr id="c-{{ c.id }}">
+          <td>
+            <strong>{{ c.title }}</strong>
+            <br><small class="usa-hint">{{ c.pillar }} · <code>{{ c.id }}</code></small>
+          </td>
+          <td>{{ c.description or '—' }}</td>
+          {% if locked or is_submitted %}
+            <td>
+              <strong>{{ r.answer if r else '—' }}</strong>
+              <br><span class="shield-locked-pill">locked</span>
+            </td>
+            <td><em>{{ r.rationale if r and r.rationale else '—' }}</em></td>
+          {% else %}
+            <td colspan="2">
+              {# v1.9 §1: auto-save per row via HTMX. The select and the
+                 rationale input each post to /portal/zero-trust/answer
+                 with `hx-include="closest tr"` so both fields (and the
+                 hidden control_id) ship together — no whole-form
+                 multi-value confusion like the old /portal/about bug.
+                 The server returns a small "saved ✓" fragment we swap
+                 into the per-row status pip. #}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="control_id" value="{{ c.id }}">
+              <select class="usa-select" name="answer"
+                      hx-post="{{ url_for('portal.zero_trust_answer') }}"
+                      hx-trigger="change"
+                      hx-include="closest tr"
+                      hx-target="#saved-{{ c.id }}"
+                      hx-swap="innerHTML">
+                <option value="">— pick one —</option>
+                {% for opt in valid_answers %}
+                  <option value="{{ opt }}" {% if r and r.answer == opt %}selected{% endif %}>
+                    {% if opt == 'implemented' %}In place
+                    {% elif opt == 'partial' %}Partly in place
+                    {% elif opt == 'not_implemented' %}Not in place
+                    {% else %}Not applicable
+                    {% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <input class="usa-input" type="text" name="rationale"
+                     placeholder="Short note (optional)"
+                     value="{{ r.rationale if r else '' }}"
+                     style="min-width:14rem;"
+                     hx-post="{{ url_for('portal.zero_trust_answer') }}"
+                     hx-trigger="blur changed"
+                     hx-include="closest tr"
+                     hx-target="#saved-{{ c.id }}"
+                     hx-swap="innerHTML">
+              <span id="saved-{{ c.id }}" class="shield-portal-saved-host" aria-live="polite"></span>
+            </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if not is_submitted %}
+    <form method="POST" action="{{ url_for('portal.zero_trust_submit') }}"
+          style="margin-top:1.5rem;"
+          onsubmit="return confirm('Submit your answers? Once submitted, you can’t change them — you’d need to start a new engagement to re-answer. Continue?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="usa-button">Submit final answers</button>
+      <a class="usa-button usa-button--outline"
+         href="{{ url_for('portal.index') }}">Save and finish later</a>
+    </form>
+  {% else %}
+    <p style="margin-top:1.5rem;">
+      <a class="usa-button" href="{{ url_for('portal.index') }}">Back to dashboard</a>
+    </p>
+  {% endif %}
+
+  {% endif %}
+</section>
+
+{% endblock %}

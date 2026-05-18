@@ -17,7 +17,7 @@ from flask_login import login_required
 from sqlalchemy import select
 
 from ..extensions import db
-from ..models import AuditEntry, Client
+from ..models import AuditEntry
 from .rbac import admin_or_reviewer
 
 bp = Blueprint("audit", __name__, template_folder="../templates/spine")
@@ -45,11 +45,23 @@ def index():
     since = (request.args.get("since") or "7d").strip()
     page = max(1, int(request.args.get("page") or "1"))
 
+    from .access import scope_query, user_clients
     stmt = select(AuditEntry).order_by(AuditEntry.at.desc())
+    # Reviewer scoping (v1.8): reviewers with assignments see only
+    # audit rows tagged with one of their clients. Admins are
+    # unrestricted; un-assigned reviewers preserve the v1.7
+    # see-everything default.
+    stmt = scope_query(stmt, AuditEntry)
 
     if action_q:
         stmt = stmt.where(AuditEntry.action.ilike(f"%{action_q}%"))
     if client_id:
+        # Defense-in-depth: an explicit client_id filter still has to
+        # pass the per-user scope (the scope_query above already
+        # constrains it). require_client_access blocks reviewers from
+        # poking other clients' ids into the query string.
+        from .access import require_client_access
+        require_client_access(client_id)
         stmt = stmt.where(AuditEntry.client_id == client_id)
     if since in _SINCE_PRESETS and _SINCE_PRESETS[since] is not None:
         threshold = datetime.utcnow() - _SINCE_PRESETS[since]
@@ -58,11 +70,8 @@ def index():
     offset = (page - 1) * _PAGE_SIZE
     entries = list(db.session.scalars(stmt.limit(_PAGE_SIZE).offset(offset)))
 
-    # Build the filter dropdowns. Cheap on the v1.x scale (a few
-    # hundred clients tops).
-    clients = list(
-        db.session.scalars(select(Client).order_by(Client.name))
-    )
+    # Filter dropdown — scoped to what the user can actually filter on.
+    clients = user_clients()
 
     return render_template(
         "spine/audit_index.html",

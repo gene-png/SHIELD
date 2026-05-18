@@ -1,0 +1,80 @@
+{% extends "_layout/base.html" %}
+{% block title %}My services &mdash; SHIELD{% endblock %}
+{% block content %}
+
+<section class="shield-page-header" style="max-width:56rem;margin:1rem auto;">
+  <p class="shield-page-header__eyebrow">{{ client | client_label }}</p>
+  <h1>My services.</h1>
+  <p class="shield-page-header__intro">
+    Where each of your engagements stands today. To add a new one or
+    pause an existing one, use <strong>Change services</strong> at the
+    bottom of the page.
+  </p>
+</section>
+
+{% set state_to_badge = {
+    'requested':     ('requested', 'Requested'),
+    'declined':      ('declined',  'Declined'),
+    'setup':         ('setup',     'Setting up'),
+    'awaiting_docs': ('waiting',   'Waiting on you'),
+    'in_review':     ('in_review', 'In review'),
+    'ready_to_view': ('ready',     'Ready to view'),
+    'complete':      ('complete',  'Complete'),
+} %}
+
+{% if cards %}
+  <div class="grid-row grid-gap" style="max-width:56rem;margin:0 auto;">
+    {% for card in cards %}
+      {% set badge = state_to_badge.get(card.state, ('setup', card.state)) %}
+      <div class="tablet:grid-col-6" style="margin-bottom:1rem;">
+        <div class="shield-service-card">
+          <p style="margin:0 0 .25rem 0;">
+            <span class="shield-status-badge shield-status-badge--{{ badge[0] }}">
+              {{ badge[1] }}
+            </span>
+          </p>
+          <h3>{{ card.label }}</h3>
+          {% if card.project %}
+            <p class="usa-hint">
+              <small>
+                Engagement: {{ card.project.client_display_name or card.project.name }}
+                &middot; stage <strong>{{ card.project.stage }}</strong>
+              </small>
+            </p>
+          {% endif %}
+          {% if card.state == 'setup' and card.key == 'zero_trust' %}
+            <p>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('portal.zero_trust') }}">Start questionnaire</a>
+            </p>
+          {% elif card.state == 'awaiting_docs' %}
+            <p>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('portal.documents') }}">Upload documents</a>
+            </p>
+          {% elif card.state == 'ready_to_view' %}
+            <p>
+              <a class="usa-button usa-button--small"
+                 href="{{ url_for('portal.deliverables_list') }}">View deliverables</a>
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="shield-content-card" style="max-width:56rem;margin:0 auto;">
+    <p class="usa-prose">
+      <em>You haven't picked any services yet.</em>
+      <a href="{{ url_for('portal.services_request') }}">Tell us what you need &rarr;</a>
+    </p>
+  </div>
+{% endif %}
+
+<p style="max-width:56rem;margin:1.5rem auto;">
+  <a class="usa-button" href="{{ url_for('portal.services_edit') }}">Change services</a>
+  <a class="usa-button usa-button--outline"
+     href="{{ url_for('portal.services_request') }}">+ Request another service</a>
+</p>
+
+{% endblock %}

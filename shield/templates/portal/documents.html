@@ -1,0 +1,74 @@
+{% extends "_layout/base.html" %}
+{% block title %}
+  {% if in_onboarding %}Share your documents{% else %}Your documents{% endif %} &mdash; SHIELD
+{% endblock %}
+{% block content %}
+
+<section class="shield-page-header" style="max-width:48rem;margin:1rem auto;">
+  {% if in_onboarding %}
+    <p class="shield-page-header__eyebrow">Step 3 of 4 &mdash; {{ client | client_label }}</p>
+    <h1>Share what you've already got.</h1>
+    <p class="shield-page-header__intro">
+      Drop in anything that would help your consultant get up to speed
+      quickly &mdash; tool inventories, prior assessments, policy
+      documents, screenshots of your security console. Nothing here is
+      public; only your team and your assigned consultant can see it.
+    </p>
+  {% else %}
+    <p class="shield-page-header__eyebrow">{{ client | client_label }}</p>
+    <h1>Your documents.</h1>
+    <p class="shield-page-header__intro">
+      Everything you've shared with your consultant lives here. You
+      can add more any time &mdash; we keep the originals untouched.
+    </p>
+  {% endif %}
+</section>
+
+<div class="shield-content-card" style="max-width:48rem;margin:0 auto 1rem;">
+  <p class="usa-prose">
+    <strong>Heads up:</strong> personal info (emails, phone numbers,
+    addresses) is automatically stripped from anything sent for
+    automated analysis. Your original uploads stay intact.
+  </p>
+
+  <form method="POST" action="{{ url_for('portal.documents_upload') }}"
+        enctype="multipart/form-data" class="usa-form usa-form--large">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="usa-label" for="files">Add more files</label>
+    <input id="files" class="usa-file-input" type="file" name="files" multiple>
+    <button class="usa-button" type="submit" style="margin-top:.75rem;">Upload</button>
+  </form>
+</div>
+
+<div class="shield-content-card" style="max-width:48rem;margin:0 auto;">
+  <h2 class="shield-content-card__heading">What you've shared</h2>
+  {% if uploads %}
+    <table class="usa-table usa-table--striped" style="width:100%;">
+      <thead>
+        <tr><th>File</th><th>Uploaded</th><th>Size</th></tr>
+      </thead>
+      <tbody>
+        {% for a in uploads %}
+          <tr>
+            <td>{{ a.title }}</td>
+            <td>{{ a.created_at | local_time }}</td>
+            <td>{{ a.size_bytes or '&mdash;' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="usa-prose"><em>Nothing yet. Files you upload here appear in this list.</em></p>
+  {% endif %}
+</div>
+
+{% if in_onboarding %}
+  <p style="max-width:48rem;margin:1.5rem auto;">
+    {# Only the onboarding flow shows the wizard navigation. Steady
+       state renders the library and trusts top-nav to move around. #}
+    <a class="usa-button" href="{{ url_for('portal.confirm') }}">I'm done for now &rarr;</a>
+    <a class="usa-button usa-button--outline" href="{{ url_for('portal.about') }}">&larr; Back</a>
+  </p>
+{% endif %}
+
+{% endblock %}
