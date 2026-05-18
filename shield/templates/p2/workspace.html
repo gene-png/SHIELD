@@ -147,86 +147,192 @@
   </p>
 </section>
 
-{# ============ Three distinct artifacts (spec §8.2 Decision #4) ============ #}
-<p class="usa-prose" style="margin-top:1.5rem;">
-  Per the spec, this engagement produces <strong>three distinct artifacts</strong>
-  with different truth-statuses, audiences, and lifespans. They are kept
-  visibly separate; never merged into one report.
+{# ============ Three dashboards (round-5 §6.4 rebuild) ============ #}
+<h2 style="margin-top:1.5rem;">Project outputs</h2>
+<p class="usa-prose">
+  Three distinct outputs &mdash; what's true today, where you're
+  heading, and how to get there &mdash; kept visibly separate.
 </p>
+
+{# Parse each artifact's body_text into structured data. The route
+   doesn't pre-parse so we do it here, defensively. #}
+{%- set current_arts = artifacts | selectattr('stage', 'equalto', 'current_state_assessment') | list -%}
+{%- set desired_arts = artifacts | selectattr('stage', 'equalto', 'desired_future_state') | list -%}
+{%- set roadmap_arts = artifacts | selectattr('stage', 'equalto', 'transition_roadmap') | list -%}
+
+{%- set current_latest = current_arts[0] if current_arts else None -%}
+{%- set desired_latest = desired_arts[0] if desired_arts else None -%}
+{%- set roadmap_latest = roadmap_arts[0] if roadmap_arts else None -%}
+
+{%- set current_data = (current_latest.body_text | from_json) if current_latest else None -%}
+{%- set desired_data = (desired_latest.body_text | from_json) if desired_latest else None -%}
+{%- set roadmap_data = (roadmap_latest.body_text | from_json) if roadmap_latest else None -%}
 
 <div class="grid-row grid-gap">
 
-  {# ----- 1. Current-state assessment (AI, factual) ----- #}
+  {# ===== Card 1: Where you are today (current state) ===== #}
   <div class="tablet:grid-col-4">
-    <section class="shield-lane shield-lane--ai">
-      <h3>1. Current-state assessment</h3>
-      <p class="usa-hint"><em>Automated analysis &middot; evidence-backed &middot; factual.</em></p>
-      {% set current_arts = artifacts | selectattr('stage', 'equalto', 'current_state_assessment') | list %}
-      {% if current_arts %}
-        <ul>
-        {% for a in current_arts %}
-          <li>
-            <strong><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></strong>
-            {% set origin = a.origin.value %}{% set reuse = a.reuse_status.value %}
-            {% include "_components/origin_badge.html" %}
-            <br><small>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-            {% set body_text = a.body_text %}{% set truncate = 3000 %}
-            {% include "_components/readable_body.html" %}
-          </li>
-        {% endfor %}
-        </ul>
+    <section class="usa-card shield-portal-service-card">
+      <h3>Where you are today</h3>
+      <p class="usa-hint">Based on the questionnaire above + any evidence attached.</p>
+
+      {% if current_data and current_data is mapping %}
+        {%- set summary = current_data.get('summary') or {} -%}
+        {%- set controls = current_data.get('controls') or [] -%}
+        {%- set total = summary.get('controls_total') or controls | length -%}
+        {%- set implemented = summary.get('implemented') or 0 -%}
+        {%- set score = ((implemented * 100) // total) if total else 0 -%}
+
+        <div class="shield-exec__numbers" style="margin:.5rem 0;">
+          <div class="usa-card shield-card--good" style="padding:.5rem;">
+            <h2 style="margin:0;font-size:2rem;">{{ score }}%</h2>
+            <p style="margin:0;"><small>controls in place</small></p>
+          </div>
+        </div>
+
+        {% if summary.get('headline') %}
+          <p class="usa-prose"><em>{{ summary.get('headline') }}</em></p>
+        {% endif %}
+
+        {# Per-pillar progress bars. Group controls by pillar via
+           the framework's control catalog so the bars are in a
+           stable order. #}
+        {%- set pillar_totals = {} -%}
+        {%- set pillar_in_place = {} -%}
+        {%- for ctrl in controls -%}
+          {%- set cid = ctrl.get('control_id') -%}
+          {%- set fw_ctrl = framework.controls | selectattr('id', 'equalto', cid) | first -%}
+          {%- if fw_ctrl -%}
+            {%- set pillar = fw_ctrl.pillar -%}
+            {%- if pillar not in pillar_totals -%}
+              {%- set _ = pillar_totals.update({pillar: 0}) -%}
+              {%- set _ = pillar_in_place.update({pillar: 0}) -%}
+            {%- endif -%}
+            {%- set _ = pillar_totals.update({pillar: pillar_totals[pillar] + 1}) -%}
+            {%- if ctrl.get('ai_assessment') == 'implemented' -%}
+              {%- set _ = pillar_in_place.update({pillar: pillar_in_place[pillar] + 1}) -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {% if pillar_totals %}
+          <p class="usa-hint" style="margin:.75rem 0 .25rem;"><strong>By pillar</strong></p>
+          {% for pillar in framework.pillars %}
+            {% if pillar in pillar_totals %}
+              {% set pct = ((pillar_in_place[pillar] * 100) // pillar_totals[pillar]) if pillar_totals[pillar] else 0 %}
+              <div style="margin-bottom:.25rem;">
+                <div style="display:flex;justify-content:space-between;font-size:.8rem;">
+                  <span>{{ pillar }}</span>
+                  <span><small>{{ pillar_in_place[pillar] }} / {{ pillar_totals[pillar] }}</small></span>
+                </div>
+                <div style="background:#dfe1e2;height:.5rem;border-radius:.25rem;overflow:hidden;">
+                  <div style="background:#005ea2;height:100%;width:{{ pct }}%;"></div>
+                </div>
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
+        <p style="margin-top:.75rem;">
+          <a class="usa-button usa-button--small"
+             href="{{ url_for('p2.project_summary', project_id=project.id) }}">
+            Open full assessment &rarr;
+          </a>
+        </p>
+        <p class="usa-hint" style="margin-top:.25rem;">
+          <small>Latest: {{ current_latest.created_at.strftime('%Y-%m-%d %H:%M') }}.</small>
+        </p>
       {% else %}
-        <p>None yet. Click "Run current-state assessment".</p>
+        <p class="usa-hint">
+          <em>Not run yet. Use "Run current-state assessment" above.</em>
+        </p>
       {% endif %}
     </section>
   </div>
 
-  {# ----- 2. Desired future state (human input, aspirational) ----- #}
+  {# ===== Card 2: Where you want to be (desired future state) ===== #}
   <div class="tablet:grid-col-4">
-    <section class="shield-lane shield-lane--human">
-      <h3>2. Desired future state</h3>
-      <p class="usa-hint"><em>Human-input · aspirational · NOT evidence-backed.</em></p>
-      {% set desired_arts = artifacts | selectattr('stage', 'equalto', 'desired_future_state') | list %}
-      {% if desired_arts %}
-        <ul>
-        {% for a in desired_arts %}
-          <li>
-            <strong><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></strong>
-            {% set origin = a.origin.value %}{% set reuse = a.reuse_status.value %}
-            {% include "_components/origin_badge.html" %}
-            <br><small>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-            {% set body_text = a.body_text %}{% set truncate = 3000 %}
-            {% include "_components/readable_body.html" %}
-          </li>
-        {% endfor %}
-        </ul>
+    <section class="usa-card shield-portal-service-card">
+      <h3>Where you want to be</h3>
+      <p class="usa-hint">Your target maturity, set by the admin.</p>
+
+      {% if desired_latest %}
+        {% if desired_data and desired_data is mapping %}
+          {%- set targets = desired_data.get('targets') or desired_data -%}
+          {%- set target_count = (targets | length) if (targets is mapping or targets is sequence) else 0 -%}
+          <p class="usa-prose">
+            <strong>{{ target_count }}</strong> control target{{ '' if target_count == 1 else 's' }}
+            set across the framework.
+          </p>
+        {% endif %}
+        <p style="margin-top:.5rem;">
+          <a class="usa-button usa-button--small usa-button--outline"
+             href="{{ url_for('p2.set_target', project_id=project.id) }}">
+            Edit targets &rarr;
+          </a>
+        </p>
+        <p class="usa-hint">
+          <small>Latest: {{ desired_latest.created_at.strftime('%Y-%m-%d %H:%M') }}.</small>
+        </p>
       {% else %}
-        <p>None yet. Click "Set desired future state".</p>
+        <p class="usa-hint"><em>No targets set yet.</em></p>
+        <p style="margin-top:.5rem;">
+          <a class="usa-button usa-button--small"
+             href="{{ url_for('p2.set_target', project_id=project.id) }}">
+            Set desired future state &rarr;
+          </a>
+        </p>
       {% endif %}
     </section>
   </div>
 
-  {# ----- 3. Transition roadmap (AI, living plan, admin-validated) ----- #}
+  {# ===== Card 3: How to get there (transition roadmap) ===== #}
   <div class="tablet:grid-col-4">
-    <section class="shield-lane shield-lane--promoted">
-      <h3>3. Transition roadmap</h3>
-      <p class="usa-hint"><em>Automated draft &middot; forward-looking &middot; a plan, not a finding.</em></p>
-      {% set roadmap_arts = artifacts | selectattr('stage', 'equalto', 'transition_roadmap') | list %}
-      {% if roadmap_arts %}
-        <ul>
-        {% for a in roadmap_arts %}
-          <li>
-            <strong><a href="{{ url_for('repository.artifact_detail', artifact_id=a.id) }}">{{ a.title }}</a></strong>
-            {% set origin = a.origin.value %}{% set reuse = a.reuse_status.value %}
-            {% include "_components/origin_badge.html" %}
-            <br><small>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-            {% set body_text = a.body_text %}{% set truncate = 3000 %}
-            {% include "_components/readable_body.html" %}
-          </li>
-        {% endfor %}
-        </ul>
+    <section class="usa-card shield-portal-service-card">
+      <h3>How to get there</h3>
+      <p class="usa-hint">A phased plan from where you are to where you want to be.</p>
+
+      {% if roadmap_latest %}
+        {% if roadmap_data and roadmap_data is mapping %}
+          {%- set phases = roadmap_data.get('phases') or roadmap_data.get('milestones') or [] -%}
+          {%- if phases -%}
+            <p class="usa-prose">
+              <strong>{{ phases | length }}</strong> phase{{ '' if phases | length == 1 else 's' }}.
+            </p>
+            <ol class="usa-prose">
+              {% for ph in phases[:3] %}
+                <li>
+                  {% if ph is mapping %}
+                    <strong>{{ ph.get('name') or ph.get('title') or ('Phase ' ~ loop.index) }}</strong>
+                    {% if ph.get('summary') %}&mdash; {{ ph.get('summary') }}{% endif %}
+                  {% else %}
+                    {{ ph }}
+                  {% endif %}
+                </li>
+              {% endfor %}
+              {% if phases | length > 3 %}
+                <li><em>&hellip; and {{ phases | length - 3 }} more.</em></li>
+              {% endif %}
+            </ol>
+          {% else %}
+            <p class="usa-prose">
+              <em>Roadmap drafted &mdash; open the artifact for the full plan.</em>
+            </p>
+          {% endif %}
+        {% endif %}
+        <p style="margin-top:.5rem;">
+          <a class="usa-button usa-button--small"
+             href="{{ url_for('repository.artifact_detail', artifact_id=roadmap_latest.id) }}">
+            Open roadmap &rarr;
+          </a>
+        </p>
+        <p class="usa-hint">
+          <small>Latest: {{ roadmap_latest.created_at.strftime('%Y-%m-%d %H:%M') }}.</small>
+        </p>
       {% else %}
-        <p>None yet. Requires both current-state and desired-state above.</p>
+        <p class="usa-hint">
+          <em>Not generated yet. Requires both current-state and desired-state above.</em>
+        </p>
       {% endif %}
     </section>
   </div>
