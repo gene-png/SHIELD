@@ -642,6 +642,100 @@ def new_project_for_client(client_id: str):
     )
 
 
+@bp.route("/<client_id>/value-loop")
+@login_required
+@require_client_for_param("client_id")
+def value_loop(client_id: str):
+    """Cross-service synthesis for one client (round-7 §8.4).
+
+    Pulls the most recent Tech Debt overlap analysis, the most recent
+    Attack Surface coverage run, and the most recent Zero Trust
+    roadmap. Renders them side by side with the message:
+
+        Here's the wasted spend we found, here's where to redirect
+        it, here's the compliance framing.
+
+    Admin/reviewer-only. The route is scoped via require_client_for_param
+    so cross-client probes return 404.
+    """
+    import json as _json
+    client = db.session.get(Client, client_id)
+    if client is None:
+        abort(404)
+
+    # Latest P1 overlap analysis (one per Tech Debt project; pick the
+    # most recent across all of them).
+    overlap_art = (
+        db.session.query(Artifact)
+        .join(Project, Artifact.project_id == Project.id)
+        .filter(Project.client_id == client_id,
+                Project.platform == PlatformType.TECH_DEBT,
+                Project.archived.is_(False),
+                Artifact.origin == Origin.AI_GENERATED,
+                Artifact.stage == "overlap_analysis")
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+    overlap_summary = None
+    overlap_project = None
+    if overlap_art is not None:
+        overlap_project = db.session.get(Project, overlap_art.project_id)
+        try:
+            overlap_summary = (_json.loads(overlap_art.body_text or "")
+                               .get("summary", {}))
+        except (ValueError, TypeError):
+            overlap_summary = None
+
+    # Latest P3 coverage run.
+    from ..models import CoverageRun
+    coverage_run = (
+        db.session.query(CoverageRun)
+        .join(Project, CoverageRun.project_id == Project.id)
+        .filter(Project.client_id == client_id,
+                Project.platform == PlatformType.ATTACK_SURFACE,
+                Project.archived.is_(False))
+        .order_by(CoverageRun.created_at.desc())
+        .first()
+    )
+    coverage_project = None
+    if coverage_run is not None:
+        coverage_project = db.session.get(Project, coverage_run.project_id)
+
+    # Latest P2 roadmap.
+    roadmap_art = (
+        db.session.query(Artifact)
+        .join(Project, Artifact.project_id == Project.id)
+        .filter(Project.client_id == client_id,
+                Project.platform == PlatformType.ZERO_TRUST,
+                Project.archived.is_(False),
+                Artifact.origin == Origin.AI_GENERATED,
+                Artifact.stage == "transition_roadmap")
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+    roadmap_project = None
+    roadmap_data = None
+    if roadmap_art is not None:
+        roadmap_project = db.session.get(Project, roadmap_art.project_id)
+        try:
+            roadmap_data = _json.loads(roadmap_art.body_text or "")
+        except (ValueError, TypeError):
+            roadmap_data = None
+
+    return render_template(
+        "clients/value_loop.html",
+        client=client,
+        overlap_summary=overlap_summary,
+        overlap_project=overlap_project,
+        overlap_art=overlap_art,
+        coverage_run=coverage_run,
+        coverage_project=coverage_project,
+        roadmap_data=roadmap_data,
+        roadmap_art=roadmap_art,
+        roadmap_project=roadmap_project,
+    )
+
+
 @bp.route("/<client_id>")
 @login_required
 @require_client_for_param("client_id")

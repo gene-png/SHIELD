@@ -1,0 +1,132 @@
+{% extends "_layout/base.html" %}
+{% block title %}Value loop &middot; {{ client | client_label }} &middot; SHIELD{% endblock %}
+{% block content %}
+<p>
+  <a href="{{ url_for('clients.detail', client_id=client.id) }}">
+    &larr; {{ client | client_label }}
+  </a>
+</p>
+
+<section class="shield-exec">
+  <p class="shield-exec__eyebrow">Cross-service synthesis &mdash; {{ client | client_label }}</p>
+  <h1 class="shield-exec__headline">
+    Here's the wasted spend we found, where to redirect it, and the
+    compliance framing.
+  </h1>
+  <p class="usa-prose">
+    A single read across this client's three engagements. Each block
+    links back to the originating project for the full story.
+  </p>
+</section>
+
+<div class="grid-row grid-gap" style="margin-top:1rem;">
+  {# ============ Tech Debt — wasted spend ============ #}
+  <div class="tablet:grid-col-4">
+    <div class="usa-card shield-card--good" style="padding:1rem;">
+      <p class="shield-card__tag"><small>Tech Debt</small></p>
+      <h2>
+        {% if overlap_summary and overlap_summary.get('consolidation_savings_estimate_usd') is not none %}
+          ${{ '{:,.0f}'.format(overlap_summary.get('consolidation_savings_estimate_usd')) }}
+        {% else %}&mdash;{% endif %}
+      </h2>
+      <p><strong>estimated annual savings</strong> from consolidating overlapping tools.</p>
+      {% if overlap_summary and overlap_summary.get('headline') %}
+        <p class="usa-prose"><em>{{ overlap_summary.get('headline') }}</em></p>
+      {% endif %}
+      {% if overlap_project %}
+        <p>
+          <a class="usa-button usa-button--outline usa-button--small"
+             href="{{ url_for('p1.project_summary', project_id=overlap_project.id) }}">
+            Open Tech Debt summary
+          </a>
+        </p>
+      {% else %}
+        <p class="usa-hint"><em>No Tech Debt overlap analysis available yet.</em></p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ============ Attack Surface — gaps ============ #}
+  <div class="tablet:grid-col-4">
+    <div class="usa-card shield-card--bad" style="padding:1rem; border-left:6px solid #b50909;">
+      <p class="shield-card__tag"><small>Attack Surface</small></p>
+      <h2>
+        {% if coverage_run %}{{ coverage_run.summary.get('uncovered', 0) }}{% else %}&mdash;{% endif %}
+      </h2>
+      <p><strong>uncovered ATT&amp;CK techniques</strong> &mdash; where redirected spend has the most impact.</p>
+      {% if coverage_run and coverage_run.summary.get('headline') %}
+        <p class="usa-prose"><em>{{ coverage_run.summary.get('headline') }}</em></p>
+      {% endif %}
+      {% if coverage_run and coverage_project %}
+        <p>
+          <a class="usa-button usa-button--outline usa-button--small"
+             href="{{ url_for('p3.run_detail', project_id=coverage_project.id, run_id=coverage_run.id) }}">
+            Open coverage run
+          </a>
+        </p>
+      {% else %}
+        <p class="usa-hint"><em>No Attack Surface coverage run available yet.</em></p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ============ Zero Trust — compliance framing ============ #}
+  <div class="tablet:grid-col-4">
+    <div class="usa-card shield-card--mid" style="padding:1rem;">
+      <p class="shield-card__tag"><small>Zero Trust</small></p>
+      <h2>
+        {% if roadmap_data and roadmap_data.get('phases') %}
+          {{ roadmap_data.get('phases') | length }}
+        {% else %}&mdash;{% endif %}
+      </h2>
+      <p><strong>phases in the transition roadmap</strong> &mdash; the compliance framing for the work.</p>
+      {% if roadmap_data and roadmap_data.get('headline') %}
+        <p class="usa-prose"><em>{{ roadmap_data.get('headline') }}</em></p>
+      {% endif %}
+      {% if roadmap_project %}
+        <p>
+          <a class="usa-button usa-button--outline usa-button--small"
+             href="{{ url_for('p2.workspace', project_id=roadmap_project.id) }}">
+            Open Zero Trust workspace
+          </a>
+        </p>
+      {% else %}
+        <p class="usa-hint"><em>No Zero Trust roadmap available yet.</em></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ============ Provenance trail ============ #}
+<h2 style="margin-top:2rem;">Where this came from</h2>
+<dl class="shield-walkability__provenance">
+  <dt>Tech Debt overlap analysis</dt>
+  <dd>
+    {% if overlap_art %}
+      <a href="{{ url_for('repository.artifact_detail', artifact_id=overlap_art.id) }}">
+        {{ overlap_art.title }}
+      </a>
+      &middot; {{ overlap_art.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+    {% else %}<em>not produced yet</em>{% endif %}
+  </dd>
+  <dt>Attack Surface coverage run</dt>
+  <dd>
+    {% if coverage_run and coverage_project %}
+      run from
+      <a href="{{ url_for('p3.run_detail', project_id=coverage_project.id, run_id=coverage_run.id) }}">
+        {{ coverage_project.name }}
+      </a>
+      &middot; {{ coverage_run.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+    {% else %}<em>not produced yet</em>{% endif %}
+  </dd>
+  <dt>Zero Trust roadmap</dt>
+  <dd>
+    {% if roadmap_art %}
+      <a href="{{ url_for('repository.artifact_detail', artifact_id=roadmap_art.id) }}">
+        {{ roadmap_art.title }}
+      </a>
+      &middot; {{ roadmap_art.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+    {% else %}<em>not produced yet</em>{% endif %}
+  </dd>
+</dl>
+{% endblock %}

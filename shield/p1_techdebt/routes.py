@@ -30,7 +30,7 @@ from ..spine.picker import (
     link_capability_list_to_project,
     list_capability_lists_for_client,
 )
-from ..spine.rbac import admin_only
+from ..spine.rbac import admin_only, admin_or_reviewer
 from ..spine.repository import (
     write_human_ai_informed_artifact,
     write_human_artifact,
@@ -338,6 +338,36 @@ def overlap(project_id: str):
 # Committing anything to the authoritative list is a separate, explicit
 # act (see `commit_chat` below). The conversation must never silently
 # leak into the final artifact.
+
+# ----- Reviewer audit-walkability (round-7 §8.3) -----
+#
+# Per-overlap walk: the capability-list items in each overlap group
+# (client's claim — what they say they have) -> the automated overlap
+# finding -> the cost estimate -> the recommendation.
+
+@bp.route("/project/<project_id>/walkability")
+@login_required
+@admin_or_reviewer
+def walkability(project_id: str):
+    project = _get_project_or_404(project_id)
+    overlap_art = _find_latest(project, Origin.AI_GENERATED, "overlap_analysis")
+    overlap = None
+    if overlap_art is not None and overlap_art.body_text:
+        try:
+            overlap = json.loads(overlap_art.body_text)
+        except (ValueError, TypeError):
+            overlap = None
+    confirmed = _find_latest(project, Origin.HUMAN_AI_INFORMED, "extraction_review")
+    snapshot = project.capability_snapshot
+    return render_template(
+        "p1/walkability.html",
+        project=project,
+        overlap=overlap,
+        overlap_art=overlap_art,
+        confirmed=confirmed,
+        snapshot=snapshot,
+    )
+
 
 def _find_latest(project: Project, origin: Origin, stage: str) -> Artifact | None:
     return (

@@ -1,0 +1,153 @@
+{% extends "_layout/base.html" %}
+{% block title %}Audit walk · {{ project.name }} · SHIELD{% endblock %}
+{% block content %}
+<p>
+  <a href="{{ url_for('p3.run_detail', project_id=project.id, run_id=run.id) }}">
+    &larr; coverage run
+  </a>
+</p>
+<h1>Audit walk &mdash; {{ project.name }}</h1>
+<p class="usa-prose">
+  For each MITRE ATT&amp;CK technique in this run: the tools the client
+  claims they have &rarr; the automated coverage assessment &rarr; the
+  identified gap &rarr; the recommendation. Each part is visibly
+  separable so a reviewer can walk the chain without trusting any one
+  link.
+</p>
+
+<dl class="shield-walkability__provenance">
+  <dt>Client</dt><dd>{{ project.client | client_label }}</dd>
+  <dt>Project</dt><dd>{{ project.name }}</dd>
+  <dt>Coverage run</dt>
+  <dd>
+    {{ run.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+    {% if run.summary.get('headline') %} &middot; {{ run.summary.get('headline') }}{% endif %}
+  </dd>
+  <dt>Capability snapshot</dt>
+  <dd>
+    {% if snapshot %}
+      <a href="{{ url_for('clients.capability_list_detail', client_id=project.client_id, list_id=snapshot.id) }}">
+        v{{ snapshot.version }} &middot; {{ snapshot.label }}
+      </a>
+      &middot; {{ snapshot.items | length }} items
+      &middot; {% set origin = snapshot.origin.value %}{% set reuse = 'draft' %}
+      {% include "_components/origin_badge.html" %}
+    {% else %}<em>not linked</em>{% endif %}
+  </dd>
+</dl>
+
+{# ----- Per-technique walk rows. Group by coverage class so the
+   blind spots surface first. ----- #}
+{% set order = ['uncovered', 'partial', 'covered'] %}
+{% set findings_by_cov = {} %}
+{% for f in findings %}
+  {% set _ = findings_by_cov.setdefault(f.coverage, []).append(f) %}
+{% endfor %}
+
+{% for cov in order %}
+  {% set group = findings_by_cov.get(cov, []) %}
+  {% if group %}
+    <h2 style="margin-top:2rem;">
+      {% if cov == 'uncovered' %}Uncovered techniques
+      {% elif cov == 'partial' %}Partially covered
+      {% else %}Fully covered{% endif %}
+      <small class="usa-hint">({{ group | length }})</small>
+    </h2>
+
+    {% for f in group %}
+      {% set t = techniques_by_id.get(f.technique_id) %}
+      <section class="shield-walkability__control"
+               id="t-{{ f.technique_id }}"
+               style="border:1px solid #dfe1e2; padding:1rem; margin:1rem 0;">
+        <h3>
+          <code>{{ f.technique_id }}</code> &middot;
+          {{ t.name if t else 'Unknown technique' }}
+          {% if t and t.tactic %}<small class="usa-hint">&middot; {{ t.tactic }}</small>{% endif %}
+        </h3>
+        {% if t and t.description %}
+          <p class="usa-prose">{{ t.description }}</p>
+        {% endif %}
+
+        <div class="grid-row grid-gap">
+          {# ----- Client's claim (tools the client has on hand) ----- #}
+          <div class="tablet:grid-col-6">
+            <h4 class="shield-walk__step">&#9312; Client's claim</h4>
+            {% set has_claim = (f.detection_tools or f.prevention_tools or f.response_tools) %}
+            {% if has_claim %}
+              <dl>
+                {% if f.detection_tools %}
+                  <dt>Detection</dt>
+                  <dd>{{ f.detection_tools | join(', ') }}</dd>
+                {% endif %}
+                {% if f.prevention_tools %}
+                  <dt>Prevention</dt>
+                  <dd>{{ f.prevention_tools | join(', ') }}</dd>
+                {% endif %}
+                {% if f.response_tools %}
+                  <dt>Response</dt>
+                  <dd>{{ f.response_tools | join(', ') }}</dd>
+                {% endif %}
+              </dl>
+            {% else %}
+              <p><em>No tools claimed for this technique.</em></p>
+            {% endif %}
+          </div>
+
+          {# ----- Automated assessment ----- #}
+          <div class="tablet:grid-col-6">
+            <h4 class="shield-walk__step">&#9313; Automated assessment</h4>
+            <p>
+              Coverage:
+              {% if f.coverage == 'covered' %}
+                <span class="shield-badge shield-badge--human_input">covered</span>
+              {% elif f.coverage == 'partial' %}
+                <span class="shield-badge shield-badge--human_ai_informed">partial</span>
+              {% else %}
+                <span class="shield-badge shield-badge--ai_generated">uncovered</span>
+              {% endif %}
+            </p>
+            {% if f.rationale %}
+              <blockquote class="usa-prose">{{ f.rationale }}</blockquote>
+            {% else %}
+              <p><em>No rationale recorded.</em></p>
+            {% endif %}
+          </div>
+        </div>
+
+        {# ----- Identified gap + recommendation ----- #}
+        {% if f.coverage != 'covered' %}
+          <h4 class="shield-walk__step">&#9314; Identified gap</h4>
+          {% if f.coverage == 'uncovered' %}
+            <p>
+              No detection, prevention, or response capability is recorded
+              for this technique. The full kill chain is unobserved.
+            </p>
+          {% else %}
+            {% set missing = [] %}
+            {% if not f.detection_tools %}{% set _ = missing.append('detection') %}{% endif %}
+            {% if not f.prevention_tools %}{% set _ = missing.append('prevention') %}{% endif %}
+            {% if not f.response_tools %}{% set _ = missing.append('response') %}{% endif %}
+            <p>Coverage is partial &mdash; missing: {{ missing | join(', ') or 'unspecified' }}.</p>
+          {% endif %}
+
+          <h4 class="shield-walk__step">&#9315; Recommendation</h4>
+          <p class="usa-prose">
+            {% if f.coverage == 'uncovered' %}
+              Add a capability that addresses this technique, or document
+              an explicit acceptance of risk for it.
+            {% else %}
+              Extend existing capabilities to fill the
+              {{ missing | join(' / ') or 'unspecified' }} gap, or
+              document why the partial coverage is acceptable.
+            {% endif %}
+          </p>
+        {% endif %}
+      </section>
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+
+{% if not findings %}
+  <p class="usa-prose"><em>No findings on this run.</em></p>
+{% endif %}
+{% endblock %}

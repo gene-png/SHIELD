@@ -20,7 +20,7 @@ from ..spine.picker import (
     link_capability_list_to_project,
     list_capability_lists_for_client,
 )
-from ..spine.rbac import admin_only
+from ..spine.rbac import admin_only, admin_or_reviewer
 from . import bp
 from .attack_data import TECHNIQUES as STARTER_TECHNIQUES
 
@@ -252,6 +252,42 @@ def run_export(project_id: str, run_id: str):
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=ascii_safe,
+    )
+
+
+# ----- Reviewer audit-walkability (round-7 §8.3) -----
+#
+# The auditor's per-technique view: capability claim (which of the
+# client's tools are alleged to detect / prevent / respond to the
+# technique) -> automated assessment (coverage class + rationale) ->
+# identified gap -> recommendation. Mirrors the P2 walkability
+# template's structure.
+
+@bp.route("/project/<project_id>/run/<run_id>/walkability")
+@login_required
+@admin_or_reviewer
+def walkability(project_id: str, run_id: str):
+    project = _get_project_or_404(project_id)
+    run = db.session.get(CoverageRun, run_id)
+    if run is None or run.project_id != project.id:
+        abort(404)
+    findings = (
+        db.session.query(CoverageFinding)
+        .filter_by(coverage_run_id=run.id)
+        .all()
+    )
+    techniques_by_id = {t["technique_id"]: t for t in _load_techniques()}
+    # The capability list snapshot is the source of the client's claim
+    # (what they say they have); pass it through so the template can
+    # show per-tool provenance alongside each technique walk.
+    snapshot = None
+    if run.capability_list_version_id:
+        from ..models import CapabilityList
+        snapshot = db.session.get(CapabilityList, run.capability_list_version_id)
+    return render_template(
+        "p3/walkability.html",
+        project=project, run=run, findings=findings,
+        techniques_by_id=techniques_by_id, snapshot=snapshot,
     )
 
 
