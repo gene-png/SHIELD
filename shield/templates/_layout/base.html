@@ -123,5 +123,10 @@
       {% endif %}
     </div>
   </footer>
+
+  {# Round-7 §18: convert every server-rendered `<time datetime="..." class="local-time">`
+     to the viewer's local timezone. UTC stays in the attribute (and on
+     hover) — only the visible text changes. #}
+  <script src="{{ url_for('static', filename='shield/local-time.js') }}" defer></script>
 </body>
 </html>

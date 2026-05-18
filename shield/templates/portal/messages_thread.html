@@ -22,7 +22,7 @@
             {% if author and author.role.value != 'client' %}
               <small class="usa-hint">(consultant)</small>
             {% endif %}
-            &middot; <small>{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            &middot; <small>{{ m.created_at | local_time }}</small>
           </p>
           <p class="usa-prose">{{ m.body }}</p>
         </li>

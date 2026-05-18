@@ -13,7 +13,7 @@
 <p>
   {% set origin = art.origin.value %}{% set reuse = art.reuse_status.value %}{% include "_components/origin_badge.html" %}
   &middot; stage <strong>{{ art.stage }}</strong>
-  &middot; created {{ art.created_at.strftime('%Y-%m-%d %H:%M') }}
+  &middot; created {{ art.created_at | local_time }}
 </p>
 
 {% if art.body_text %}
@@ -30,7 +30,7 @@
   <h2>Approval</h2>
   <p class="shield-promoted">
     Approved{% if promoter %} by <strong>{{ promoter.display_name }}</strong>{% endif %}
-    {% if art.promoted_at %}on {{ art.promoted_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}.
+    {% if art.promoted_at %}on {{ art.promoted_at | local_time }}{% endif %}.
     <br>
     <em>This is still an automated-analysis draft; only its reuse status changed.</em>
   </p>

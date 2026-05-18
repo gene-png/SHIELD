@@ -16,7 +16,7 @@
         <td><a href="{{ url_for('p3.workspace', project_id=p.id) }}">{{ p.name }}</a></td>
         <td>{{ p.client.name }}</td>
         <td>{{ p.stage }}</td>
-        <td>{{ p.created_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ p.created_at | local_time(fmt='date') }}</td>
       </tr>
     {% endfor %}
   </tbody>

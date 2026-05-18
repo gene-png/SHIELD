@@ -38,7 +38,7 @@
           <td>{{ u.display_name }}</td>
           <td>{{ u.email }}</td>
           <td>{{ m.membership_role }}</td>
-          <td>{% if m.accepted_at %}joined {{ m.accepted_at.strftime('%Y-%m-%d') }}{% else %}<em>pending</em>{% endif %}</td>
+          <td>{% if m.accepted_at %}joined {{ m.accepted_at | local_time(fmt='date') }}{% else %}<em>pending</em>{% endif %}</td>
         </tr>
       {% endfor %}
     </tbody>
@@ -76,7 +76,7 @@
           {% for inv in invites %}
             <tr>
               <td>{{ inv.email }}</td>
-              <td>{{ inv.expires_at.strftime('%Y-%m-%d') }}</td>
+              <td>{{ inv.expires_at | local_time(fmt='date') }}</td>
               <td>
                 <form method="POST"
                       action="{{ url_for('portal.settings_invite_revoke', invite_id=inv.id) }}"

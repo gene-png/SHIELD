@@ -110,7 +110,7 @@
               <p class="usa-hint"><small>Internal: {{ p.name }}</small></p>
             {% endif %}
             <p class="usa-hint">
-              <small>Created {{ p.created_at.strftime('%Y-%m-%d') }}.</small>
+              <small>Created {{ p.created_at | local_time(fmt='date') }}.</small>
             </p>
             <p style="margin-top:.5rem;">
               <a class="usa-button usa-button--small"
@@ -160,7 +160,7 @@
             <td>{{ cl.label }}</td>
             <td>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %}</td>
             <td>{{ cl.items | length }}</td>
-            <td>{{ cl.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>{{ cl.created_at | local_time(fmt='date') }}</td>
           </tr>
         {% endfor %}
       </tbody>

@@ -51,7 +51,7 @@
         <em>not specified</em>
       {% endif %}
       {% if client.compliance_deadline %}
-        &middot; deadline {{ client.compliance_deadline.strftime('%Y-%m-%d') }}
+        &middot; deadline {{ client.compliance_deadline | local_time(fmt='date') }}
       {% endif %}
     </li>
   </ul>
@@ -94,7 +94,7 @@
               <strong>{{ a.title }}</strong>
               <br><small>{{ a.id[:8] }}</small>
             </td>
-            <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ a.created_at | local_time }}</td>
             <td>{{ a.size_bytes or '&mdash;' }}</td>
             <td>
               {# Round-4: 'Adopt' is now a navigation to the create-or-pick

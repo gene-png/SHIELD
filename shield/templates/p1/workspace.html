@@ -155,7 +155,7 @@
       <ul class="usa-prose">
         {% for r in reviews %}
           <li>
-            <strong>{{ r.title }}</strong> &mdash; reviewed {{ r.created_at.strftime('%Y-%m-%d %H:%M') }}
+            <strong>{{ r.title }}</strong> &mdash; reviewed {{ r.created_at | local_time }}
           </li>
         {% endfor %}
       </ul>
@@ -256,7 +256,7 @@
     <p class="usa-hint">The reconciled capability list this project produces. Becomes a new versioned snapshot on the client.</p>
 
     {% if finals %}
-      <p><strong>{{ finals[0].title }}</strong> &mdash; finalized {{ finals[0].created_at.strftime('%Y-%m-%d %H:%M') }}.</p>
+      <p><strong>{{ finals[0].title }}</strong> &mdash; finalized {{ finals[0].created_at | local_time }}.</p>
       {% if final_stale %}
         <p class="usa-alert usa-alert--warning usa-alert--slim" style="margin-top:.5rem;">
           <span class="usa-alert__body">

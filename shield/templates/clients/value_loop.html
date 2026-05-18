@@ -106,7 +106,7 @@
       <a href="{{ url_for('repository.artifact_detail', artifact_id=overlap_art.id) }}">
         {{ overlap_art.title }}
       </a>
-      &middot; {{ overlap_art.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+      &middot; {{ overlap_art.created_at | local_time }} UTC
     {% else %}<em>not produced yet</em>{% endif %}
   </dd>
   <dt>Attack Surface coverage run</dt>
@@ -116,7 +116,7 @@
       <a href="{{ url_for('p3.run_detail', project_id=coverage_project.id, run_id=coverage_run.id) }}">
         {{ coverage_project.name }}
       </a>
-      &middot; {{ coverage_run.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+      &middot; {{ coverage_run.created_at | local_time }} UTC
     {% else %}<em>not produced yet</em>{% endif %}
   </dd>
   <dt>Zero Trust roadmap</dt>
@@ -125,7 +125,7 @@
       <a href="{{ url_for('repository.artifact_detail', artifact_id=roadmap_art.id) }}">
         {{ roadmap_art.title }}
       </a>
-      &middot; {{ roadmap_art.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+      &middot; {{ roadmap_art.created_at | local_time }} UTC
     {% else %}<em>not produced yet</em>{% endif %}
   </dd>
 </dl>

@@ -9,7 +9,7 @@
 <section class="shield-exec" style="max-width:56rem;margin:1rem auto;">
   <p class="shield-exec__eyebrow">
     {{ project.name if project else 'Project' }}
-    {% if project %} &middot; <small>finalized {{ deliverable.finalized_at.strftime('%Y-%m-%d %H:%M') }}</small>{% endif %}
+    {% if project %} &middot; <small>finalized {{ deliverable.finalized_at | local_time }}</small>{% endif %}
   </p>
   <h1 class="shield-exec__headline">{{ deliverable.title }}</h1>
 

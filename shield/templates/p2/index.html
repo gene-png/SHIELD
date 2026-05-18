@@ -17,7 +17,7 @@
         <td>{{ p.client.name }}</td>
         <td>{{ frameworks[p.framework].name if p.framework in frameworks else p.framework or '—' }}</td>
         <td>{{ p.stage }}</td>
-        <td>{{ p.created_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ p.created_at | local_time(fmt='date') }}</td>
       </tr>
     {% endfor %}
   </tbody>

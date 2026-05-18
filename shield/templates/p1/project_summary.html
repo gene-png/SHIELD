@@ -116,7 +116,7 @@
   <p class="usa-hint">
     Latest overlap artifact:
     <a href="{{ url_for('repository.artifact_detail', artifact_id=overlap_art.id) }}">{{ overlap_art.title }}</a>
-    &middot; {{ overlap_art.created_at.strftime('%Y-%m-%d %H:%M') }}
+    &middot; {{ overlap_art.created_at | local_time }}
   </p>
 
   {% if overlaps %}

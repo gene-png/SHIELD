@@ -102,6 +102,12 @@ class User(UserMixin, db.Model):
     # Not required for auth — Keycloak still owns email + sub.
     title = Column(String(255))
     phone = Column(String(64))
+    # Round-7 §18: IANA timezone string (e.g. "America/New_York"). Set
+    # on first login by a browser-detected probe; users can override
+    # from /portal/settings. The server stores and audits in UTC; this
+    # is purely a render-time hint for the client-side JS that converts
+    # `<time datetime="...">` elements to local-time strings.
+    timezone = Column(String(64))
     role = Column(Enum(Role, name="user_role", values_callable=_enum_values), nullable=False, default=Role.CLIENT)
     is_active_flag = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

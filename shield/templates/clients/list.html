@@ -38,7 +38,7 @@
       </td>
       <td>
         {% if cl %}
-          v{{ cl.version }} &middot; {{ cl.created_at.strftime('%Y-%m-%d') }} &middot;
+          v{{ cl.version }} &middot; {{ cl.created_at | local_time(fmt='date') }} &middot;
           {% set origin = cl.origin.value %}{% set reuse = 'draft' %}
           {% include "_components/origin_badge.html" %}
         {% else %}&mdash;{% endif %}

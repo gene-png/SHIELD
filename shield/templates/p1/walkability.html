@@ -21,7 +21,7 @@
       <a href="{{ url_for('repository.artifact_detail', artifact_id=confirmed.id) }}">
         {{ confirmed.title }}
       </a>
-      &middot; {{ confirmed.created_at.strftime('%Y-%m-%d %H:%M') }}
+      &middot; {{ confirmed.created_at | local_time }}
       &middot; {% set origin = 'human_ai_informed' %}{% set reuse = confirmed.reuse_status.value %}
       {% include "_components/origin_badge.html" %}
     {% else %}<em>not yet produced</em>{% endif %}
@@ -32,7 +32,7 @@
       <a href="{{ url_for('repository.artifact_detail', artifact_id=overlap_art.id) }}">
         {{ overlap_art.title }}
       </a>
-      &middot; {{ overlap_art.created_at.strftime('%Y-%m-%d %H:%M') }}
+      &middot; {{ overlap_art.created_at | local_time }}
       &middot; {% set origin = 'ai_generated' %}{% set reuse = overlap_art.reuse_status.value %}
       {% include "_components/origin_badge.html" %}
     {% else %}<em>not yet run</em>{% endif %}

@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="{{ url_for('clients.detail', client_id=cl.client_id) }}">&larr; back to client</a></p>
 <h1>Capability list v{{ cl.version }} — {{ cl.label }}</h1>
-<p>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %} · {{ cl.created_at.strftime('%Y-%m-%d') }} · {{ cl.items | length }} items</p>
+<p>{% set origin = cl.origin.value %}{% set reuse = 'draft' %}{% include "_components/origin_badge.html" %} · {{ cl.created_at | local_time(fmt='date') }} · {{ cl.items | length }} items</p>
 
 <p>
   <a class="usa-button" href="{{ url_for('clients.capability_list_export', client_id=cl.client_id, list_id=cl.id) }}">

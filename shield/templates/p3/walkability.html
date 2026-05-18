@@ -20,7 +20,7 @@
   <dt>Project</dt><dd>{{ project.name }}</dd>
   <dt>Coverage run</dt>
   <dd>
-    {{ run.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+    {{ run.created_at | local_time }} UTC
     {% if run.summary.get('headline') %} &middot; {{ run.summary.get('headline') }}{% endif %}
   </dd>
   <dt>Capability snapshot</dt>

@@ -28,7 +28,7 @@
                 <strong>{{ d.title }}</strong>
                 {% if d.summary %}<br><small>{{ d.summary }}</small>{% endif %}
               </td>
-              <td>{{ d.finalized_at.strftime('%Y-%m-%d') }}</td>
+              <td>{{ d.finalized_at | local_time(fmt='date') }}</td>
               <td>
                 <a class="usa-button usa-button--small"
                    href="{{ url_for('portal.deliverable_detail', deliverable_id=d.id) }}">Open</a>

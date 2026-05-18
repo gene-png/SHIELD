@@ -74,6 +74,32 @@ def create_app(config_object: type[Config] = Config) -> Flask:
         return _render_audit_details(action, details)
     app.jinja_env.filters["audit_summary"] = _audit_summary
 
+    # `local_time`: render a datetime as `<time datetime="...UTC...">` so
+    # the client-side `local-time.js` can convert it in place. Round-7
+    # §18: storage + audit + wire stay UTC; only the display layer
+    # converts. Usage in templates:
+    #     {{ project.created_at | local_time }}
+    #     {{ project.created_at | local_time(fmt='date') }}   # date only
+    from markupsafe import Markup, escape
+
+    def _local_time(value, fmt: str = "datetime"):
+        if value is None:
+            return Markup("&mdash;")
+        # Datetime stored as naive UTC throughout the app. `Z` suffix
+        # makes the JS Date parser treat it as UTC regardless of viewer.
+        iso = value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        # Fallback text the page shows before the JS runs (or if it's
+        # disabled): pretty UTC. The JS overwrites .textContent on load.
+        if fmt == "date":
+            fallback = value.strftime("%Y-%m-%d")
+        else:
+            fallback = value.strftime("%Y-%m-%d %H:%M UTC")
+        return Markup(
+            f'<time datetime="{escape(iso)}" data-fmt="{escape(fmt)}" '
+            f'class="local-time">{escape(fallback)}</time>'
+        )
+    app.jinja_env.filters["local_time"] = _local_time
+
     # --- Models must be imported before migrations ---
     from . import models  # noqa: F401
 

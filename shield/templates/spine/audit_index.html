@@ -67,7 +67,10 @@
   <tbody>
     {% for e in entries %}
       <tr>
-        <td><code>{{ e.at.strftime('%Y-%m-%d %H:%M:%S') }}</code></td>
+        <td>
+          {{ e.at | local_time }}
+          <br><small class="usa-hint" style="color:#5c5c5c;">UTC: <code>{{ e.at.strftime('%Y-%m-%dT%H:%M:%SZ') }}</code></small>
+        </td>
         <td>{{ e.actor_email or '—' }}</td>
         <td><code>{{ e.action }}</code></td>
         <td>

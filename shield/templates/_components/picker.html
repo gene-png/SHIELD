@@ -32,7 +32,7 @@
               {% set origin = item.origin.value %}
               {% set reuse  = item.reuse_status.value if item.reuse_status is defined else 'draft' %}
               {% include "_components/origin_badge.html" %}
-              · {{ item.created_at.strftime('%Y-%m-%d') }}
+              · {{ item.created_at | local_time(fmt='date') }}
             </span>
           </label>
         </li>

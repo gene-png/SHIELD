@@ -15,9 +15,9 @@
 
   <h2>Request details</h2>
   <dl class="shield-walkability__provenance">
-    <dt>Requested</dt> <dd>{{ request_.requested_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+    <dt>Requested</dt> <dd>{{ request_.requested_at | local_time }}</dd>
     {% if request_.deadline %}
-      <dt>Client deadline</dt> <dd>{{ request_.deadline.strftime('%Y-%m-%d') }}</dd>
+      <dt>Client deadline</dt> <dd>{{ request_.deadline | local_time(fmt='date') }}</dd>
     {% endif %}
     {% if request_.notes %}
       <dt>Notes from client</dt> <dd>{{ request_.notes }}</dd>

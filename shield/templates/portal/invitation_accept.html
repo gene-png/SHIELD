@@ -21,7 +21,7 @@
   </form>
 
   <p class="usa-hint" style="margin-top:1rem;">
-    This invitation expires {{ inv.expires_at.strftime('%Y-%m-%d') }}.
+    This invitation expires {{ inv.expires_at | local_time(fmt='date') }}.
   </p>
 </section>
 

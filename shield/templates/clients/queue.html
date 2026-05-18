@@ -29,7 +29,7 @@
               <strong>{{ c.name }}</strong>
               {% if c.industry %}<br><small>{{ c.industry }}</small>{% endif %}
             </td>
-            <td>{{ c.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>{{ c.created_at | local_time(fmt='date') }}</td>
             <td><a class="usa-button usa-button--small"
                    href="{{ url_for('clients.intake_view', client_id=c.id) }}">Open intake</a></td>
           </tr>
@@ -69,8 +69,8 @@
                 {% for sr in row.open_requests %}
                   <li>
                     <span class="usa-tag">{{ service_labels.get(sr.service, sr.service) }}</span>
-                    <small>requested {{ sr.requested_at.strftime('%Y-%m-%d') }}</small>
-                    {% if sr.deadline %}&middot; <small>deadline {{ sr.deadline.strftime('%Y-%m-%d') }}</small>{% endif %}
+                    <small>requested {{ sr.requested_at | local_time(fmt='date') }}</small>
+                    {% if sr.deadline %}&middot; <small>deadline {{ sr.deadline | local_time(fmt='date') }}</small>{% endif %}
                     {% if sr.notes %}<br><small><em>{{ sr.notes[:80] }}{% if sr.notes|length > 80 %}&hellip;{% endif %}</em></small>{% endif %}
                     {% if sr.service != 'unsure' %}
                       <a class="usa-button usa-button--small"

@@ -240,7 +240,7 @@
           </a>
         </p>
         <p class="usa-hint" style="margin-top:.25rem;">
-          <small>Latest: {{ current_latest.created_at.strftime('%Y-%m-%d %H:%M') }}.</small>
+          <small>Latest: {{ current_latest.created_at | local_time }}.</small>
         </p>
       {% else %}
         <p class="usa-hint">
@@ -272,7 +272,7 @@
           </a>
         </p>
         <p class="usa-hint">
-          <small>Latest: {{ desired_latest.created_at.strftime('%Y-%m-%d %H:%M') }}.</small>
+          <small>Latest: {{ desired_latest.created_at | local_time }}.</small>
         </p>
       {% else %}
         <p class="usa-hint"><em>No targets set yet.</em></p>
@@ -327,7 +327,7 @@
           </a>
         </p>
         <p class="usa-hint">
-          <small>Latest: {{ roadmap_latest.created_at.strftime('%Y-%m-%d %H:%M') }}.</small>
+          <small>Latest: {{ roadmap_latest.created_at | local_time }}.</small>
         </p>
       {% else %}
         <p class="usa-hint">
